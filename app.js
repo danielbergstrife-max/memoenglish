@@ -1017,28 +1017,22 @@ window.onload = () => {
     showView('homeView');
 };
 
+let currentRecognition = null;
+
 function startListening() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
     
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (currentRecognition) {
-        try { currentRecognition.abort(); } catch(e) {}
-    }
+    if (currentRecognition) currentRecognition.stop();
     
     const rec = new SR();
     currentRecognition = rec;
     rec.lang = 'en-US';
     rec.interimResults = true;
-    rec.continuous = !isMobile; // Android Chrome silently fails if continuous is true
+    rec.continuous = true;
     
     $('micBtn').classList.add('listening');
-    $('micHint').textContent = "Iniciando microfone...";
-    
-    rec.onstart = () => {
-        $('micHint').innerHTML = `<span style="color:var(--success);">Ouvindo... Pode falar!</span>`;
-    };
+    $('micHint').textContent = "Ouvindo...";
     
     let success = false;
 
@@ -1131,55 +1125,39 @@ function startListening() {
     rec.onerror = (e) => {
         if (e.error === 'no-speech') return; // Ignore silence
         console.error('Speech error:', e.error);
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-            $('micHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Microfone bloqueado! Verifique as permissões do navegador e do Google App nas configurações do Android.</span>`;
-        } else if (e.error === 'audio-capture') {
-            $('micHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Erro de captura de áudio. Verifique se outro app não está usando o microfone.</span>`;
-        } else {
-            $('micHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Erro no microfone: ${e.error}</span>`;
-        }
-        $('micBtn').classList.remove('listening');
+        //$('micHint').textContent = "Erro ao ouvir. Tente de novo.";
     };
 
     rec.onend = () => {
         if (!success && session.active && session.mode === 'speak' && currentRecognition === rec) {
+            // Auto-restart for "infinite" experience if not successful yet
             try { rec.start(); } catch(e) {}
         } else {
             $('micBtn').classList.remove('listening');
         }
     };
 
-    try {
-        rec.start();
-    } catch(err) {
-        console.error("Failed to start recognition:", err);
-        $('micHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Falha ao iniciar: ${err.message}</span>`;
-        $('micBtn').classList.remove('listening');
-    }
+    rec.start();
 }
 
 function startListeningCorrection() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
 
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-    if (currentRecognition) {
-        try { currentRecognition.abort(); } catch(e) {}
-    }
+    if (currentRecognition) currentRecognition.stop();
 
     const recognition = new SR();
     currentRecognition = recognition;
     recognition.lang = 'en-US';
     recognition.interimResults = true;
-    recognition.continuous = !isMobile; // Fix for Android silent fail
+    recognition.continuous = true;
 
     let success = false;
     let finalTranscript = '';
 
     recognition.onstart = () => {
         $('micBtnCorrection').classList.add('listening');
-        $('correctionVoiceHint').innerHTML = `<span style="color:var(--success);">Ouvindo... Pode falar!</span>`;
+        $('correctionVoiceHint').textContent = "Ouvindo...";
     };
 
     recognition.onresult = (event) => {
@@ -1262,17 +1240,6 @@ function startListeningCorrection() {
         }
     };
 
-    recognition.onerror = (e) => {
-        if (e.error === 'no-speech') return; // Ignore silence
-        console.error('Speech error:', e.error);
-        if (e.error === 'not-allowed') {
-            $('correctionVoiceHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Microfone bloqueado! Verifique se o site usa HTTPS e se você permitiu o acesso.</span>`;
-        } else {
-            $('correctionVoiceHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Erro no microfone: ${e.error}</span>`;
-        }
-        $('micBtnCorrection').classList.remove('listening');
-    };
-
     recognition.onend = () => {
         if (!success && session.active && currentRecognition === recognition) {
             try { recognition.start(); } catch(e) {}
@@ -1281,13 +1248,7 @@ function startListeningCorrection() {
         }
     };
 
-    try {
-        recognition.start();
-    } catch(err) {
-        console.error("Failed to start recognition:", err);
-        $('correctionVoiceHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Falha ao iniciar: ${err.message}</span>`;
-        $('micBtnCorrection').classList.remove('listening');
-    }
+    recognition.start();
 }
 
 function deletePhrase(id) {
