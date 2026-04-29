@@ -1018,6 +1018,7 @@ window.onload = () => {
 };
 
 let currentRecognition = null;
+let keepAliveStream = null;
 
 async function startListening() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1026,8 +1027,9 @@ async function startListening() {
     // HACK: Force microphone permission and hardware initialization on Android
     try {
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            stream.getTracks().forEach(t => t.stop()); // Stop immediately
+            if (!keepAliveStream) {
+                keepAliveStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
         }
     } catch (err) {
         $('micHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Microfone bloqueado pelo sistema: ${err.message}</span>`;
@@ -1155,8 +1157,11 @@ async function startListening() {
     };
 
     rec.onend = () => {
+        if (keepAliveStream) {
+            keepAliveStream.getTracks().forEach(t => t.stop());
+            keepAliveStream = null;
+        }
         if (!success && session.active && session.mode === 'speak' && currentRecognition === rec) {
-            // Auto-restart for "infinite" experience if not successful yet
             try { rec.start(); } catch(e) {}
         } else {
             $('micBtn').classList.remove('listening');
@@ -1178,8 +1183,9 @@ async function startListeningCorrection() {
 
     try {
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            stream.getTracks().forEach(t => t.stop());
+            if (!keepAliveStream) {
+                keepAliveStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
         }
     } catch (err) {
         $('correctionVoiceHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Microfone bloqueado: ${err.message}</span>`;
@@ -1298,6 +1304,10 @@ async function startListeningCorrection() {
     };
 
     recognition.onend = () => {
+        if (keepAliveStream) {
+            keepAliveStream.getTracks().forEach(t => t.stop());
+            keepAliveStream = null;
+        }
         if (!success && session.active && currentRecognition === recognition) {
             try { recognition.start(); } catch(e) {}
         } else {
