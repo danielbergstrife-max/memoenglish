@@ -1017,24 +1017,9 @@ window.onload = () => {
     showView('homeView');
 };
 
-let currentRecognition = null;
-let keepAliveStream = null;
-
-async function startListening() {
+function startListening() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
-    
-    // HACK: Force microphone permission and hardware initialization on Android
-    try {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            if (!keepAliveStream) {
-                keepAliveStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            }
-        }
-    } catch (err) {
-        $('micHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Microfone bloqueado pelo sistema: ${err.message}</span>`;
-        return;
-    }
     
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
@@ -1157,10 +1142,6 @@ async function startListening() {
     };
 
     rec.onend = () => {
-        if (keepAliveStream) {
-            keepAliveStream.getTracks().forEach(t => t.stop());
-            keepAliveStream = null;
-        }
         if (!success && session.active && session.mode === 'speak' && currentRecognition === rec) {
             try { rec.start(); } catch(e) {}
         } else {
@@ -1177,20 +1158,9 @@ async function startListening() {
     }
 }
 
-async function startListeningCorrection() {
+function startListeningCorrection() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
-
-    try {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            if (!keepAliveStream) {
-                keepAliveStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            }
-        }
-    } catch (err) {
-        $('correctionVoiceHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Microfone bloqueado: ${err.message}</span>`;
-        return;
-    }
 
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
@@ -1304,10 +1274,6 @@ async function startListeningCorrection() {
     };
 
     recognition.onend = () => {
-        if (keepAliveStream) {
-            keepAliveStream.getTracks().forEach(t => t.stop());
-            keepAliveStream = null;
-        }
         if (!success && session.active && currentRecognition === recognition) {
             try { recognition.start(); } catch(e) {}
         } else {
