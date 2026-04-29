@@ -1041,21 +1041,25 @@ function startListening() {
     currentRecognition = rec;
     rec.lang = 'en-US';
     rec.interimResults = true;
-    rec.continuous = true;
+    rec.continuous = false; // Changed to false for better stability on Android
+    rec.maxAlternatives = 1;
     
     $('micBtn').classList.add('listening');
     $('micHint').innerHTML = '<span style="color: var(--primary);">🔄 Ativando microfone...</span>';
     
     let success = false;
     let listeningConfirmed = false;
+    let hasResults = false;
 
     rec.onstart = () => {
         listeningConfirmed = true;
-        $('micHint').innerHTML = '<span style="color: var(--success); font-weight: 800;">🎙️ Microfone ativo!</span><br><small>Fale agora...</small>';
+        $('micHint').innerHTML = '<span style="color: var(--success); font-weight: 800;">🎙️ Microfone ativo! Fale agora...</span>';
         console.log('✅ Speech Recognition iniciado com sucesso');
     };
 
     rec.onresult = (e) => {
+        hasResults = true;
+        console.log('📝 Resultado recebido:', e.results.length, 'resultados');
         let fullTranscript = '';
         let interimTranscript = '';
         let anyImprecise = false;
@@ -1063,9 +1067,10 @@ function startListening() {
 
         for (let i = 0; i < e.results.length; ++i) {
             const res = e.results[i][0];
+            console.log(`Resultado ${i}: "${res.transcript}" (confiança: ${res.confidence}, final: ${e.results[i].isFinal})`);
             if (e.results[i].isFinal) {
                 fullTranscript += res.transcript + ' ';
-                if (res.confidence < 0.88) anyImprecise = true;
+                if (res.confidence < 0.5) anyImprecise = true; // Reduced from 0.88 to 0.5 for Android
             } else {
                 interimTranscript += res.transcript;
             }
@@ -1074,10 +1079,14 @@ function startListening() {
         
         const t = (fullTranscript + interimTranscript).trim();
         const heard = normalizeText(t);
-        const heardWords = heard.split(' ');
+        const heardWords = heard.split(' ').filter(w => w);
         const target = normalizeText(session.current.english);
         const targetWords = session.current.english.split(' ');
         const normTargetWords = targetWords.map(w => normalizeText(w));
+        
+        console.log('🎯 Alvo:', target);
+        console.log('👂 Ouvido:', heard);
+        console.log('Confiança:', latestConfidence);
         
         let anyImpreciseMatch = false;
         for (let i = 0; i < e.results.length; i++) {
@@ -1087,7 +1096,7 @@ function startListening() {
             normTargetWords.forEach(ntw => { if (resText.includes(ntw)) isTargetPart = true; });
             
             // Only count as imprecise if it's part of the target AND in our most recent attempt
-            if (isTargetPart && res.confidence < 0.88 && e.results[i].isFinal) {
+            if (isTargetPart && res.confidence < 0.5 && e.results[i].isFinal) {
                 if (recentAttempt.includes(resText) || target.includes(resText)) {
                     anyImpreciseMatch = true;
                 }
@@ -1126,7 +1135,7 @@ function startListening() {
         });
 
         if (isFullMatch) {
-            if (!anyImpreciseMatch && latestConfidence >= 0.88) {
+            if (!anyImpreciseMatch && latestConfidence >= 0.5) { // Reduced threshold to 0.5
                 success = true;
                 rec.stop();
                 $('micBtn').classList.remove('listening');
@@ -1136,13 +1145,19 @@ function startListening() {
                 $('micHint').innerHTML = `${displayedHTML}<br><span style="color: var(--warning); font-weight: 800;">Pronúncia imprecisa! 🎙️</span><br><small style="color: var(--text-muted);">Tente repetir de forma mais nítida.</small>`;
             }
         } else {
-            $('micHint').innerHTML = displayedHTML || "Ouvindo...";
+            $('micHint').innerHTML = displayedHTML || "👂 Tentando ouvir...";
             if (anyImpreciseMatch) $('micHint').innerHTML += '<br><small style="color:var(--warning)">Pronúncia ruim detectada!</small>';
         }
     };
 
     rec.onerror = (e) => {
-        if (e.error === 'no-speech') return; // Ignore silence
+        if (e.error === 'no-speech') {
+            console.warn('⚠️ Nenhuma fala detectada (timeout)');
+            if (!hasResults && listeningConfirmed) {
+                $('micHint').innerHTML = '<span style="color: var(--warning); font-weight: 800;">🔇 Silêncio detectado. Tente novamente!</span>';
+            }
+            return; // Ignore silence
+        }
         
         console.error('❌ Erro de voz:', e.error);
         
@@ -1162,10 +1177,27 @@ function startListening() {
     rec.onend = () => {
         if (!success && session.active && session.mode === 'speak' && currentRecognition === rec) {
             // Auto-restart for "infinite" experience if not successful yet
-            try { rec.start(); } catch(e) {}
+            console.log('🔄 Reiniciando reconhecimento...');
+            setTimeout(() => {
+                try { rec.start(); } catch(e) { console.error('Erro ao reiniciar:', e); }
+            }, 500);
         } else {
             $('micBtn').classList.remove('listening');
         }
+    };
+
+    // Add timeout to detect if mic isn't working
+    const timeoutId = setTimeout(() => {
+        if (!hasResults && listeningConfirmed) {
+            console.warn('⏱️ Timeout: nenhum áudio recebido em 8 segundos');
+            $('micHint').innerHTML = '<span style="color: var(--danger); font-weight: 800;">⏱️ Timeout! Nenhum áudio detectado.</span><br><small style="color: var(--text-muted);">Certifique-se de que o microfone está funcionando.</small>';
+        }
+    }, 8000);
+
+    rec.onstart = () => {
+        listeningConfirmed = true;
+        $('micHint').innerHTML = '<span style="color: var(--success); font-weight: 800;">🎙️ Microfone ativo! Fale agora...</span>';
+        console.log('✅ Speech Recognition iniciado com sucesso');
     };
 
     rec.start();
@@ -1181,23 +1213,29 @@ function startListeningCorrection() {
     currentRecognition = recognition;
     recognition.lang = 'en-US';
     recognition.interimResults = true;
-    recognition.continuous = true;
+    recognition.continuous = false; // Changed to false for better stability on Android
+    recognition.maxAlternatives = 1;
 
     let success = false;
     let finalTranscript = '';
+    let hasResults = false;
 
     recognition.onstart = () => {
         $('micBtnCorrection').classList.add('listening');
         $('correctionVoiceHint').innerHTML = '<span style="color: var(--success); font-weight: 800;">🎙️ Microfone ativo!</span>';
+        console.log('✅ Reconhecimento de correção iniciado');
     };
 
     recognition.onresult = (event) => {
+        hasResults = true;
+        console.log('📝 Resultado recebido (correção):', event.results.length, 'resultados');
         let fullTranscript = '';
         let interimTranscript = '';
         let latestConfidence = 0;
 
         for (let i = 0; i < event.results.length; ++i) {
             const res = event.results[i][0];
+            console.log(`Resultado ${i}: "${res.transcript}" (confiança: ${res.confidence}, final: ${event.results[i].isFinal})`);
             if (event.results[i].isFinal) fullTranscript += res.transcript + ' ';
             else interimTranscript += res.transcript;
             if (i === event.results.length - 1) latestConfidence = res.confidence;
@@ -1205,10 +1243,14 @@ function startListeningCorrection() {
 
         const t = (fullTranscript + interimTranscript).trim();
         const heard = normalizeText(t);
-        const heardWords = heard.split(' ');
+        const heardWords = heard.split(' ').filter(w => w);
         const target = normalizeText(session.current.english);
         const targetWords = session.current.english.split(' ');
         const normTargetWords = targetWords.map(w => normalizeText(w));
+
+        console.log('🎯 Alvo:', target);
+        console.log('👂 Ouvido:', heard);
+        console.log('Confiança:', latestConfidence);
 
         let anyImpreciseMatch = false;
         for (let i = 0; i < event.results.length; i++) {
@@ -1217,7 +1259,7 @@ function startListeningCorrection() {
             let isTargetPart = false;
             normTargetWords.forEach(ntw => { if (resText.includes(ntw)) isTargetPart = true; });
             
-            if (isTargetPart && res.confidence < 0.88 && event.results[i].isFinal) {
+            if (isTargetPart && res.confidence < 0.5 && event.results[i].isFinal) { // Reduced from 0.88 to 0.5
                 if (recentAttempt.includes(resText) || target.includes(resText)) {
                     anyImpreciseMatch = true;
                 }
@@ -1251,7 +1293,7 @@ function startListeningCorrection() {
         });
 
         if (isFullMatch) {
-            if (!anyImpreciseMatch && latestConfidence >= 0.88) {
+            if (!anyImpreciseMatch && latestConfidence >= 0.5) { // Reduced threshold to 0.5
                 success = true;
                 recognition.stop();
                 $('correctionVoiceHint').innerHTML = `<span style="color: var(--success); font-weight: 800;">Pronúncia correta! 🎉</span>`;
@@ -1267,12 +1309,18 @@ function startListeningCorrection() {
         } else if (displayedHTML !== "") {
             $('correctionVoiceHint').innerHTML = `Ouvi: "${displayedHTML}"`;
         } else {
-            $('correctionVoiceHint').textContent = "Ouvindo...";
+            $('correctionVoiceHint').textContent = "👂 Tentando ouvir...";
         }
     };
 
     recognition.onerror = (e) => {
-        if (e.error === 'no-speech') return;
+        if (e.error === 'no-speech') {
+            console.warn('⚠️ Nenhuma fala detectada (correção timeout)');
+            if (!hasResults) {
+                $('correctionVoiceHint').innerHTML = '<span style="color: var(--warning); font-weight: 800;">🔇 Silêncio detectado. Tente novamente!</span>';
+            }
+            return;
+        }
         
         console.error('❌ Erro de voz (correção):', e.error);
         
@@ -1291,11 +1339,22 @@ function startListeningCorrection() {
 
     recognition.onend = () => {
         if (!success && session.active && currentRecognition === recognition) {
-            try { recognition.start(); } catch(e) {}
+            console.log('🔄 Reiniciando reconhecimento (correção)...');
+            setTimeout(() => {
+                try { recognition.start(); } catch(e) { console.error('Erro ao reiniciar:', e); }
+            }, 500);
         } else {
             $('micBtnCorrection').classList.remove('listening');
         }
     };
+
+    // Add timeout to detect if mic isn't working
+    const timeoutId = setTimeout(() => {
+        if (!hasResults) {
+            console.warn('⏱️ Timeout: nenhum áudio recebido em 8 segundos (correção)');
+            $('correctionVoiceHint').innerHTML = '<span style="color: var(--danger); font-weight: 800;">⏱️ Timeout! Nenhum áudio detectado.</span><br><small style="color: var(--text-muted);">Certifique-se de que o microfone está funcionando.</small>';
+        }
+    }, 8000);
 
     recognition.start();
 }
