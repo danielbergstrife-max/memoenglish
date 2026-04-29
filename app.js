@@ -626,49 +626,6 @@ function unlockAudio() {
     console.log("Audio unlocked for mobile");
 }
 
-// ==================== MIC PERMISSION ====================
-let micPermissionRequested = false;
-
-function checkMicSupport() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return false;
-    // SpeechRecognition requires HTTPS (except localhost)
-    const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-    return isSecure;
-}
-
-async function requestMicPermission() {
-    if (micPermissionRequested) return;
-    micPermissionRequested = true;
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Stop all tracks immediately — we just needed the permission prompt
-        stream.getTracks().forEach(t => t.stop());
-        console.log('Mic permission granted');
-    } catch (e) {
-        console.warn('Mic permission not granted:', e.name);
-    }
-}
-
-function getMicErrorMessage(errorName) {
-    switch (errorName) {
-        case 'not-allowed':
-        case 'PermissionDeniedError':
-            return 'Permissão negada! Vá nas configurações do navegador e permita o acesso ao microfone.';
-        case 'no-speech':
-            return null; // Silent — normal timeout
-        case 'network':
-            return 'Erro de rede. O reconhecimento de voz requer conexão estável.';
-        case 'audio-capture':
-        case 'NotFoundError':
-            return 'Microfone não encontrado. Verifique se ele está conectado e funcionando.';
-        case 'aborted':
-            return null; // Silently aborted
-        default:
-            return `Erro ao acessar microfone: ${errorName}`;
-    }
-}
-
 function expandContractions(text) {
     let lower = text.toLowerCase();
     // Replace different types of quotes with standard apostrophe first
@@ -1028,15 +985,6 @@ window.onload = () => {
         });
     });
 
-    // Request mic permission on first interaction so the browser shows the dialog
-    function onFirstInteraction() {
-        unlockAudio();
-        requestMicPermission();
-        document.removeEventListener('click', onFirstInteraction);
-        document.removeEventListener('touchstart', onFirstInteraction);
-    }
-    document.addEventListener('click', onFirstInteraction);
-    document.addEventListener('touchstart', onFirstInteraction);
     document.addEventListener('click', unlockAudio, { once: false });
     document.addEventListener('touchstart', unlockAudio, { once: false });
 
@@ -1070,25 +1018,48 @@ window.onload = () => {
 };
 
 let currentRecognition = null;
+let micPermissionGranted = false;
 
-function startListening() {
+// Solicita permissão do microfone explicitamente via getUserMedia
+// Isso é OBRIGATÓRIO em navegadores móveis para que o prompt de permissão apareça
+async function requestMicPermission() {
+    // Verificar se estamos em contexto seguro (HTTPS)
+    if (window.isSecureContext === false || (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1')) {
+        alert('⚠️ Este recurso requer HTTPS!\n\nO reconhecimento de voz só funciona em páginas servidas via HTTPS. Certifique-se de que seu site usa HTTPS.', 'Conexão Insegura', '🔒');
+        return false;
+    }
+
+    if (micPermissionGranted) return true;
+
+    try {
+        // Solicitar acesso ao microfone - isso faz o navegador mostrar o prompt de permissão
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Parar todas as tracks imediatamente - só precisamos da permissão
+        stream.getTracks().forEach(track => track.stop());
+        micPermissionGranted = true;
+        console.log('Permissão do microfone concedida!');
+        return true;
+    } catch (err) {
+        console.error('Erro ao solicitar microfone:', err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            alert('🎤 Permissão do microfone negada!\n\nPara usar o reconhecimento de voz, permita o acesso ao microfone nas configurações do seu navegador.', 'Permissão Necessária', '🎤');
+        } else if (err.name === 'NotFoundError') {
+            alert('Nenhum microfone encontrado!\n\nConecte um microfone e tente novamente.', 'Microfone Ausente', '🎤');
+        } else {
+            alert('Erro ao acessar o microfone: ' + err.message, 'Erro', '❌');
+        }
+        return false;
+    }
+}
+
+async function startListening() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-        return alert(
-            'Reconhecimento de voz não suportado neste navegador.\n\n' +
-            '• iPhone/iPad: use o Safari\n' +
-            '• Android: use o Chrome',
-            'Sem Suporte', '🎤'
-        );
-    }
+    if (!SR) return alert("Navegador sem suporte a voz.");
 
-    if (!checkMicSupport()) {
-        return alert(
-            'O microfone só funciona em conexões seguras (HTTPS).\n\nAcesse o site pelo endereço https://',
-            'Conexão não segura', '🔒'
-        );
-    }
-
+    // Primeiro, solicitar permissão do microfone (essencial para mobile)
+    const hasPermission = await requestMicPermission();
+    if (!hasPermission) return;
+    
     if (currentRecognition) currentRecognition.stop();
     
     const rec = new SR();
@@ -1189,13 +1160,9 @@ function startListening() {
     };
 
     rec.onerror = (e) => {
+        if (e.error === 'no-speech') return; // Ignore silence
         console.error('Speech error:', e.error);
-        const msg = getMicErrorMessage(e.error);
-        if (msg) {
-            success = true; // Prevent auto-restart loop
-            $('micBtn').classList.remove('listening');
-            $('micHint').textContent = msg;
-        }
+        //$('micHint').textContent = "Erro ao ouvir. Tente de novo.";
     };
 
     rec.onend = () => {
@@ -1210,23 +1177,13 @@ function startListening() {
     rec.start();
 }
 
-function startListeningCorrection() {
+async function startListeningCorrection() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-        return alert(
-            'Reconhecimento de voz não suportado neste navegador.\n\n' +
-            '• iPhone/iPad: use o Safari\n' +
-            '• Android: use o Chrome',
-            'Sem Suporte', '🎤'
-        );
-    }
+    if (!SR) return alert("Navegador sem suporte a voz.");
 
-    if (!checkMicSupport()) {
-        return alert(
-            'O microfone só funciona em conexões seguras (HTTPS).\n\nAcesse o site pelo endereço https://',
-            'Conexão não segura', '🔒'
-        );
-    }
+    // Primeiro, solicitar permissão do microfone (essencial para mobile)
+    const hasPermission = await requestMicPermission();
+    if (!hasPermission) return;
 
     if (currentRecognition) currentRecognition.stop();
 
@@ -1321,16 +1278,6 @@ function startListeningCorrection() {
             $('correctionVoiceHint').innerHTML = `Ouvi: "${displayedHTML}"`;
         } else {
             $('correctionVoiceHint').textContent = "Ouvindo...";
-        }
-    };
-
-    recognition.onerror = (e) => {
-        console.error('Speech correction error:', e.error);
-        const msg = getMicErrorMessage(e.error);
-        if (msg) {
-            success = true; // Prevent auto-restart loop
-            $('micBtnCorrection').classList.remove('listening');
-            $('correctionVoiceHint').textContent = msg;
         }
     };
 
