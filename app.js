@@ -508,9 +508,6 @@ function processAnswer(isCorrect, userVal) {
     const interval = SRS_INTERVALS[Math.min(session.current.level, 9)] * 60 * 1000;
     session.current.nextReview = Date.now() + interval;
     appData.totalReviews++;
-    // Limpar sessões de escuta para parar o auto-restart loop
-    window._currentListenSession = null;
-    window._currentCorrectionSession = null;
     if (currentRecognition) {
         currentRecognition.onend = null;
         currentRecognition.stop();
@@ -1021,330 +1018,267 @@ window.onload = () => {
 };
 
 let currentRecognition = null;
-let micPermissionGranted = false;
 
-// Solicita permissão do microfone explicitamente via getUserMedia
-// Isso é OBRIGATÓRIO em navegadores móveis para que o prompt de permissão apareça
-async function requestMicPermission() {
-    // Verificar se estamos em contexto seguro (HTTPS)
-    if (window.isSecureContext === false || (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1')) {
-        alert('⚠️ Este recurso requer HTTPS!\n\nO reconhecimento de voz só funciona em páginas servidas via HTTPS. Certifique-se de que seu site usa HTTPS.', 'Conexão Insegura', '🔒');
-        return false;
-    }
+function startListening() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return alert("Navegador sem suporte a voz.");
+    
+    if (currentRecognition) currentRecognition.stop();
+    
+    const rec = new SR();
+    currentRecognition = rec;
+    rec.lang = 'en-US';
+    rec.interimResults = true;
+    rec.continuous = true;
+    
+    $('micBtn').classList.add('listening');
+    $('micHint').textContent = "Ouvindo...";
+    
+    let success = false;
 
-    if (micPermissionGranted) return true;
+    rec.onresult = (e) => {
+        let fullTranscript = '';
+        let interimTranscript = '';
+        let anyImprecise = false;
+        let latestConfidence = 0;
+
+        for (let i = 0; i < e.results.length; ++i) {
+            const res = e.results[i][0];
+            if (e.results[i].isFinal) {
+                fullTranscript += res.transcript + ' ';
+                if (res.confidence < 0.88) anyImprecise = true;
+            } else {
+                interimTranscript += res.transcript;
+            }
+            if (i === e.results.length - 1) latestConfidence = res.confidence;
+        }
+        
+        const t = (fullTranscript + interimTranscript).trim();
+        const heard = normalizeText(t);
+        const heardWords = heard.split(' ');
+        const target = normalizeText(session.current.english);
+        const targetWords = session.current.english.split(' ');
+        const normTargetWords = targetWords.map(w => normalizeText(w));
+        
+        let anyImpreciseMatch = false;
+        for (let i = 0; i < e.results.length; i++) {
+            const res = e.results[i][0];
+            const resText = normalizeText(res.transcript);
+            let isTargetPart = false;
+            normTargetWords.forEach(ntw => { if (resText.includes(ntw)) isTargetPart = true; });
+            
+            // Only count as imprecise if it's part of the target AND in our most recent attempt
+            if (isTargetPart && res.confidence < 0.88 && e.results[i].isFinal) {
+                if (recentAttempt.includes(resText) || target.includes(resText)) {
+                    anyImpreciseMatch = true;
+                }
+            }
+        }
+
+        const isFullMatch = heard === target || 
+                           heard.endsWith(" " + target) || 
+                           heard.startsWith(target + " ") || 
+                           heard.includes(" " + target + " ");
+        
+        // Build displayed words with color coding and "restart" support
+        let displayedHTML = "";
+        
+        // Find the last index of the first word to identify the most recent attempt
+        let lastFirstWordIdx = -1;
+        for (let i = heardWords.length - 1; i >= 0; i--) {
+            if (heardWords[i] === normTargetWords[0]) {
+                lastFirstWordIdx = i;
+                break;
+            }
+        }
+
+        const recentAttempt = lastFirstWordIdx !== -1 ? heardWords.slice(lastFirstWordIdx) : [];
+
+        normTargetWords.forEach((ntw, idx) => {
+            if (isFullMatch) {
+                displayedHTML += `<span style="color: var(--success); font-weight: 700;">${targetWords[idx]}</span> `;
+            } else if (recentAttempt[idx] === ntw) {
+                // Word is in the correct position in the most recent attempt
+                displayedHTML += `<span style="color: var(--success); font-weight: 700;">${targetWords[idx]}</span> `;
+            } else if (heardWords.includes(ntw)) {
+                // Word was spoken but is currently misplaced
+                displayedHTML += `<span style="color: var(--warning); font-weight: 700;">${targetWords[idx]}</span> `;
+            }
+        });
+
+        if (isFullMatch) {
+            if (!anyImpreciseMatch && latestConfidence >= 0.88) {
+                success = true;
+                rec.stop();
+                $('micBtn').classList.remove('listening');
+                $('micHint').innerHTML = `<span style="color: var(--success); font-size: 1.5rem; font-weight: 800;">Perfeito! ✨</span><br>${displayedHTML}`;
+                setTimeout(() => processAnswer(true, session.current.english), 1000);
+            } else {
+                $('micHint').innerHTML = `${displayedHTML}<br><span style="color: var(--warning); font-weight: 800;">Pronúncia imprecisa! 🎙️</span><br><small style="color: var(--text-muted);">Tente repetir de forma mais nítida.</small>`;
+            }
+        } else {
+            $('micHint').innerHTML = displayedHTML || "Ouvindo...";
+            if (anyImpreciseMatch) $('micHint').innerHTML += '<br><small style="color:var(--warning)">Pronúncia ruim detectada!</small>';
+        }
+    };
+
+    rec.onerror = (e) => {
+        if (e.error === 'no-speech') return; // Ignore silence
+        console.error('Speech error:', e.error);
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+            $('micHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Microfone bloqueado! Verifique as permissões do navegador e do Google App nas configurações do Android.</span>`;
+        } else if (e.error === 'audio-capture') {
+            $('micHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Erro de captura de áudio. Verifique se outro app não está usando o microfone.</span>`;
+        } else {
+            $('micHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Erro no microfone: ${e.error}</span>`;
+        }
+        $('micBtn').classList.remove('listening');
+    };
+
+    rec.onend = () => {
+        if (!success && session.active && session.mode === 'speak' && currentRecognition === rec) {
+            // Auto-restart for "infinite" experience if not successful yet
+            try { rec.start(); } catch(e) {}
+        } else {
+            $('micBtn').classList.remove('listening');
+        }
+    };
 
     try {
-        // Solicitar acesso ao microfone - isso faz o navegador mostrar o prompt de permissão
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Parar todas as tracks imediatamente - só precisamos da permissão
-        stream.getTracks().forEach(track => track.stop());
-        micPermissionGranted = true;
-        console.log('Permissão do microfone concedida!');
-        return true;
-    } catch (err) {
-        console.error('Erro ao solicitar microfone:', err);
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-            alert('🎤 Permissão do microfone negada!\n\nPara usar o reconhecimento de voz, permita o acesso ao microfone nas configurações do seu navegador.', 'Permissão Necessária', '🎤');
-        } else if (err.name === 'NotFoundError') {
-            alert('Nenhum microfone encontrado!\n\nConecte um microfone e tente novamente.', 'Microfone Ausente', '🎤');
-        } else {
-            alert('Erro ao acessar o microfone: ' + err.message, 'Erro', '❌');
-        }
-        return false;
-    }
-}
-
-async function startListening() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return alert("Navegador sem suporte a voz.");
-
-    // Primeiro, solicitar permissão do microfone (essencial para mobile)
-    const hasPermission = await requestMicPermission();
-    if (!hasPermission) return;
-    
-    if (currentRecognition) {
-        currentRecognition.onend = null;
-        currentRecognition.stop();
-    }
-    
-    let success = false;
-    let listenSessionId = Date.now(); // ID único para esta sessão de escuta
-    window._currentListenSession = listenSessionId;
-
-    function createRecognition() {
-        const rec = new SR();
-        currentRecognition = rec;
-        rec.lang = 'en-US';
-        rec.interimResults = true;
-        rec.maxAlternatives = 1;
-        // No mobile, continuous pode causar problemas - usamos restart loop
-        rec.continuous = false;
-
-        rec.onstart = () => {
-            $('micBtn').classList.add('listening');
-            $('micHint').textContent = "Ouvindo...";
-            console.log('SpeechRecognition started');
-        };
-
-        rec.onresult = (e) => {
-            let fullTranscript = '';
-            let interimTranscript = '';
-            let anyImprecise = false;
-            let latestConfidence = 0;
-
-            for (let i = 0; i < e.results.length; ++i) {
-                const res = e.results[i][0];
-                if (e.results[i].isFinal) {
-                    fullTranscript += res.transcript + ' ';
-                    if (res.confidence < 0.88) anyImprecise = true;
-                } else {
-                    interimTranscript += res.transcript;
-                }
-                if (i === e.results.length - 1) latestConfidence = res.confidence;
-            }
-            
-            const t = (fullTranscript + interimTranscript).trim();
-            const heard = normalizeText(t);
-            const heardWords = heard.split(' ');
-            const target = normalizeText(session.current.english);
-            const targetWords = session.current.english.split(' ');
-            const normTargetWords = targetWords.map(w => normalizeText(w));
-            
-            // Find the last index of the first word to identify the most recent attempt
-            let lastFirstWordIdx = -1;
-            for (let i = heardWords.length - 1; i >= 0; i--) {
-                if (heardWords[i] === normTargetWords[0]) {
-                    lastFirstWordIdx = i;
-                    break;
-                }
-            }
-            const recentAttempt = lastFirstWordIdx !== -1 ? heardWords.slice(lastFirstWordIdx) : [];
-
-            let anyImpreciseMatch = false;
-            for (let i = 0; i < e.results.length; i++) {
-                const res = e.results[i][0];
-                const resText = normalizeText(res.transcript);
-                let isTargetPart = false;
-                normTargetWords.forEach(ntw => { if (resText.includes(ntw)) isTargetPart = true; });
-                
-                // Only count as imprecise if it's part of the target AND in our most recent attempt
-                if (isTargetPart && res.confidence < 0.88 && e.results[i].isFinal) {
-                    if (recentAttempt.includes(resText) || target.includes(resText)) {
-                        anyImpreciseMatch = true;
-                    }
-                }
-            }
-
-            const isFullMatch = heard === target || 
-                               heard.endsWith(" " + target) || 
-                               heard.startsWith(target + " ") || 
-                               heard.includes(" " + target + " ");
-            
-            // Build displayed words with color coding and "restart" support
-            let displayedHTML = "";
-
-            normTargetWords.forEach((ntw, idx) => {
-                if (isFullMatch) {
-                    displayedHTML += `<span style="color: var(--success); font-weight: 700;">${targetWords[idx]}</span> `;
-                } else if (recentAttempt[idx] === ntw) {
-                    // Word is in the correct position in the most recent attempt
-                    displayedHTML += `<span style="color: var(--success); font-weight: 700;">${targetWords[idx]}</span> `;
-                } else if (heardWords.includes(ntw)) {
-                    // Word was spoken but is currently misplaced
-                    displayedHTML += `<span style="color: var(--warning); font-weight: 700;">${targetWords[idx]}</span> `;
-                }
-            });
-
-            if (isFullMatch) {
-                if (!anyImpreciseMatch && latestConfidence >= 0.88) {
-                    success = true;
-                    window._currentListenSession = null;
-                    rec.onend = null;
-                    rec.stop();
-                    $('micBtn').classList.remove('listening');
-                    $('micHint').innerHTML = `<span style="color: var(--success); font-size: 1.5rem; font-weight: 800;">Perfeito! ✨</span><br>${displayedHTML}`;
-                    setTimeout(() => processAnswer(true, session.current.english), 1000);
-                } else {
-                    $('micHint').innerHTML = `${displayedHTML}<br><span style="color: var(--warning); font-weight: 800;">Pronúncia imprecisa! 🎙️</span><br><small style="color: var(--text-muted);">Tente repetir de forma mais nítida.</small>`;
-                }
-            } else {
-                $('micHint').innerHTML = displayedHTML || "Ouvindo...";
-                if (anyImpreciseMatch) $('micHint').innerHTML += '<br><small style="color:var(--warning)">Pronúncia ruim detectada!</small>';
-            }
-        };
-
-        rec.onerror = (e) => {
-            if (e.error === 'no-speech' || e.error === 'aborted') return;
-            console.error('Speech error:', e.error);
-        };
-
-        rec.onend = () => {
-            console.log('SpeechRecognition ended, success:', success, 'sessionActive:', session.active);
-            if (!success && session.active && session.mode === 'speak' && window._currentListenSession === listenSessionId) {
-                // Criar nova instância com delay para mobile
-                setTimeout(() => {
-                    if (!success && session.active && session.mode === 'speak' && window._currentListenSession === listenSessionId) {
-                        console.log('Auto-restarting SpeechRecognition...');
-                        try {
-                            createRecognition();
-                        } catch(e) {
-                            console.error('Restart failed:', e);
-                            $('micBtn').classList.remove('listening');
-                            $('micHint').textContent = "Toque no microfone para tentar novamente";
-                        }
-                    }
-                }, 300);
-            } else {
-                $('micBtn').classList.remove('listening');
-            }
-        };
-
         rec.start();
+    } catch(err) {
+        console.error("Failed to start recognition:", err);
+        $('micHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Falha ao iniciar: ${err.message}</span>`;
+        $('micBtn').classList.remove('listening');
     }
-
-    createRecognition();
 }
 
-async function startListeningCorrection() {
+function startListeningCorrection() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
 
-    // Primeiro, solicitar permissão do microfone (essencial para mobile)
-    const hasPermission = await requestMicPermission();
-    if (!hasPermission) return;
+    if (currentRecognition) currentRecognition.stop();
 
-    if (currentRecognition) {
-        currentRecognition.onend = null;
-        currentRecognition.stop();
-    }
+    const recognition = new SR();
+    currentRecognition = recognition;
+    recognition.lang = 'en-US';
+    recognition.interimResults = true;
+    recognition.continuous = true;
 
     let success = false;
-    let correctionSessionId = Date.now();
-    window._currentCorrectionSession = correctionSessionId;
+    let finalTranscript = '';
 
-    function createCorrectionRecognition() {
-        const recognition = new SR();
-        currentRecognition = recognition;
-        recognition.lang = 'en-US';
-        recognition.interimResults = true;
-        recognition.maxAlternatives = 1;
-        recognition.continuous = false;
+    recognition.onstart = () => {
+        $('micBtnCorrection').classList.add('listening');
+        $('correctionVoiceHint').textContent = "Ouvindo...";
+    };
 
-        recognition.onstart = () => {
-            $('micBtnCorrection').classList.add('listening');
-            $('correctionVoiceHint').textContent = "Ouvindo...";
-        };
+    recognition.onresult = (event) => {
+        let fullTranscript = '';
+        let interimTranscript = '';
+        let latestConfidence = 0;
 
-        recognition.onresult = (event) => {
-            let fullTranscript = '';
-            let interimTranscript = '';
-            let latestConfidence = 0;
+        for (let i = 0; i < event.results.length; ++i) {
+            const res = event.results[i][0];
+            if (event.results[i].isFinal) fullTranscript += res.transcript + ' ';
+            else interimTranscript += res.transcript;
+            if (i === event.results.length - 1) latestConfidence = res.confidence;
+        }
 
-            for (let i = 0; i < event.results.length; ++i) {
-                const res = event.results[i][0];
-                if (event.results[i].isFinal) fullTranscript += res.transcript + ' ';
-                else interimTranscript += res.transcript;
-                if (i === event.results.length - 1) latestConfidence = res.confidence;
-            }
+        const t = (fullTranscript + interimTranscript).trim();
+        const heard = normalizeText(t);
+        const heardWords = heard.split(' ');
+        const target = normalizeText(session.current.english);
+        const targetWords = session.current.english.split(' ');
+        const normTargetWords = targetWords.map(w => normalizeText(w));
 
-            const t = (fullTranscript + interimTranscript).trim();
-            const heard = normalizeText(t);
-            const heardWords = heard.split(' ');
-            const target = normalizeText(session.current.english);
-            const targetWords = session.current.english.split(' ');
-            const normTargetWords = targetWords.map(w => normalizeText(w));
-
-            // Find the last index of the first word to identify the most recent attempt
-            let lastFirstWordIdx = -1;
-            for (let i = heardWords.length - 1; i >= 0; i--) {
-                if (heardWords[i] === normTargetWords[0]) {
-                    lastFirstWordIdx = i;
-                    break;
-                }
-            }
-            const recentAttempt = lastFirstWordIdx !== -1 ? heardWords.slice(lastFirstWordIdx) : [];
-
-            let anyImpreciseMatch = false;
-            for (let i = 0; i < event.results.length; i++) {
-                const res = event.results[i][0];
-                const resText = normalizeText(res.transcript);
-                let isTargetPart = false;
-                normTargetWords.forEach(ntw => { if (resText.includes(ntw)) isTargetPart = true; });
-                
-                if (isTargetPart && res.confidence < 0.88 && event.results[i].isFinal) {
-                    if (recentAttempt.includes(resText) || target.includes(resText)) {
-                        anyImpreciseMatch = true;
-                    }
-                }
-            }
-
-            const isFullMatch = heard === target || 
-                               heard.endsWith(" " + target) || 
-                               heard.startsWith(target + " ") || 
-                               heard.includes(" " + target + " ");
+        let anyImpreciseMatch = false;
+        for (let i = 0; i < event.results.length; i++) {
+            const res = event.results[i][0];
+            const resText = normalizeText(res.transcript);
+            let isTargetPart = false;
+            normTargetWords.forEach(ntw => { if (resText.includes(ntw)) isTargetPart = true; });
             
-            let displayedHTML = "";
-
-            normTargetWords.forEach((ntw, idx) => {
-                if (isFullMatch) {
-                    displayedHTML += `<span style="color: var(--success); font-weight: 700;">${targetWords[idx]}</span> `;
-                } else if (recentAttempt[idx] === ntw) {
-                    displayedHTML += `<span style="color: var(--success); font-weight: 700;">${targetWords[idx]}</span> `;
-                } else if (heardWords.includes(ntw)) {
-                    displayedHTML += `<span style="color: var(--warning); font-weight: 700;">${targetWords[idx]}</span> `;
+            if (isTargetPart && res.confidence < 0.88 && event.results[i].isFinal) {
+                if (recentAttempt.includes(resText) || target.includes(resText)) {
+                    anyImpreciseMatch = true;
                 }
-            });
+            }
+        }
 
+        const isFullMatch = heard === target || 
+                           heard.endsWith(" " + target) || 
+                           heard.startsWith(target + " ") || 
+                           heard.includes(" " + target + " ");
+        
+        let displayedHTML = "";
+        let lastFirstWordIdx = -1;
+        for (let i = heardWords.length - 1; i >= 0; i--) {
+            if (heardWords[i] === normTargetWords[0]) {
+                lastFirstWordIdx = i;
+                break;
+            }
+        }
+
+        const recentAttempt = lastFirstWordIdx !== -1 ? heardWords.slice(lastFirstWordIdx) : [];
+
+        normTargetWords.forEach((ntw, idx) => {
             if (isFullMatch) {
-                if (!anyImpreciseMatch && latestConfidence >= 0.88) {
-                    success = true;
-                    window._currentCorrectionSession = null;
-                    recognition.onend = null;
-                    recognition.stop();
-                    $('correctionVoiceHint').innerHTML = `<span style="color: var(--success); font-weight: 800;">Pronúncia correta! 🎉</span>`;
-                    setTimeout(() => {
-                        $('btnContinue').style.display = 'block';
-                        $('voiceCorrectionArea').style.display = 'none';
-                        $('feedbackTitle').textContent = "Agora sim! 🎉";
-                        playAudio(session.current.english);
-                    }, 800);
-                } else {
-                    $('correctionVoiceHint').innerHTML = `<span style="color: var(--warning); font-weight: 800;">Pronúncia imprecisa! Repita a frase.</span>`;
-                }
-            } else if (displayedHTML !== "") {
-                $('correctionVoiceHint').innerHTML = `Ouvi: "${displayedHTML}"`;
-            } else {
-                $('correctionVoiceHint').textContent = "Ouvindo...";
+                displayedHTML += `<span style="color: var(--success); font-weight: 700;">${targetWords[idx]}</span> `;
+            } else if (recentAttempt[idx] === ntw) {
+                displayedHTML += `<span style="color: var(--success); font-weight: 700;">${targetWords[idx]}</span> `;
+            } else if (heardWords.includes(ntw)) {
+                displayedHTML += `<span style="color: var(--warning); font-weight: 700;">${targetWords[idx]}</span> `;
             }
-        };
+        });
 
-        recognition.onerror = (e) => {
-            if (e.error === 'no-speech' || e.error === 'aborted') return;
-            console.error('Correction speech error:', e.error);
-        };
-
-        recognition.onend = () => {
-            if (!success && session.active && window._currentCorrectionSession === correctionSessionId) {
+        if (isFullMatch) {
+            if (!anyImpreciseMatch && latestConfidence >= 0.88) {
+                success = true;
+                recognition.stop();
+                $('correctionVoiceHint').innerHTML = `<span style="color: var(--success); font-weight: 800;">Pronúncia correta! 🎉</span>`;
                 setTimeout(() => {
-                    if (!success && session.active && window._currentCorrectionSession === correctionSessionId) {
-                        try {
-                            createCorrectionRecognition();
-                        } catch(e) {
-                            console.error('Correction restart failed:', e);
-                            $('micBtnCorrection').classList.remove('listening');
-                        }
-                    }
-                }, 300);
+                    $('btnContinue').style.display = 'block';
+                    $('voiceCorrectionArea').style.display = 'none';
+                    $('feedbackTitle').textContent = "Agora sim! 🎉";
+                    playAudio(session.current.english);
+                }, 800);
             } else {
-                $('micBtnCorrection').classList.remove('listening');
+                $('correctionVoiceHint').innerHTML = `<span style="color: var(--warning); font-weight: 800;">Pronúncia imprecisa! Repita a frase.</span>`;
             }
-        };
+        } else if (displayedHTML !== "") {
+            $('correctionVoiceHint').innerHTML = `Ouvi: "${displayedHTML}"`;
+        } else {
+            $('correctionVoiceHint').textContent = "Ouvindo...";
+        }
+    };
 
+    recognition.onerror = (e) => {
+        if (e.error === 'no-speech') return; // Ignore silence
+        console.error('Speech error:', e.error);
+        if (e.error === 'not-allowed') {
+            $('correctionVoiceHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Microfone bloqueado! Verifique se o site usa HTTPS e se você permitiu o acesso.</span>`;
+        } else {
+            $('correctionVoiceHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Erro no microfone: ${e.error}</span>`;
+        }
+        $('micBtnCorrection').classList.remove('listening');
+    };
+
+    recognition.onend = () => {
+        if (!success && session.active && currentRecognition === recognition) {
+            try { recognition.start(); } catch(e) {}
+        } else {
+            $('micBtnCorrection').classList.remove('listening');
+        }
+    };
+
+    try {
         recognition.start();
+    } catch(err) {
+        console.error("Failed to start recognition:", err);
+        $('correctionVoiceHint').innerHTML = `<span style="color:var(--danger); font-size: 0.9rem;">Falha ao iniciar: ${err.message}</span>`;
+        $('micBtnCorrection').classList.remove('listening');
     }
-
-    createCorrectionRecognition();
 }
 
 function deletePhrase(id) {
