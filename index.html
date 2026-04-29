@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MemoEnglish - Premium</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+
+<body>
+
+    <div class="app-container">
+
+        <!-- SIDEBAR (Desktop) -->
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-box">🧠</div>
+                <span>MemoEnglish</span>
+            </div>
+
+            <nav class="nav-menu">
+                <div class="nav-link active" data-view="homeView">
+                    <span class="nav-icon">🏠</span> Home
+                </div>
+                <div class="nav-link" data-view="listsView">
+                    <span class="nav-icon">📖</span> Minhas Listas
+                </div>
+                <div class="nav-link" data-view="metricsView">
+                    <span class="nav-icon">📊</span> Métricas
+                </div>
+                <div class="nav-link" data-view="settingsView">
+                    <span class="nav-icon">⚙️</span> Configurações
+                </div>
+            </nav>
+
+            <div
+                style="margin-top: auto; padding: 20px; background: var(--primary-soft); border-radius: var(--radius-lg); border: 1px solid var(--border);">
+                <span class="stat-label" style="display: block; margin-bottom: 8px;">Total de Revisões</span>
+                <span id="statReviewsSide" class="stat-value" style="font-size: 1.5rem;">0</span>
+            </div>
+        </aside>
+
+        <!-- MAIN AREA -->
+        <main class="main-area">
+
+            <!-- HOME VIEW -->
+            <div id="homeView" class="view">
+                <h1 style="margin-bottom: 32px; font-weight: 800; font-size: 2rem;">Dashboard</h1>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-value" id="statTotal">0</span>
+                        <span class="stat-label">Total Frases</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="statDue">0</span>
+                        <span class="stat-label">Para Revisar</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="statWords">0</span>
+                        <span class="stat-label">Palavras</span>
+                    </div>
+                    <div class="stat-card"
+                        style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">
+                        <span class="stat-value" id="statMemorized" style="color: white;">0</span>
+                        <span class="stat-label" style="color: rgba(255,255,255,0.8);">Frases Memorizadas</span>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid"
+                    style="display: grid; grid-template-columns: 2fr 1fr; gap: 32px; margin-bottom: 32px;">
+                    <div class="card"
+                        style="display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, white 0%, var(--primary-soft) 100%);">
+                        <div>
+                            <h2 style="margin-bottom: 12px; font-weight: 800; font-size: 1.5rem;">Pronto para praticar?
+                            </h2>
+                            <p style="color: var(--text-muted); font-size: 1.1rem;">Você tem <span id="dueText"
+                                    style="color: var(--primary); font-weight: 800;">0</span> frases aguardando revisão.
+                            </p>
+                        </div>
+                        <button class="btn btn-primary btn-lg" style="padding: 18px 40px; font-size: 1.1rem;"
+                            onclick="startReview()">⚡ Iniciar Sessão</button>
+                    </div>
+
+                    <div class="card"
+                        style="text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px;">
+                        <div style="position: relative; width: 80px; height: 80px;">
+                            <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                    fill="none" stroke="var(--border)" stroke-width="3" />
+                                <path id="goalCircle"
+                                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                    fill="none" stroke="var(--success)" stroke-width="3" stroke-dasharray="0, 100" />
+                            </svg>
+                            <div id="goalPct"
+                                style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: 800; font-size: 1.2rem;">
+                                0%</div>
+                        </div>
+                        <span class="stat-label">Meta Diária</span>
+                    </div>
+                </div>
+
+                <div
+                    style="margin-top: 40px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center;">
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">Novo por aqui?</p>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
+                        <button class="btn btn-outline" onclick="loadSamples()">📥 Carregar Exemplos</button>
+                        <button class="btn btn-outline" onclick="exportData()">📤 Exportar Tudo</button>
+                        <button class="btn btn-outline" onclick="$('importInput').click()">📥 Importar Tudo</button>
+                        <input type="file" id="importInput" style="display: none;" accept=".json"
+                            onchange="importData(this)">
+                    </div>
+                </div>
+            </div>
+
+            <!-- METRICS VIEW -->
+            <div id="metricsView" class="view" style="display: none;">
+                <h1 style="margin-bottom: 32px; font-weight: 800; font-size: 2rem;">Minhas Métricas</h1>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-value" id="statAccuracy">0%</span>
+                        <span class="stat-label">Precisão Geral</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="statStreak">0</span>
+                        <span class="stat-label">Dias Seguidos</span>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom: 32px;">
+                    <h3 style="margin-bottom: 20px;">Distribuição de Aprendizado</h3>
+                    <div id="levelDistribution"
+                        style="display: flex; height: 32px; border-radius: 16px; overflow: hidden; background: var(--border); margin-bottom: 16px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
+                        <!-- Segmentos coloridos aqui -->
+                    </div>
+                    <div id="levelLegend"
+                        style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center; font-size: 0.8rem; font-weight: 700;">
+                        <div style="color: #94a3b8;">⚪ Novas</div>
+                        <div style="color: var(--primary);">🔵 Aprendendo</div>
+                        <div style="color: var(--success);">🟢 Dominadas</div>
+                    </div>
+                </div>
+
+                <h2 style="margin-bottom: 20px;">Palavras que você mais conhece</h2>
+                <div id="masteredPhrasesContainer" style="display: flex; flex-direction: column; gap: 12px;">
+                    <!-- Frases masterizadas aqui -->
+                </div>
+            </div>
+
+            <!-- SETTINGS VIEW -->
+            <div id="settingsView" class="view" style="display: none;">
+                <h1 style="margin-bottom: 32px; font-weight: 800; font-size: 2rem;">Configurações</h1>
+
+                <div class="card" style="margin-bottom: 24px;">
+                    <h3 style="margin-bottom: 20px;">Preferências do Sistema</h3>
+
+                    <div class="settings-item">
+                        <div>
+                            <div style="font-weight: 700;">Expandir Contrações</div>
+                            <div style="color: var(--text-muted); font-size: 0.9rem;"></div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="settingExpandContractions"
+                                onchange="updateSetting('expandContractions', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="settings-item">
+                        <div>
+                            <div style="font-weight: 700;">Áudio Lento por Padrão</div>
+                            <div style="color: var(--text-muted); font-size: 0.9rem;">Reduzir a velocidade da fala
+                                automática</div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="settingSlowAudio"
+                                onchange="updateSetting('slowAudio', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="settings-item">
+                        <div>
+                            <div style="font-weight: 700;">Tema Escuro</div>
+                            <div style="color: var(--text-muted); font-size: 0.9rem;">Alternar para interface escura
+                            </div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="settingDarkMode"
+                                onchange="updateSetting('darkMode', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 style="margin-bottom: 20px;">Backup e Dados</h3>
+                    <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem;">Gerencie seus dados e
+                        exportações do MemoEnglish.</p>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        <button class="btn btn-outline" onclick="exportData()">📤 Backup Completo</button>
+                        <button class="btn btn-outline" onclick="$('importInput').click()">📥 Restaurar Backup</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LISTS VIEW -->
+            <div id="listsView" class="view" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
+                    <h1 style="font-weight: 800; font-size: 2rem;">Minhas Listas</h1>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-outline" onclick="$('importListInput').click()">📥 Importar
+                            Lista</button>
+                        <button class="btn btn-primary" onclick="showAddListModal()">+ Nova Lista</button>
+                        <input type="file" id="importListInput" style="display: none;" accept=".json"
+                            onchange="importIndividualList(this)">
+                    </div>
+                </div>
+
+                <div id="listsContainer"
+                    style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+                    <!-- Listas aqui -->
+                </div>
+            </div>
+
+            <!-- PHRASES VIEW -->
+            <div id="phrasesView" class="view" style="display: none;">
+                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 32px;">
+                    <button class="btn btn-outline" onclick="showView('listsView')">←</button>
+                    <h1 id="currentListTitle" style="font-weight: 800; font-size: 2rem;">Nome da Lista</h1>
+                </div>
+
+                <div class="card" style="margin-bottom: 32px;">
+                    <h3 style="margin-bottom: 20px;">Adicionar Nova Frase</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; position: relative;">
+                        <div style="position: relative;">
+                            <input type="text" id="phraseEngInput" class="input-box"
+                                style="margin:0; padding: 12px 40px 12px 12px; font-size: 1rem; text-align: left;"
+                                placeholder="Frase em Inglês">
+                            <button class="translate-btn"
+                                onclick="translateField('phraseEngInput', 'phrasePtInput', 'en', 'pt')"
+                                title="Traduzir para Português">✨</button>
+                        </div>
+                        <div style="position: relative;">
+                            <input type="text" id="phrasePtInput" class="input-box"
+                                style="margin:0; padding: 12px 40px 12px 12px; font-size: 1rem; text-align: left;"
+                                placeholder="Tradução em Português">
+                            <button class="translate-btn"
+                                onclick="translateField('phrasePtInput', 'phraseEngInput', 'pt', 'en')"
+                                title="Traduzir para Inglês">✨</button>
+                        </div>
+                        <button class="btn btn-primary" onclick="addPhrase()">Adicionar</button>
+                    </div>
+                    <div style="margin-top: 16px; text-align: right;">
+                        <button class="btn btn-outline btn-sm" onclick="showBulkModal()">📂 Adicionar em Massa</button>
+                    </div>
+                </div>
+
+                <div id="phrasesContainer" style="display: flex; flex-direction: column; gap: 12px;">
+                    <!-- Frases aqui -->
+                </div>
+            </div>
+
+            <!-- REVIEW VIEW -->
+            <div id="reviewView" class="view" style="display: none;">
+                <div class="study-container">
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill"></div>
+                    </div>
+
+                    <div class="phrase-box">
+                        <div id="phrasePt" class="phrase-pt">Português</div>
+                        <div id="modeLabel"
+                            style="color: var(--text-muted); font-weight: 600; font-size: 0.9rem; text-transform: uppercase;">
+                            Modo: Tradução</div>
+                    </div>
+
+                    <!-- QUIZ AREA -->
+                    <div id="quizArea" class="quiz-options"></div>
+
+                    <div id="writeArea" style="display: none; animation: fadeIn 0.5s ease; position: relative;">
+                        <div id="writeInputWrapper" class="input-box" style="position: relative; margin-bottom: 20px; padding: 0; min-height: 120px; background: var(--surface-glass); overflow: hidden; border: 2px solid var(--border);">
+                            <div id="writeInputMirror" 
+                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; padding: 24px; white-space: pre-wrap; font-size: 1.5rem; font-weight: 700; line-height: 1.2; word-break: break-word; overflow: hidden; display: block; font-family: inherit; text-align: left;"></div>
+                            <textarea id="writeInput" 
+                                style="width: 100%; height: 100%; min-height: 120px; font-size: 1.5rem; padding: 24px; color: transparent; caret-color: var(--text); line-height: 1.2; background: transparent; border: none; outline: none; position: relative; z-index: 2; font-family: inherit; font-weight: 700; text-align: left; resize: none; overflow: hidden; display: block;" 
+                                placeholder="Digite em inglês..." autocomplete="off"></textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="checkWriteAnswer()"
+                            style="width: 100%; padding: 20px;">Verificar Resposta</button>
+                    </div>
+
+                    <!-- SPEAK AREA -->
+                    <div id="speakArea" style="display: none; animation: fadeIn 0.5s ease;">
+                        <button id="micBtn" class="mic-btn" onclick="startListening()" ontouchstart="startListening()">🎤</button>
+                        <p id="micHint"
+                            style="margin-top: 32px; color: var(--text-muted); font-weight: 600; font-size: 1.1rem;">
+                            Toque para falar</p>
+                        <div style="margin-top: 40px;">
+                            <button class="btn btn-outline btn-sm" onclick="processAnswer(false, '')">❌ Não
+                                lembro</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- BOTTOM NAV (Mobile) -->
+        <nav class="bottom-nav">
+            <div class="mobile-nav-item active" data-view="homeView">
+                <span style="font-size: 1.5rem;">🏠</span>
+                <span>Home</span>
+            </div>
+            <div class="mobile-nav-item" data-view="listsView">
+                <span style="font-size: 1.5rem;">📖</span>
+                <span>Listas</span>
+            </div>
+            <div class="mobile-nav-item" data-view="metricsView">
+                <span style="font-size: 1.5rem;">📊</span>
+                <span>Métricas</span>
+            </div>
+            <div class="mobile-nav-item" data-view="settingsView">
+                <span style="font-size: 1.5rem;">⚙️</span>
+                <span>Ajustes</span>
+            </div>
+        </nav>
+
+        <!-- FEEDBACK BAR -->
+        <div id="feedbackBar" class="feedback-bar">
+            <div class="feedback-content">
+                <div class="feedback-info" id="feedbackInfo">
+                    <h4 id="feedbackTitle">Correto!</h4>
+                    <div id="feedbackText" style="color: var(--text-muted);"></div>
+                </div>
+
+                <div id="correctionArea" style="display: none; flex: 1; margin: 0 40px;">
+                    <p id="correctionHint"
+                        style="font-size: 0.8rem; color: var(--danger); margin-bottom: 8px; font-weight: 800;">REESCREVA
+                        PARA CONTINUAR:</p>
+                    <input type="text" id="correctionInput" class="input-box"
+                        style="padding: 12px 20px; font-size: 1rem;" placeholder="Digite a resposta correta..."
+                        autocomplete="off">
+                </div>
+
+                <div id="voiceCorrectionArea" style="display: none; flex: 1; margin: 0 40px; text-align: center;">
+                    <p style="font-size: 0.8rem; color: var(--danger); margin-bottom: 8px; font-weight: 800;">FALE
+                        CORRETAMENTE PARA CONTINUAR:</p>
+                    <button id="micBtnCorrection" class="mic-btn" style="width: 50px; height: 50px; font-size: 1.2rem;"
+                        onclick="startListeningCorrection()">🎤</button>
+                    <p id="correctionVoiceHint" style="font-size: 0.8rem; margin-top: 4px; color: var(--text-muted);">
+                        Aguardando...</p>
+                </div>
+
+                <button class="btn btn-primary" id="btnContinue" onclick="continueSession()">Continuar</button>
+            </div>
+        </div>
+
+        <!-- MODALS -->
+        <div id="modalBg" class="modal-bg"
+            style="position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index: 1000; padding: 20px;">
+            <!-- New List Modal -->
+            <div id="newListModal" class="card" style="width: 100%; max-width: 400px; display: none;">
+                <h3 style="margin-bottom: 20px;">Nova Lista</h3>
+                <input type="text" id="newListName" class="input-box" style="text-align: left;"
+                    placeholder="Ex: Viagem para Londres">
+                <div style="display: flex; gap: 12px; margin-top: 20px;">
+                    <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancelar</button>
+                    <button class="btn btn-primary" style="flex:1" onclick="createList()">Criar</button>
+                </div>
+            </div>
+
+            <!-- Bulk Add Modal -->
+            <div id="bulkAddModal" class="card" style="width: 100%; max-width: 600px; display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0;">Adicionar em Massa</h3>
+                    <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+                </div>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 16px;">
+                    Cole suas frases abaixo. Use o formato: <b>Inglês; Português</b> (uma por linha).<br>
+                    Ou cole apenas as frases em um idioma e use a tradução automática.
+                </p>
+                <textarea id="bulkInput" class="input-box"
+                    style="height: 200px; text-align: left; font-size: 0.9rem; font-family: monospace;"
+                    placeholder="Hello; Olá&#10;How are you?; Como vai você?"></textarea>
+
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                    <input type="checkbox" id="autoTranslateBulk" style="width: 20px; height: 20px; cursor: pointer;">
+                    <label for="autoTranslateBulk" style="cursor: pointer; font-weight: 600;">Traduzir automaticamente
+                        linhas incompletas</label>
+                </div>
+
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancelar</button>
+                    <button class="btn btn-primary" id="btnProcessBulk" style="flex:2"
+                        onclick="processBulkAdd()">Adicionar Frases</button>
+                </div>
+            </div>
+
+            <!-- Custom System Dialog (Alert/Confirm) -->
+            <div id="systemDialog" class="card"
+                style="width: 100%; max-width: 400px; display: none; text-align: center;">
+                <div id="dialogIcon" style="font-size: 3rem; margin-bottom: 20px;">ℹ️</div>
+                <h3 id="dialogTitle" style="margin-bottom: 12px;">Título</h3>
+                <p id="dialogMessage" style="color: var(--text-muted); margin-bottom: 32px;">Mensagem do sistema.</p>
+                <div style="display: flex; gap: 12px;" id="dialogButtons">
+                    <button id="dialogCancel" class="btn btn-outline" style="flex:1"
+                        onclick="closeDialog()">Cancelar</button>
+                    <button id="dialogConfirm" class="btn btn-primary" style="flex:1"
+                        onclick="closeDialog()">OK</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <audio id="soundCorrect" src="https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3"></audio>
+    <audio id="soundFinish" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"></audio>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
