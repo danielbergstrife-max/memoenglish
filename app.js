@@ -1023,16 +1023,24 @@ function startListening() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
     
-    if (currentRecognition) currentRecognition.stop();
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (currentRecognition) {
+        try { currentRecognition.abort(); } catch(e) {}
+    }
     
     const rec = new SR();
     currentRecognition = rec;
     rec.lang = 'en-US';
     rec.interimResults = true;
-    rec.continuous = true;
+    rec.continuous = !isMobile; // Android Chrome silently fails if continuous is true
     
     $('micBtn').classList.add('listening');
-    $('micHint').textContent = "Ouvindo...";
+    $('micHint').textContent = "Iniciando microfone...";
+    
+    rec.onstart = () => {
+        $('micHint').innerHTML = `<span style="color:var(--success);">Ouvindo... Pode falar!</span>`;
+    };
     
     let success = false;
 
@@ -1157,20 +1165,24 @@ function startListeningCorrection() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
 
-    if (currentRecognition) currentRecognition.stop();
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    if (currentRecognition) {
+        try { currentRecognition.abort(); } catch(e) {}
+    }
 
     const recognition = new SR();
     currentRecognition = recognition;
     recognition.lang = 'en-US';
     recognition.interimResults = true;
-    recognition.continuous = true;
+    recognition.continuous = !isMobile; // Fix for Android silent fail
 
     let success = false;
     let finalTranscript = '';
 
     recognition.onstart = () => {
         $('micBtnCorrection').classList.add('listening');
-        $('correctionVoiceHint').textContent = "Ouvindo...";
+        $('correctionVoiceHint').innerHTML = `<span style="color:var(--success);">Ouvindo... Pode falar!</span>`;
     };
 
     recognition.onresult = (event) => {
