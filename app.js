@@ -1019,6 +1019,18 @@ window.onload = () => {
 
 let currentRecognition = null;
 
+// Request microphone permission explicitly (needed for Chrome Android)
+async function requestMicrophonePermission() {
+    try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        return true;
+    } catch (err) {
+        console.error('Microfone bloqueado:', err.name);
+        alert('❌ Microfone bloqueado!\n\nPermita o acesso ao microfone:\n1. Toque no ícone de câmera/microfone na barra\n2. Selecione "Permitir"\n3. Tente novamente');
+        return false;
+    }
+}
+
 function startListening() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
@@ -1032,9 +1044,16 @@ function startListening() {
     rec.continuous = true;
     
     $('micBtn').classList.add('listening');
-    $('micHint').textContent = "Ouvindo...";
+    $('micHint').innerHTML = '<span style="color: var(--primary);">🔄 Ativando microfone...</span>';
     
     let success = false;
+    let listeningConfirmed = false;
+
+    rec.onstart = () => {
+        listeningConfirmed = true;
+        $('micHint').innerHTML = '<span style="color: var(--success); font-weight: 800;">🎙️ Microfone ativo!</span><br><small>Fale agora...</small>';
+        console.log('✅ Speech Recognition iniciado com sucesso');
+    };
 
     rec.onresult = (e) => {
         let fullTranscript = '';
@@ -1124,8 +1143,20 @@ function startListening() {
 
     rec.onerror = (e) => {
         if (e.error === 'no-speech') return; // Ignore silence
-        console.error('Speech error:', e.error);
-        //$('micHint').textContent = "Erro ao ouvir. Tente de novo.";
+        
+        console.error('❌ Erro de voz:', e.error);
+        
+        const errorMessages = {
+            'network-error': '🌐 Erro de rede. Verifique sua conexão.',
+            'permission-denied': '🔒 Microfone negado. Verifique permissões.',
+            'not-allowed': '🚫 Permissão não concedida. Toque em "Permitir" quando solicitado.',
+            'service-unavailable': '⚠️ Serviço indisponível. Tente Chrome ou Edge.',
+            'bad-grammar': '📝 Erro interno. Recarregue a página.',
+            'abort': '⏹️ Interrompido. Pressione o microfone novamente.'
+        };
+        
+        const msg = errorMessages[e.error] || `❌ Erro: ${e.error}`;
+        $('micHint').innerHTML = `<span style="color: var(--danger); font-weight: 800;">${msg}</span>`;
     };
 
     rec.onend = () => {
@@ -1157,7 +1188,7 @@ function startListeningCorrection() {
 
     recognition.onstart = () => {
         $('micBtnCorrection').classList.add('listening');
-        $('correctionVoiceHint').textContent = "Ouvindo...";
+        $('correctionVoiceHint').innerHTML = '<span style="color: var(--success); font-weight: 800;">🎙️ Microfone ativo!</span>';
     };
 
     recognition.onresult = (event) => {
@@ -1238,6 +1269,24 @@ function startListeningCorrection() {
         } else {
             $('correctionVoiceHint').textContent = "Ouvindo...";
         }
+    };
+
+    recognition.onerror = (e) => {
+        if (e.error === 'no-speech') return;
+        
+        console.error('❌ Erro de voz (correção):', e.error);
+        
+        const errorMessages = {
+            'network-error': '🌐 Erro de rede. Verifique sua conexão.',
+            'permission-denied': '🔒 Microfone negado. Verifique permissões.',
+            'not-allowed': '🚫 Permissão não concedida. Toque em "Permitir" quando solicitado.',
+            'service-unavailable': '⚠️ Serviço indisponível. Tente Chrome ou Edge.',
+            'bad-grammar': '📝 Erro interno. Recarregue a página.',
+            'abort': '⏹️ Interrompido. Pressione o microfone novamente.'
+        };
+        
+        const msg = errorMessages[e.error] || `❌ Erro: ${e.error}`;
+        $('correctionVoiceHint').innerHTML = `<span style="color: var(--danger); font-weight: 800;">${msg}</span>`;
     };
 
     recognition.onend = () => {
