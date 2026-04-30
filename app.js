@@ -540,6 +540,22 @@ function renderExercise() {
 
     // Initialize progress for speech modes
     session.matchedIndices = new Set();
+    const { status, statusCorrection } = { 
+        status: $('micStatus'), 
+        statusPronounce: $('micStatusPronounce'),
+        statusCorrection: $('correctionVoiceHint')
+    };
+    if ($('micStatus')) {
+        $('micStatus').textContent = "⚪ Microfone Desligado";
+        $('micStatus').style.color = "var(--text-muted)";
+    }
+    if ($('micStatusPronounce')) {
+        $('micStatusPronounce').textContent = "⚪ Microfone Desligado";
+        $('micStatusPronounce').style.color = "var(--text-muted)";
+    }
+    if ($('correctionVoiceHint')) {
+        $('correctionVoiceHint').textContent = "Aguardando...";
+    }
 
     if (session.mode === 'quiz') {
         $('quizArea').style.display = 'grid';
@@ -1522,11 +1538,18 @@ function startListening() {
             // If already matched in previous runs, skip
             if (session.matchedIndices.has(targetIdx)) return;
 
-            // Check if any word in the CURRENT transcript matches this target word
-            for (let hw of heardWords) {
-                if (getSimilarity(hw, ntw) > 0.75) {
-                    session.matchedIndices.add(targetIdx);
-                    break;
+            // NEW IMPROVED MATCHING: Check if the normalized target word exists in the transcript
+            // This handles contractions (e.g. "What's" -> "what is") much better
+            const regex = new RegExp(`\\b${ntw}\\b`, 'i');
+            if (regex.test(heard)) {
+                session.matchedIndices.add(targetIdx);
+            } else {
+                // Fallback to fuzzy word-by-word if regex fails
+                for (let hw of heardWords) {
+                    if (getSimilarity(hw, ntw) > 0.8) {
+                        session.matchedIndices.add(targetIdx);
+                        break;
+                    }
                 }
             }
         });
@@ -1591,12 +1614,12 @@ function startListening() {
         // Only restart if not successful AND still intended to be listening AND session is active
         const isCorrectMode = session.mode === 'speak' || session.mode === 'pronounce';
         if (!success && isRecognitionActive && session.active && isCorrectMode) {
-            // Small delay to avoid some browser limits on rapid restarts
+            // Reduced delay for faster restart, aiming for "always on" feel
             setTimeout(() => {
                 try { 
-                    if (isRecognitionActive) rec.start(); 
+                    if (isRecognitionActive && !success) rec.start(); 
                 } catch (err) { console.error("Erro ao reiniciar:", err); }
-            }, 300);
+            }, 100);
         } else {
             stopListening();
         }
