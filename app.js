@@ -775,7 +775,19 @@ function processAnswer(isCorrect, userVal) {
 
     if (isCorrect) {
         title.textContent = "Excelente! 🎉";
-        text.innerHTML = `Resposta correta: <b>${escapeHTML(session.current.english)}</b>`;
+        
+        // Handle yellow/imprecise words feedback for voice modes
+        const impreciseWords = (session.mode === 'speak' || session.mode === 'pronounce') ? 
+            session.current.english.split(' ').filter((_, idx) => session.wordStatus[idx] === 'imprecise') : [];
+
+        if (impreciseWords.length > 0) {
+            title.innerHTML = "Quase lá! ⚠️";
+            text.innerHTML = `<span style="color: var(--warning); font-weight: 800; font-size: 0.9rem;">Você acertou, mas tente melhorar a pronúncia de:</span><br>
+                              <b style="color: var(--text);">${impreciseWords.join(', ')}</b><br><br>
+                              Resposta: <b>${escapeHTML(session.current.english)}</b>`;
+        } else {
+            text.innerHTML = `Resposta correta: <b>${escapeHTML(session.current.english)}</b>`;
+        }
 
         // Update level for the specific mode
         session.current.levels[mode]++;
@@ -796,21 +808,15 @@ function processAnswer(isCorrect, userVal) {
 
         session.current.levels[mode] = Math.max(0, session.current.levels[mode] - 1);
 
-        // Also sync the standard level (optional, but keeps it somewhat in line)
-        if (session.current.levels.standard !== undefined) {
-            session.current.levels.standard = Math.max(0, session.current.levels.standard - 1);
-        }
-
-
         // Always speak the correct answer on error
         playAudio(session.current.english);
 
-        // Mandatory Correction
+        // Optional Correction
         if (session.mode === 'speak' || session.mode === 'pronounce') {
             $('voiceCorrectionArea').style.display = 'block';
             $('correctionArea').style.display = 'none';
-            $('btnContinue').style.display = 'none';
-            $('correctionVoiceHint').textContent = "Aperte o microfone e repita corretamente...";
+            $('btnContinue').style.display = 'block'; // ALWAYS allow continue
+            $('correctionVoiceHint').textContent = "Aperte o microfone e repita corretamente (opcional)...";
         } else {
             $('correctionArea').style.display = 'block';
             $('voiceCorrectionArea').style.display = 'none';
@@ -871,11 +877,9 @@ function processAnswer(isCorrect, userVal) {
     }
 
     appData.totalReviews++;
-    if (currentRecognition) {
-        currentRecognition.onend = null;
-        currentRecognition.stop();
-        currentRecognition = null;
-    }
+    
+    // ENSURE mic is stopped and state is reset
+    stopListening();
 
     saveData(appData);
     updateGlobalLevel();
@@ -1617,17 +1621,8 @@ function startListening() {
                 status.textContent = "✅ Concluído!";
                 status.style.color = "var(--success)";
             }
-
-            const impreciseWords = targetWords.filter((_, idx) => session.wordStatus[idx] === 'imprecise');
-            let feedback = `<span style="color: var(--success); font-size: 1.5rem; font-weight: 800;">Perfeito! ✨</span>`;
-            
-            if (impreciseWords.length > 0) {
-                feedback = `<span style="color: var(--warning); font-size: 1.2rem; font-weight: 800;">Quase lá! ⚠️</span><br>
-                            <span style="font-size: 0.8rem; color: var(--text-muted);">Melhore a pronúncia de: <b>${impreciseWords.join(', ')}</b></span>`;
-            }
-
-            if (hint) hint.innerHTML = `${feedback}<br>${displayedHTML}`;
-            setTimeout(() => processAnswer(true, session.current.english), impreciseWords.length > 0 ? 1500 : 800);
+            // Feedback will be handled by processAnswer now
+            setTimeout(() => processAnswer(true, session.current.english), 800);
         } else {
             if (hint) hint.innerHTML = `${rawHTML}${displayedHTML || "Ouvindo..."}${statusHTML}`;
         }
