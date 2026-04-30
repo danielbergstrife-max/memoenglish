@@ -540,6 +540,7 @@ function renderExercise() {
 
     // Initialize progress for speech modes
     session.matchedIndices = new Set();
+    session.wordStatus = {}; // Tracks 'correct' or 'imprecise' for each word index
     const { status, statusCorrection } = { 
         status: $('micStatus'), 
         statusPronounce: $('micStatusPronounce'),
@@ -1008,9 +1009,8 @@ function normalizeText(t) {
     // Always expand contractions for comparison (ignores the setting for internal logic)
     text = expandContractions(text);
 
-    // Remove punctuation but keep spaces
-    // We remove apostrophes that didn't match any contraction to handle things like "dont"
-    return text.replace(/[.,!?;:"()\[\]{}—–-]/g, '').replace(/'/g, '').replace(/\s+/g, ' ').trim();
+    // Remove punctuation but keep spaces. Replace hyphens with spaces.
+    return text.replace(/[.,!?;:"()\[\]{}—–]/g, '').replace(/-/g, ' ').replace(/'/g, '').replace(/\s+/g, ' ').trim();
 }
 
 function getSimilarity(s1, s2) {
@@ -1055,14 +1055,23 @@ function playAudio(t) {
     if (!t || !('speechSynthesis' in window)) return;
 
     unlockAudio(); // Ensure unlocked
-
     window.speechSynthesis.cancel();
 
+    // Sync mic: Stop if active
+    const wasListening = isRecognitionActive;
+    if (wasListening) stopListening();
+
     const u = new SpeechSynthesisUtterance(t);
+    
+    // Sync mic: Restart after audio ends
+    u.onend = () => {
+        if (wasListening && session.active && (session.mode === 'speak' || session.mode === 'pronounce')) {
+            startListening();
+        }
+    };
 
     const speak = () => {
         const voices = window.speechSynthesis.getVoices();
-
         const preferredVoice = voices.find(v =>
             v.lang.startsWith('en') &&
             (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Daniel'))
@@ -1535,21 +1544,28 @@ function startListening() {
         if (!session.matchedIndices) session.matchedIndices = new Set();
 
         normTargetWords.forEach((ntw, targetIdx) => {
-            // If already matched in previous runs, skip
-            if (session.matchedIndices.has(targetIdx)) return;
+            // If already perfectly matched, skip
+            if (session.wordStatus[targetIdx] === 'correct') return;
 
-            // NEW IMPROVED MATCHING: Check if the normalized target word exists in the transcript
-            // This handles contractions (e.g. "What's" -> "what is") much better
+            // 1. Check for Perfect Match (Direct Regex)
             const regex = new RegExp(`\\b${ntw}\\b`, 'i');
             if (regex.test(heard)) {
+                session.wordStatus[targetIdx] = 'correct';
                 session.matchedIndices.add(targetIdx);
-            } else {
-                // Fallback to fuzzy word-by-word if regex fails
-                for (let hw of heardWords) {
-                    if (getSimilarity(hw, ntw) > 0.8) {
-                        session.matchedIndices.add(targetIdx);
-                        break;
-                    }
+                return;
+            }
+
+            // 2. Fuzzy Match and Word-by-Word logic
+            for (let hw of heardWords) {
+                const sim = getSimilarity(hw, ntw);
+                if (sim > 0.85) {
+                    session.wordStatus[targetIdx] = 'correct';
+                    session.matchedIndices.add(targetIdx);
+                    break;
+                } else if (sim > 0.45) {
+                    // Imprecise match (Yellow) - counts for completion but marked for improvement
+                    session.wordStatus[targetIdx] = 'imprecise';
+                    session.matchedIndices.add(targetIdx);
                 }
             }
         });
@@ -1562,14 +1578,17 @@ function startListening() {
         const isSpeakMode = session.mode === 'speak';
 
         normTargetWords.forEach((ntw, idx) => {
-            const foundMatch = session.matchedIndices.has(idx);
-            const color = foundMatch ? 'var(--success)' : 'var(--text-muted)';
+            const status = session.wordStatus[idx];
+            const foundMatch = status !== undefined;
+            const isImprecise = status === 'imprecise';
+            
+            const color = status === 'correct' ? 'var(--success)' : (isImprecise ? 'var(--warning)' : 'var(--text-muted)');
             const opacity = foundMatch ? '1' : '0.4';
             const phon = getPhoneticGuide(targetWords[idx]);
 
             if (isSpeakMode) {
                 if (foundMatch) {
-                    displayedHTML += `<span style="color: var(--success); font-weight: 800; animation: scaleIn 0.3s ease;">${targetWords[idx]}</span> `;
+                    displayedHTML += `<span style="color: ${color}; font-weight: 800; animation: scaleIn 0.3s ease;">${targetWords[idx]}</span> `;
                 } else {
                     displayedHTML += `<span style="color: var(--border); letter-spacing: 2px;">___</span> `;
                 }
@@ -1598,8 +1617,17 @@ function startListening() {
                 status.textContent = "✅ Concluído!";
                 status.style.color = "var(--success)";
             }
-            if (hint) hint.innerHTML = `<span style="color: var(--success); font-size: 1.5rem; font-weight: 800;">Perfeito! ✨</span><br>${displayedHTML}`;
-            setTimeout(() => processAnswer(true, session.current.english), 800);
+
+            const impreciseWords = targetWords.filter((_, idx) => session.wordStatus[idx] === 'imprecise');
+            let feedback = `<span style="color: var(--success); font-size: 1.5rem; font-weight: 800;">Perfeito! ✨</span>`;
+            
+            if (impreciseWords.length > 0) {
+                feedback = `<span style="color: var(--warning); font-size: 1.2rem; font-weight: 800;">Quase lá! ⚠️</span><br>
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">Melhore a pronúncia de: <b>${impreciseWords.join(', ')}</b></span>`;
+            }
+
+            if (hint) hint.innerHTML = `${feedback}<br>${displayedHTML}`;
+            setTimeout(() => processAnswer(true, session.current.english), impreciseWords.length > 0 ? 1500 : 800);
         } else {
             if (hint) hint.innerHTML = `${rawHTML}${displayedHTML || "Ouvindo..."}${statusHTML}`;
         }
