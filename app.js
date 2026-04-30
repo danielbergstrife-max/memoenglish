@@ -163,6 +163,9 @@ function getPhoneticGuide(text) {
 function $(id) { return document.getElementById(id); }
 
 function showView(viewId) {
+    // Stop any active recognition when switching views
+    stopListening();
+
     document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
     $(viewId).style.display = 'block';
 
@@ -524,16 +527,6 @@ function nextPhrase() {
 
 function renderExercise() {
     const p = session.current;
-    const mode = session.mode;
-
-    // Reset UI and ENSURE mic is off before starting a new exercise
-    stopListening();
-    
-    $('quizArea').style.display = 'none';
-    $('writeArea').style.display = 'none';
-    $('speakArea').style.display = 'none';
-    $('pronounceArea').style.display = 'none';
-
     const modeLvl = p.levels?.[session.trainingMode === 'standard' ? 'standard' : session.trainingMode] || 0;
 
     $('phrasePt').textContent = p.portuguese;
@@ -542,6 +535,11 @@ function renderExercise() {
             ${session.mode.toUpperCase()} - LV ${modeLvl}
         </span>
     `;
+
+    $('quizArea').style.display = 'none';
+    $('writeArea').style.display = 'none';
+    $('speakArea').style.display = 'none';
+    $('pronounceArea').style.display = 'none';
 
     // Initialize progress for speech modes
     session.matchedIndices = new Set();
@@ -883,8 +881,8 @@ function processAnswer(isCorrect, userVal) {
 
     appData.totalReviews++;
     
-    // Mic is already stopped by startListening (on success) or playAudio (on error)
-    // but we call it here again to be absolutely sure the state is clean
+    // EXPLICITLY ensure mic is stopped and WON'T restart
+    isRecognitionActive = false;
     stopListening();
 
     saveData(appData);
@@ -1075,8 +1073,7 @@ function playAudio(t) {
     
     // Sync mic: Restart after audio ends
     u.onend = () => {
-        const isFeedbackActive = $('feedbackBar').classList.contains('active');
-        if (wasListening && session.active && !isFeedbackActive && (session.mode === 'speak' || session.mode === 'pronounce')) {
+        if (wasListening && session.active && (session.mode === 'speak' || session.mode === 'pronounce')) {
             startListening();
         }
     };
@@ -1475,6 +1472,11 @@ window.onload = () => {
 
     applyDarkMode();
     showView('homeView');
+
+    // Stop mic if user leaves the tab
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopListening();
+    });
 };
 
 let currentRecognition = null;
@@ -1493,7 +1495,6 @@ function toggleListening() {
     if (isRecognitionActive) {
         stopListening();
     } else {
-        // Ensure success is reset or handled if we are manually starting
         startListening();
     }
 }
@@ -1622,8 +1623,9 @@ function startListening() {
 
         if (isFullMatch) {
             success = true;
-            stopListening(); // Use the standard stop to reset all states
-            
+            rec.onend = null; // Prevent restart on success
+            rec.stop();
+            if (btn) btn.classList.remove('listening');
             if (status) {
                 status.textContent = "✅ Concluído!";
                 status.style.color = "var(--success)";
@@ -1641,19 +1643,18 @@ function startListening() {
     };
 
     rec.onend = () => {
-        // Only restart if not successful AND still intended to be listening AND session is active AND tab is visible
+        // Only restart if not successful AND still intended to be listening AND session is active
         const isCorrectMode = session.mode === 'speak' || session.mode === 'pronounce';
-        const isVisible = document.visibilityState === 'visible';
-        
-        if (!success && isRecognitionActive && session.active && isCorrectMode && isVisible) {
+        if (!success && isRecognitionActive && session.active && isCorrectMode && currentRecognition === rec) {
             // Reduced delay for faster restart, aiming for "always on" feel
             setTimeout(() => {
                 try { 
-                    if (isRecognitionActive && !success && session.active && isVisible) rec.start(); 
+                    if (!success && isRecognitionActive && session.active) rec.start(); 
                 } catch (err) { console.error("Erro ao reiniciar:", err); }
             }, 100);
         } else {
-            stopListening();
+            // Ensure visual state is updated if we stop
+            if (currentRecognition === rec) stopListening();
         }
     };
 
@@ -1968,10 +1969,3 @@ function updateStorageUsage() {
     if ($('storageUsageText')) $('storageUsageText').textContent = `${pct}% utilizado (${(size / 1024).toFixed(1)} KB / 5MB)`;
     if ($('storageUsageFill')) $('storageUsageFill').style.width = pct + '%';
 }
-/ /   T a b   V i s i b i l i t y   p r o t e c t i o n 
- d o c u m e n t . a d d E v e n t L i s t e n e r ( ' v i s i b i l i t y c h a n g e ' ,   ( )   = >   { 
-         i f   ( d o c u m e n t . v i s i b i l i t y S t a t e   = = =   ' h i d d e n ' )   { 
-                 s t o p L i s t e n i n g ( ) ; 
-         } 
- } ) ;  
- 
