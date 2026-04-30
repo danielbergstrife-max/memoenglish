@@ -30,6 +30,54 @@
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Global Level Bar Styles */
+.global-level-container {
+    padding: 20px;
+    background: var(--surface-glass);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    margin-bottom: 10px;
+    box-shadow: var(--shadow-sm);
+}
+
+.level-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.level-badge {
+    font-weight: 800;
+    color: var(--primary);
+    font-size: 1.2rem;
+    letter-spacing: -0.5px;
+}
+
+.level-progress-bg {
+    height: 10px;
+    background: var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 8px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.level-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--primary-light));
+    width: 0%;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.level-xp-text {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-align: right;
+    display: block;
+}
+
 /* Dark Mode Variables */
 .dark-mode {
     --primary: #818cf8;
@@ -234,6 +282,28 @@ body::after {
     font-weight: 800;
 }
 
+.mode-card {
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid transparent !important;
+    text-align: center;
+    padding: 32px 24px !important;
+}
+
+.mode-card:hover {
+    transform: translateY(-8px);
+    border-color: var(--primary) !important;
+    box-shadow: 0 12px 24px rgba(99, 102, 241, 0.15) !important;
+    background: white !important;
+}
+
+.mode-card h4 {
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+
 /* ========== BUTTONS ========== */
 .btn {
     display: inline-flex;
@@ -387,9 +457,20 @@ body::after {
 .quiz-btn.incorrect { background: #ef444420; border-color: var(--danger); color: var(--danger); }
 
 /* ========== TRANSLATE BUTTON ========== */
+.input-wrapper {
+    position: relative !important;
+    width: 100% !important;
+    display: block !important;
+}
+
+
+.input-wrapper .input-box {
+    padding-right: 50px !important;
+}
+
 .translate-btn {
     position: absolute;
-    right: 12px;
+    right: 8px;
     top: 50%;
     transform: translateY(-50%);
     background: var(--primary-soft);
@@ -400,7 +481,11 @@ body::after {
     border-radius: 10px;
     transition: all 0.2s;
     z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
+
 
 .translate-btn:hover {
     background: var(--primary-light);
@@ -521,13 +606,28 @@ input:checked + .slider:before { transform: translateX(22px); }
 
 /* ========== MODALS ========== */
 .modal-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 20px;
     backdrop-filter: blur(8px);
 }
 
-.modal-bg .card {
-    border: 1px solid rgba(255,255,255,0.4);
-    box-shadow: 0 40px 80px rgba(0,0,0,0.2);
+.add-phrase-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 12px;
+    position: relative;
+    align-items: center;
 }
+
 
 .bottom-nav { display: none; }
 
@@ -555,6 +655,20 @@ input:checked + .slider:before { transform: translateX(22px); }
     .dashboard-grid {
         grid-template-columns: 1fr !important;
         gap: 16px !important;
+    }
+
+    .metrics-panel-mobile {
+        grid-template-columns: 1fr !important;
+        gap: 20px !important;
+    }
+
+    .level-legend-mobile {
+        grid-template-columns: 1fr !important;
+        text-align: left !important;
+        gap: 10px !important;
+        padding: 15px;
+        background: var(--surface-glass);
+        border-radius: 12px;
     }
 
     .card {
@@ -599,12 +713,132 @@ input:checked + .slider:before { transform: translateX(22px); }
     
     .feedback-bar {
         padding: 24px;
-        padding-bottom: 110px; /* Espaço para não ficar atrás do bottom-nav se ele subir */
+        padding-bottom: 110px; /* Space to not be behind bottom-nav if it rises */
+    }
+
+    .add-phrase-container {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+        align-items: stretch !important;
+        width: 100% !important;
+    }
+
+    .add-phrase-container .input-wrapper {
+        width: 100% !important;
+        display: block !important;
+    }
+
+
+    .add-phrase-container button:not(.translate-btn) {
+        width: 100% !important;
+        padding: 14px !important;
+    }
+
+    .translate-btn {
+        width: auto !important;
+        height: auto !important;
+    }
+
+
+    /* Modal Mobile Fix */
+    .modal-bg {
+        padding: 10px !important;
+        align-items: flex-start !important; /* Allow scrolling if too tall */
+        overflow-y: auto;
+    }
+
+    .modal-bg .card {
+        margin: 20px auto 120px auto !important; /* Space for bottom nav */
+        max-height: none !important;
+        width: 100% !important;
+    }
+
+
+    #bulkAddModal textarea {
+        height: 150px !important;
+    }
+
+    .bulk-btn-wrapper {
+        text-align: center !important;
+    }
+
+    .bulk-btn-wrapper button {
+        width: 100% !important;
     }
 }
+
+
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Responsive Headers */
+.view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.header-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+    .view-header {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+    }
+    .header-actions {
+        justify-content: center;
+    }
+    .header-actions .btn {
+        flex: 1;
+        min-width: 140px;
+        font-size: 0.8rem;
+        padding: 10px;
+    }
+}
+
+/* Smart List Specific Styles */
+.btn-auto-glow {
+    position: relative;
+    overflow: hidden;
+    border-color: var(--primary) !important;
+    color: var(--primary) !important;
+}
+
+.btn-auto-glow::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(45deg, transparent, rgba(99, 102, 241, 0.1), transparent);
+    transform: rotate(45deg);
+    animation: glow 3s infinite;
+}
+
+@keyframes glow {
+    0% { transform: translateX(-100%) rotate(45deg); }
+    100% { transform: translateX(100%) rotate(45deg); }
+}
+
+#autoListModal select.input-box {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    background-size: 16px;
+    padding-right: 48px;
+}
