@@ -513,6 +513,10 @@ function startReview(mode = 'standard') {
 
 
 function nextPhrase() {
+    // Reset mic state for the new phrase to avoid auto-starting
+    isRecognitionActive = false;
+    stopListening();
+
     if (session.queue.length === 0) {
         endSession();
         return;
@@ -814,12 +818,11 @@ function processAnswer(isCorrect, userVal) {
         // Always speak the correct answer on error
         playAudio(session.current.english);
 
-        // Optional Correction
+        // Optional Correction - Hide mic and instructions as requested
         if (session.mode === 'speak' || session.mode === 'pronounce') {
-            $('voiceCorrectionArea').style.display = 'block';
+            $('voiceCorrectionArea').style.display = 'none'; // Hide correction mic area
             $('correctionArea').style.display = 'none';
-            $('btnContinue').style.display = 'block'; // ALWAYS allow continue
-            $('correctionVoiceHint').textContent = "Aperte o microfone e repita corretamente (opcional)...";
+            $('btnContinue').style.display = 'block';
         } else {
             $('correctionArea').style.display = 'block';
             $('voiceCorrectionArea').style.display = 'none';
@@ -1073,7 +1076,9 @@ function playAudio(t) {
     
     // Sync mic: Restart after audio ends
     u.onend = () => {
-        if (wasListening && session.active && (session.mode === 'speak' || session.mode === 'pronounce')) {
+        // Don't restart if we are showing results or if session ended
+        const isResultVisible = $('feedbackBar').classList.contains('active');
+        if (wasListening && session.active && !isResultVisible && (session.mode === 'speak' || session.mode === 'pronounce')) {
             startListening();
         }
     };
