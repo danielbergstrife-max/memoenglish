@@ -271,10 +271,20 @@ function updateGlobalLevel() {
     appData.lists.forEach(l => {
         l.phrases.forEach(p => {
             if (p.levels) {
-                totalXP += (p.levels.quiz || 0) * 5;
-                totalXP += (p.levels.write || 0) * 10;
-                totalXP += (p.levels.pronounce || 0) * 15;
-                totalXP += (p.levels.speak || 0) * 20;
+                // Formula: Sum of (Base + Mult*i) for i from 1 to L
+                // Sum = Base*L + Mult * (L*(L+1)/2)
+                
+                const lq = p.levels.quiz || 0;
+                totalXP += (5 * lq) + (1 * (lq * (lq + 1) / 2));
+
+                const lw = p.levels.write || 0;
+                totalXP += (10 * lw) + (2 * (lw * (lw + 1) / 2));
+
+                const lp = p.levels.pronounce || 0;
+                totalXP += (15 * lp) + (3 * (lp * (lp + 1) / 2));
+
+                const ls = p.levels.speak || 0;
+                totalXP += (20 * ls) + (4 * (ls * (ls + 1) / 2));
             }
         });
     });
