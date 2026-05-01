@@ -562,6 +562,7 @@ function renderExercise() {
     // Initialize progress for speech modes
     session.matchedIndices = new Set();
     session.wordStatus = {}; // Tracks 'correct' or 'imprecise' for each word index
+    session.lastTranscript = '';
     const { status, statusCorrection } = { 
         status: $('micStatus'), 
         statusPronounce: $('micStatusPronounce'),
@@ -1533,7 +1534,7 @@ window.onload = () => {
 
 function handleSpeakDontRemember() {
     stopListening();
-    processAnswer(false, '');
+    processAnswer(false, session.lastTranscript || '');
 }
 
 let currentRecognition = null;
@@ -1605,6 +1606,7 @@ function startListening() {
         }
 
         const t = (fullTranscript + interimTranscript).trim();
+        session.lastTranscript = t;
         const heard = normalizeText(t);
         const heardWords = heard.split(' ').filter(w => w.length > 0);
         const targetWords = session.current.english.split(' ');
