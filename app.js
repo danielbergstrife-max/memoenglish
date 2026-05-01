@@ -1558,8 +1558,8 @@ function startListening() {
         const targetWords = session.current.english.split(' ');
         const normTargetWords = targetWords.map(w => normalizeText(w));
 
-        // Use session.matchedIndices to preserve progress across restarts
-        if (!session.matchedIndices) session.matchedIndices = new Set();
+        // Ensure wordStatus is initialized
+        if (!session.wordStatus) session.wordStatus = {};
 
         normTargetWords.forEach((ntw, targetIdx) => {
             // If already perfectly matched, skip
@@ -1569,7 +1569,6 @@ function startListening() {
             const regex = new RegExp(`\\b${ntw}\\b`, 'i');
             if (regex.test(heard)) {
                 session.wordStatus[targetIdx] = 'correct';
-                session.matchedIndices.add(targetIdx);
                 return;
             }
 
@@ -1583,12 +1582,11 @@ function startListening() {
                 } else if (sim > 0.45) {
                     // Imprecise match (Yellow) - counts for completion but marked for improvement
                     session.wordStatus[targetIdx] = 'imprecise';
-                    session.matchedIndices.add(targetIdx);
                 }
             }
         });
 
-        const isFullMatch = session.matchedIndices.size === normTargetWords.length;
+        const isFullMatch = normTargetWords.every((_, idx) => session.wordStatus[idx] !== undefined);
 
         // Build UI feedback
         let displayedHTML = "";
@@ -1635,7 +1633,9 @@ function startListening() {
                 status.textContent = "✅ Concluído!";
                 status.style.color = "var(--success)";
             }
-            // Feedback will be handled by processAnswer now
+            // Update the UI one last time so the words turn green/yellow before the modal
+            if (hint) hint.innerHTML = `${rawHTML}${displayedHTML || "Perfeito!"}${statusHTML}`;
+            
             setTimeout(() => processAnswer(true, session.current.english), 800);
         } else {
             if (hint) hint.innerHTML = `${rawHTML}${displayedHTML || "Ouvindo..."}${statusHTML}`;
