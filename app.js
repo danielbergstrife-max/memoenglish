@@ -237,7 +237,7 @@ function renderStats() {
     appData.lists.forEach(l => {
         l.phrases.forEach(p => {
             const lv = p.levels || {};
-            const isStudied = (lv.write > 0 || lv.pronounce > 0 || lv.speak > 0);
+            const isStudied = (lv.quiz > 0 || lv.write > 0 || lv.pronounce > 0 || lv.speak > 0);
             const isMemorized = (lv.write >= 5 || lv.pronounce >= 5 || lv.speak >= 5);
 
             if (isStudied) {
@@ -673,6 +673,7 @@ function generateQuizOptions(correct) {
 }
 
 function checkQuizAnswer(selected) {
+    if ($('feedbackBar').classList.contains('active')) return;
     const isCorrect = selected === session.current.english;
     const btns = document.querySelectorAll('.quiz-btn');
     btns.forEach(b => {
@@ -683,6 +684,7 @@ function checkQuizAnswer(selected) {
 }
 
 function checkWriteAnswer() {
+    if ($('feedbackBar').classList.contains('active')) return;
     const val = $('writeInput').value.trim();
     const isCorrect = normalizeText(val) === normalizeText(session.current.english);
     processAnswer(isCorrect, val);
@@ -813,6 +815,9 @@ function calculateAccuracy(user, target) {
 }
 
 function processAnswer(isCorrect, userVal) {
+    // SECURITY LOCK: Prevent double processing
+    if ($('feedbackBar').classList.contains('active')) return;
+    
     const bar = $('feedbackBar');
     const info = $('feedbackInfo');
     const title = $('feedbackTitle');
@@ -1790,14 +1795,17 @@ function startListening() {
 
         if (isFullMatch) {
             success = true;
-            rec.onend = null; // Prevent restart on success
+            // Security: Nullify onresult and onend to prevent multiple triggers
+            rec.onresult = null;
+            rec.onend = null;
             rec.stop();
+
             if (btn) btn.classList.remove('listening');
             if (status) {
                 status.textContent = "✅ Concluído!";
                 status.style.color = "var(--success)";
             }
-            // Update the UI one last time so the words turn green/yellow before the modal
+            // Update the UI one last time
             if (hint) hint.innerHTML = `${rawHTML}${displayedHTML || "Perfeito!"}${statusHTML}`;
             
             setTimeout(() => processAnswer(true, session.current.english), 800);
@@ -1959,6 +1967,13 @@ function deletePhrase(id) {
 function deleteList(id) {
     confirm("Tem certeza que deseja apagar esta lista e todas as suas frases?", () => {
         appData.lists = appData.lists.filter(l => l.id !== id);
+        
+        // Safety check: if deleted list was the active one, reset it
+        if (appData.currentListId === id) {
+            appData.currentListId = null;
+            showView('homeView');
+        }
+
         saveData(appData);
         renderLists();
         renderStats();
