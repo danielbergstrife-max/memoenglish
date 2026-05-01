@@ -628,8 +628,69 @@ input:checked + .slider:before { transform: translateX(22px); }
     align-items: center;
 }
 
+/* ========== PHRASE CARD REFINEMENT ========== */
+.phrase-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    transition: all 0.2s ease;
+}
+
+.phrase-content {
+    flex: 1;
+}
+
+.phrase-meta {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.skill-grid-mini {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+    font-size: 0.65rem;
+    font-weight: 800;
+    background: var(--primary-soft);
+    padding: 8px 12px;
+    border-radius: 12px;
+    min-width: 90px;
+    text-align: center;
+}
+
+.phrase-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+@media (max-width: 600px) {
+    .phrase-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 20px;
+    }
+
+    .phrase-meta {
+        justify-content: space-between;
+        padding-top: 15px;
+        border-top: 1px solid var(--border);
+    }
+}
+
 
 .bottom-nav { display: none; }
+
+.mobile-header {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 0 30px 0;
+    width: 100%;
+}
 
 /* ========== MOBILE OPTIMIZATION ========== */
 @media (max-width: 1024px) {
@@ -637,6 +698,10 @@ input:checked + .slider:before { transform: translateX(22px); }
         display: none !important; 
         visibility: hidden !important;
         pointer-events: none !important;
+    }
+
+    .mobile-header {
+        display: flex !important;
     }
     
     .main-area { 

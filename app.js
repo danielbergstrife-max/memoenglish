@@ -87,7 +87,9 @@ function getModeForLevel(phrase, trainingMode) {
     if (level === 1) return 'write';
     if (level === 2) return 'pronounce';
     if (level === 3) return 'speak';
-    return level % 2 === 0 ? 'write' : 'speak';
+    
+    // Level 4 onwards: alternate between Pronounce and Speak
+    return level % 2 === 0 ? 'pronounce' : 'speak';
 }
 
 const PHONETIC_MAP = {
@@ -305,20 +307,23 @@ function renderLists() {
         return;
     }
 
-    container.innerHTML = ''; // Limpar antes de renderizar para evitar duplicação
+    container.innerHTML = '';
     appData.lists.forEach(l => {
         const dueCount = l.phrases.filter(p => isPhraseDue(p)).length;
         $('listsContainer').innerHTML += `
             <div class="card" style="display: flex; flex-direction: column; gap: 16px;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <h3 style="cursor: pointer;" onclick="selectList('${l.id}')">${escapeHTML(l.name)}</h3>
+                    <div style="flex: 1;">
+                        <h3 style="cursor: pointer; margin-bottom: 4px;" onclick="selectList('${l.id}')">${escapeHTML(l.name)}</h3>
+                        <div style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">${l.phrases.length} frases • <span style="color: var(--danger)">${dueCount} revisões</span></div>
+                    </div>
                     <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-outline btn-sm" onclick="showEditListModal('${l.id}')" title="Renomear Lista">✏️</button>
                         <button class="btn btn-outline btn-sm" onclick="exportIndividualList('${l.id}')" title="Exportar Lista">📤</button>
                         <button class="btn btn-outline btn-sm" style="color: var(--danger); border-color: transparent;" onclick="deleteList('${l.id}')">🗑️</button>
                     </div>
                 </div>
-                <div style="color: var(--text-muted); font-size: 0.9rem;">${l.phrases.length} frases</div>
-                <button class="btn btn-primary btn-sm" onclick="selectList('${l.id}')">Ver Frases</button>
+                <button class="btn btn-primary btn-sm" onclick="selectList('${l.id}')">Abrir Lista</button>
             </div>
         `;
     });
@@ -346,28 +351,32 @@ function renderPhrases() {
 
     const now = Date.now();
     list.phrases.slice().reverse().forEach(p => {
-        const diff = p.nextReview - now;
+        const diff = (p.nextReview || 0) - now;
         const dueText = diff <= 0 ? 'Agora' : formatRelativeTime(diff);
         const dueClass = diff <= 0 ? 'color: var(--danger); font-weight: 800;' : 'color: var(--text-muted); font-size: 0.8rem;';
 
-        $('phrasesContainer').innerHTML += `
-            <div class="card" style="padding: 20px; display: flex; justify-content: space-between; align-items: center; gap: 16px;">
-                <div style="flex: 1;">
-                    <div style="font-weight: 700;">${escapeHTML(p.english)}</div>
-                    <div style="color: var(--text-muted); font-size: 0.9rem;">${escapeHTML(p.portuguese)}</div>
+        container.innerHTML += `
+            <div class="card phrase-card">
+                <div class="phrase-content">
+                    <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 4px;">${escapeHTML(p.english)}</div>
+                    <div style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 8px;">${escapeHTML(p.portuguese)}</div>
                     <div style="${dueClass}">Revisão: ${dueText}</div>
                 </div>
-                <div style="display: flex; gap: 12px; align-items: center;">
+                
+                <div class="phrase-meta">
                     <!-- Skill Level Grid -->
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; font-size: 0.65rem; font-weight: 800; background: var(--primary-soft); padding: 6px 10px; border-radius: 10px; min-width: 80px; text-align: center;">
+                    <div class="skill-grid-mini">
                         <div style="color: var(--primary);" title="Quiz">Q: ${p.levels?.quiz || 0}</div>
                         <div style="color: var(--success);" title="Escrita">W: ${p.levels?.write || 0}</div>
                         <div style="color: #f59e0b;" title="Pronúncia">P: ${p.levels?.pronounce || 0}</div>
                         <div style="color: var(--danger);" title="Fala">S: ${p.levels?.speak || 0}</div>
                     </div>
                     
-                    <button class="btn btn-outline btn-sm" onclick="playAudio('${escapeJS(p.english)}')">🔊</button>
-                    <button class="btn btn-outline btn-sm" style="color: var(--danger); border-color: transparent;" onclick="deletePhrase('${p.id}')">🗑️</button>
+                    <div class="phrase-actions">
+                        <button class="btn btn-outline btn-sm" onclick="playAudio('${escapeJS(p.english)}')" title="Ouvir">🔊</button>
+                        <button class="btn btn-outline btn-sm" onclick="showMovePhraseModal('${p.id}')" title="Mover">📁</button>
+                        <button class="btn btn-outline btn-sm" style="color: var(--danger); border-color: transparent;" onclick="deletePhrase('${p.id}')">🗑️</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -435,10 +444,23 @@ function renderMetrics() {
     // 3. LEARNING DISTRIBUTION
     const counts = { new: 0, learning: 0, mastered: 0 };
     allPhrases.forEach(p => {
-        const lvl = getLvl(p);
-        if (lvl === 0) counts.new++;
-        else if (lvl < 5) counts.learning++;
-        else counts.mastered++;
+        let lvl;
+        if (skill === 'standard') {
+            // New rule: Mastery if any skill >= 5
+            const isMastered = (p.levels?.write >= 5 || p.levels?.pronounce >= 5 || p.levels?.speak >= 5);
+            if (isMastered) {
+                counts.mastered++;
+            } else {
+                lvl = getLvl(p); // Standard level
+                if (lvl === 0) counts.new++;
+                else counts.learning++;
+            }
+        } else {
+            lvl = getLvl(p);
+            if (lvl === 0) counts.new++;
+            else if (lvl < 5) counts.learning++;
+            else counts.mastered++;
+        }
     });
 
     const total = Math.max(allPhrases.length, 1);
@@ -460,21 +482,28 @@ function renderMetrics() {
     }
 
     // 4. MASTERED PHRASES GRID
-    const mastered = allPhrases.filter(p => getLvl(p) >= 5).sort((a, b) => getLvl(b) - getLvl(a)).slice(0, 12);
+    const isMasteredGeneral = (p) => (p.levels?.write >= 5 || p.levels?.pronounce >= 5 || p.levels?.speak >= 5);
+    const mastered = allPhrases.filter(p => skill === 'standard' ? isMasteredGeneral(p) : getLvl(p) >= 5)
+        .sort((a, b) => getLvl(b) - getLvl(a))
+        .slice(0, 12);
+    
     const container = $('masteredPhrasesContainer');
 
     if (mastered.length === 0) {
         container.innerHTML = '<div class="card" style="grid-column: 1/-1; text-align:center; color:var(--text-muted);">Ainda não há frases dominadas nesta categoria.</div>';
     } else {
-        container.innerHTML = mastered.map(p => `
-            <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-left: 4px solid var(--success); animation: fadeIn 0.5s ease;">
-                <div style="overflow: hidden;">
-                    <div style="font-weight:700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(p.english)}</div>
-                    <div style="color:var(--text-muted); font-size:0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(p.portuguese)}</div>
+        container.innerHTML = mastered.map(p => {
+            const displayLvl = skill === 'standard' ? Math.max(p.levels?.write || 0, p.levels?.pronounce || 0, p.levels?.speak || 0) : getLvl(p);
+            return `
+                <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-left: 4px solid var(--success); animation: fadeIn 0.5s ease;">
+                    <div style="overflow: hidden;">
+                        <div style="font-weight:700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(p.english)}</div>
+                        <div style="color:var(--text-muted); font-size:0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(p.portuguese)}</div>
+                    </div>
+                    <div style="background: var(--success-soft); color: var(--success); padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 800; margin-left: 12px;">Lvl ${displayLvl}</div>
                 </div>
-                <div style="background: var(--success-soft); color: var(--success); padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 800; margin-left: 12px;">Lvl ${getLvl(p)}</div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 }
 
@@ -925,8 +954,8 @@ function processAnswer(isCorrect, userVal) {
     };
     const multiplier = multipliers[session.mode] || 1.0;
 
-    // SRS interval based on the level of the training mode performed and the mode multiplier
-    const modeForLevel = session.trainingMode;
+    // SRS interval based on the level of the SPECIFIC test mode performed
+    const modeForLevel = session.trainingMode === 'standard' ? session.mode : session.trainingMode;
     const currentLvl = session.current.levels[modeForLevel] || 0;
 
     const baseInterval = SRS_INTERVALS[Math.min(currentLvl, 9)] * 60 * 1000;
@@ -934,9 +963,32 @@ function processAnswer(isCorrect, userVal) {
 
     session.current.nextReview = Date.now() + interval;
 
-    // If it was correct, also update the standard level to progress the overall sequence
+    // Acerto: Se o nível da habilidade focada for maior que o standard, puxa o standard para cima
     if (isCorrect && mode !== 'standard') {
         session.current.levels.standard = Math.max(session.current.levels.standard || 0, session.current.levels[mode]);
+    }
+
+    // Erro: Penalidades Específicas
+    if (!isCorrect) {
+        const subMode = session.mode;
+        const trainingMode = session.trainingMode;
+        
+        // 1. Reduzir nível da HABILIDADE ESPECÍFICA (Quiz, Escrita, etc.)
+        const specificSkill = (trainingMode === 'standard') ? subMode : trainingMode;
+        if (session.current.levels && session.current.levels[specificSkill] !== undefined) {
+            session.current.levels[specificSkill] = Math.max(0, session.current.levels[specificSkill] - 1);
+        }
+
+        // 2. Reduzir nível STANDARD (Sequência do Modo Geral)
+        if (subMode === 'write') {
+            session.current.levels.standard = 0; // Volta para o Quiz
+        } 
+        else if (subMode === 'speak' && userVal === 'Não lembro') {
+            session.current.levels.standard = 2; // Volta para a Pronúncia
+        }
+        else {
+            session.current.levels.standard = Math.max(0, (session.current.levels.standard || 0) - 1);
+        }
     }
 
     appData.totalReviews++;
@@ -947,6 +999,24 @@ function processAnswer(isCorrect, userVal) {
 
     saveData(appData);
     updateGlobalLevel();
+}
+
+function handleSpeakDontRemember() {
+    if (!session.current) return;
+    // Penalidade centralizada no processAnswer
+    processAnswer(false, 'Não lembro');
+}
+
+function handlePronounceCantPronounce() {
+    if (!session.current) return;
+    
+    // Penalidade: Baixar nível do teste específico em -1 (sempre >= 0)
+    if (session.current.levels) {
+        session.current.levels.pronounce = Math.max(0, (session.current.levels.pronounce || 0) - 1);
+    }
+    
+    // Não altera Standard e não atualiza SRS. Apenas pula.
+    nextPhrase();
 }
 
 function updateStreak() {
@@ -1173,10 +1243,24 @@ function playAudio(t) {
     }
 }
 
+function isPhraseDuplicate(english) {
+    const norm = normalizeText(english);
+    for (const list of appData.lists) {
+        if (list.phrases.some(p => normalizeText(p.english) === norm)) return true;
+    }
+    return false;
+}
+
 function addPhrase() {
     const eng = $('phraseEngInput').value.trim();
     const pt = $('phrasePtInput').value.trim();
     if (!eng || !pt) return;
+
+    if (isPhraseDuplicate(eng)) {
+        alert("Esta frase já existe em uma de suas listas!", "Frase Duplicada", "⚠️");
+        return;
+    }
+
     const list = appData.lists.find(l => l.id === appData.currentListId);
     list.phrases.push({
         id: 'ph_' + Date.now(),
@@ -1301,10 +1385,20 @@ function importIndividualList(input) {
             if (data.phrases && Array.isArray(data.phrases)) {
                 // It's an individual list
                 data.id = 'list_' + Date.now(); // New ID to avoid collision
+                
+                // Filtra duplicatas globais na lista importada
+                const originalCount = data.phrases.length;
+                data.phrases = data.phrases.filter(p => !isPhraseDuplicate(p.english));
+                const filteredCount = data.phrases.length;
+                const removed = originalCount - filteredCount;
+
                 appData.lists.push(data);
                 saveData(appData);
                 renderLists();
-                alert("Lista importada com sucesso!");
+                
+                let msg = "Lista importada com sucesso!";
+                if (removed > 0) msg += `\n(${removed} frases duplicadas foram removidas)`;
+                alert(msg);
             } else {
                 alert("Este arquivo não parece ser uma lista individual válida.");
             }
@@ -1426,16 +1520,21 @@ async function processBulkAdd() {
     // 1. Quebrar em linhas
     let lines = rawInput.split('\n').map(l => l.trim()).filter(l => l);
 
+    let addedCount = 0;
+    let duplicateCount = 0;
+
     // 2. Se não houver pontos e vírgulas e NÃO for auto-tradução, tentar detectar pares
     const hasSemicolon = rawInput.includes(';');
 
     if (!hasSemicolon && lines.length >= 2 && !autoTranslate) {
-
-        // Tentar parear linhas: 1 com 2, 3 com 4...
         for (let i = 0; i < lines.length; i += 2) {
             const eng = lines[i];
             const pt = lines[i + 1];
             if (eng && pt) {
+                if (isPhraseDuplicate(eng)) {
+                    duplicateCount++;
+                    continue;
+                }
                 list.phrases.push({
                     id: 'ph_' + Date.now() + Math.random(),
                     english: eng,
@@ -1443,10 +1542,10 @@ async function processBulkAdd() {
                     levels: { standard: 0, quiz: 0, write: 0, pronounce: 0, speak: 0 },
                     nextReview: null
                 });
+                addedCount++;
             }
         }
     } else {
-        // Lógica original baseada em ponto e vírgula
         for (let line of lines) {
             let [part1, part2] = line.split(';').map(s => s ? s.trim() : '');
             let eng = '', pt = '';
@@ -1466,11 +1565,14 @@ async function processBulkAdd() {
                     }
                 }
             } else if (part1 && !part2) {
-                // Se só tem uma parte e não é auto-translate, ignora ou adiciona como eng (mas precisa de PT)
                 continue;
             }
 
             if (eng && pt) {
+                if (isPhraseDuplicate(eng)) {
+                    duplicateCount++;
+                    continue;
+                }
                 list.phrases.push({
                     id: 'ph_' + Date.now() + Math.random(),
                     english: eng,
@@ -1478,6 +1580,7 @@ async function processBulkAdd() {
                     levels: { standard: 0, quiz: 0, write: 0, pronounce: 0, speak: 0 },
                     nextReview: null
                 });
+                addedCount++;
             }
         }
     }
@@ -1490,6 +1593,10 @@ async function processBulkAdd() {
     $('bulkInput').value = '';
     btn.disabled = false;
     btn.textContent = 'Adicionar Frases';
+
+    let msg = `Sucesso! Foram adicionadas ${addedCount} frases.`;
+    if (duplicateCount > 0) msg += `\n(${duplicateCount} frases duplicadas foram ignoradas)`;
+    alert(msg);
 }
 
 
@@ -1926,10 +2033,19 @@ const SENTENCE_POOL = [
 ];
 
 function showAutoListModal() {
+    // Populate target selector
+    const targetSelect = $('autoListTarget');
+    targetSelect.innerHTML = '<option value="new">✨ Criar Nova Lista</option>';
+    appData.lists.forEach(l => {
+        targetSelect.innerHTML += `<option value="${l.id}">📁 Adicionar em: ${escapeHTML(l.name)}</option>`;
+    });
+
     $('modalBg').style.display = 'flex';
     $('autoListModal').style.display = 'block';
     $('newListModal').style.display = 'none';
+    $('editListModal').style.display = 'none';
     $('bulkAddModal').style.display = 'none';
+    $('movePhraseModal').style.display = 'none';
     $('systemDialog').style.display = 'none';
 }
 
@@ -1996,27 +2112,55 @@ async function generateSmartList() {
 }
 
 function saveGeneratedList(phrases, topic) {
+    const targetId = $('autoListTarget').value;
     const topicsMap = {
         'general': 'Geral',
         'daily': 'Vida Diária',
         'business': 'Trabalho/Business',
         'travel': 'Viagens'
     };
-    
-    const listName = `✨ IA: ${topicsMap[topic]} (${new Date().toLocaleDateString()})`;
-    const newList = {
-        id: 'l_auto_' + Date.now(),
-        name: listName,
-        phrases: phrases.map(p => ({
-            id: 'ph_auto_' + Date.now() + Math.random(),
-            english: p.eng,
-            portuguese: p.pt,
-            levels: { standard: 0, quiz: 0, write: 0, pronounce: 0, speak: 0 },
-            nextReview: null
-        }))
-    };
 
-    appData.lists.push(newList);
+    // Filtra duplicatas antes de adicionar
+    const uniquePhrases = phrases.filter(p => !isPhraseDuplicate(p.eng));
+    const duplicatesCount = phrases.length - uniquePhrases.length;
+
+    if (uniquePhrases.length === 0) {
+        alert("Todas as frases sugeridas já existem nas suas listas!", "Nada de novo", "ℹ️");
+        const btn = $('btnGenerateAuto');
+        btn.disabled = false;
+        btn.textContent = '✨ Gerar Lista';
+        return;
+    }
+    
+    if (targetId === 'new') {
+        const listName = `✨ IA: ${topicsMap[topic]} (${new Date().toLocaleDateString()})`;
+        const newList = {
+            id: 'l_auto_' + Date.now(),
+            name: listName,
+            phrases: uniquePhrases.map(p => ({
+                id: 'ph_auto_' + Date.now() + Math.random(),
+                english: p.eng,
+                portuguese: p.pt,
+                levels: { standard: 0, quiz: 0, write: 0, pronounce: 0, speak: 0 },
+                nextReview: null
+            }))
+        };
+        appData.lists.push(newList);
+    } else {
+        const targetList = appData.lists.find(l => l.id === targetId);
+        if (targetList) {
+            uniquePhrases.forEach(p => {
+                targetList.phrases.push({
+                    id: 'ph_auto_' + Date.now() + Math.random(),
+                    english: p.eng,
+                    portuguese: p.pt,
+                    levels: { standard: 0, quiz: 0, write: 0, pronounce: 0, speak: 0 },
+                    nextReview: null
+                });
+            });
+        }
+    }
+
     saveData(appData);
     
     // UI Cleanup
@@ -2026,6 +2170,7 @@ function saveGeneratedList(phrases, topic) {
     btn.textContent = '✨ Gerar Lista';
     
     renderLists();
+    renderPhrases();
     renderStats();
     
     // Success feedback
@@ -2035,7 +2180,82 @@ function saveGeneratedList(phrases, topic) {
         origin: { y: 0.6 }
     });
 
-    alert(`Lista "${listName}" gerada com sucesso! Ela combina palavras que você já conhece com novos termos úteis.`);
+    let msg = `Sucesso! Foram adicionadas ${uniquePhrases.length} frases.`;
+    if (duplicatesCount > 0) msg += `\n(${duplicatesCount} frases foram ignoradas por já existirem)`;
+    alert(msg);
+}
+
+function showEditListModal(id) {
+    const list = appData.lists.find(l => l.id === id);
+    if (!list) return;
+
+    $('editListName').value = list.name;
+    $('btnSaveListName').onclick = () => {
+        const newName = $('editListName').value.trim();
+        if (newName) {
+            list.name = newName;
+            saveData(appData);
+            renderLists();
+            if (appData.currentListId === id) $('currentListTitle').textContent = newName;
+            closeModal();
+        }
+    };
+
+    $('modalBg').style.display = 'flex';
+    $('editListModal').style.display = 'block';
+    $('newListModal').style.display = 'none';
+    $('autoListModal').style.display = 'none';
+    $('bulkAddModal').style.display = 'none';
+    $('movePhraseModal').style.display = 'none';
+}
+
+function showMovePhraseModal(phraseId) {
+    const container = $('moveTargetList');
+    container.innerHTML = '';
+
+    // Encontrar lista atual
+    let currentList = appData.lists.find(l => l.phrases.some(p => p.id === phraseId));
+    
+    appData.lists.forEach(l => {
+        if (l.id === currentList.id) return; // Não mostrar lista atual
+
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-outline';
+        btn.style.textAlign = 'left';
+        btn.style.justifyContent = 'flex-start';
+        btn.innerHTML = `📁 <b>${escapeHTML(l.name)}</b> <span style="margin-left: auto; font-size: 0.7rem; opacity: 0.6;">${l.phrases.length} frases</span>`;
+        btn.onclick = () => executeMove(phraseId, currentList.id, l.id);
+        container.appendChild(btn);
+    });
+
+    if (appData.lists.length <= 1) {
+        container.innerHTML = '<p style="text-align: center; color: var(--text-muted);">Você precisa ter outras listas para mover frases.</p>';
+    }
+
+    $('modalBg').style.display = 'flex';
+    $('movePhraseModal').style.display = 'block';
+    $('newListModal').style.display = 'none';
+    $('editListModal').style.display = 'none';
+    $('autoListModal').style.display = 'none';
+    $('bulkAddModal').style.display = 'none';
+}
+
+function executeMove(phraseId, fromId, toId) {
+    const fromList = appData.lists.find(l => l.id === fromId);
+    const toList = appData.lists.find(l => l.id === toId);
+    
+    if (!fromList || !toList) return;
+
+    const phraseIdx = fromList.phrases.findIndex(p => p.id === phraseId);
+    if (phraseIdx === -1) return;
+
+    const phrase = fromList.phrases.splice(phraseIdx, 1)[0];
+    toList.phrases.push(phrase);
+
+    saveData(appData);
+    closeModal();
+    renderPhrases();
+    renderStats();
 }
 
 function updateStorageUsage() {

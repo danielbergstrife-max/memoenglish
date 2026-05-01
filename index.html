@@ -59,6 +59,14 @@
 
         <!-- MAIN AREA -->
         <main class="main-area">
+            
+            <!-- MOBILE HEADER (Only visible on mobile) -->
+            <div class="mobile-header">
+                <div class="logo">
+                    <div class="logo-box">🧠</div>
+                    <span>MemoEnglish</span>
+                </div>
+            </div>
 
             <!-- HOME VIEW -->
             <div id="homeView" class="view">
@@ -390,6 +398,7 @@
 
                         <div style="margin-top: 32px; display: flex; justify-content: center; gap: 16px;">
                             <button class="btn btn-outline" onclick="playAudio(session.current.english)" style="padding: 12px 24px; font-size: 0.9rem;">🔊 Ouvir Áudio</button>
+                            <button class="btn btn-outline btn-sm" onclick="handlePronounceCantPronounce()" style="color: var(--danger); border-color: transparent;">🔇 Não consigo pronunciar</button>
                         </div>
                     </div>
 
@@ -475,6 +484,17 @@
                 </div>
             </div>
 
+            <!-- Edit List Modal (Rename) -->
+            <div id="editListModal" class="card" style="width: 100%; max-width: 400px; display: none;">
+                <h3 style="margin-bottom: 20px;">Renomear Lista</h3>
+                <input type="text" id="editListName" class="input-box" style="text-align: left;"
+                    placeholder="Nome da lista">
+                <div style="display: flex; gap: 12px; margin-top: 20px;">
+                    <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancelar</button>
+                    <button class="btn btn-primary" style="flex:1" id="btnSaveListName">Salvar</button>
+                </div>
+            </div>
+
             <!-- Auto List Modal -->
             <div id="autoListModal" class="card" style="width: 100%; max-width: 450px; display: none;">
                 <div style="text-align: center; margin-bottom: 24px;">
@@ -490,6 +510,14 @@
                         <option value="10" selected>10 Frases</option>
                         <option value="15">15 Frases</option>
                         <option value="20">20 Frases</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 700; margin-bottom: 8px; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">Destino</label>
+                    <select id="autoListTarget" class="input-box" style="text-align: left; padding: 12px;">
+                        <option value="new">Criar Nova Lista</option>
+                        <!-- Options populated by JS -->
                     </select>
                 </div>
 
@@ -533,6 +561,20 @@
                     <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancelar</button>
                     <button class="btn btn-primary" id="btnProcessBulk" style="flex:2"
                         onclick="processBulkAdd()">Adicionar Frases</button>
+                </div>
+            </div>
+
+            <!-- Move Phrase Modal -->
+            <div id="movePhraseModal" class="card" style="width: 100%; max-width: 450px; display: none;">
+                <h3 style="margin-bottom: 8px;">Mover Frase</h3>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 24px;">Escolha a lista de destino para esta frase.</p>
+                
+                <div style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;" id="moveTargetList">
+                    <!-- Options populated by JS -->
+                </div>
+
+                <div style="margin-top: 24px;">
+                    <button class="btn btn-outline" style="width: 100%" onclick="closeModal()">Cancelar</button>
                 </div>
             </div>
 
