@@ -574,7 +574,7 @@ function nextPhrase() {
 
 function renderExercise() {
     const p = session.current;
-    const modeLvl = p.levels?.[session.trainingMode === 'standard' ? 'standard' : session.trainingMode] || 0;
+    const modeLvl = p.levels?.[session.mode] || 0;
 
     $('phrasePt').textContent = p.portuguese;
     $('modeLabel').innerHTML = `
