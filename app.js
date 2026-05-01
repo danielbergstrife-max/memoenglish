@@ -312,12 +312,12 @@ function renderLists() {
         const dueCount = l.phrases.filter(p => isPhraseDue(p)).length;
         $('listsContainer').innerHTML += `
             <div class="card" style="display: flex; flex-direction: column; gap: 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div style="flex: 1;">
-                        <h3 style="cursor: pointer; margin-bottom: 4px;" onclick="selectList('${l.id}')">${escapeHTML(l.name)}</h3>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                    <div style="flex: 1; min-width: 0;">
+                        <h3 style="cursor: pointer; margin-bottom: 4px; overflow-wrap: break-word; line-height: 1.3;" onclick="selectList('${l.id}')">${escapeHTML(l.name)}</h3>
                         <div style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">${l.phrases.length} frases • <span style="color: var(--danger)">${dueCount} revisões</span></div>
                     </div>
-                    <div style="display: flex; gap: 8px;">
+                    <div style="display: flex; flex-direction: column; gap: 6px; flex-shrink: 0;">
                         <button class="btn btn-outline btn-sm" onclick="showEditListModal('${l.id}')" title="Renomear Lista">✏️</button>
                         <button class="btn btn-outline btn-sm" onclick="exportIndividualList('${l.id}')" title="Exportar Lista">📤</button>
                         <button class="btn btn-outline btn-sm" style="color: var(--danger); border-color: transparent;" onclick="deleteList('${l.id}')">🗑️</button>
@@ -1303,48 +1303,48 @@ function highlightDifferences(user, correct) {
     return html;
 }
 
-// ==================== SYSTEM DIALOGS ====================
-window.alert = function (msg, title = "Aviso", icon = "ℹ️") {
-    // Hide other modals
-    $('newListModal').style.display = 'none';
-    $('bulkAddModal').style.display = 'none';
-    $('autoListModal').style.display = 'none';
+// Centralized Modal Management
+function openModal(modalId) {
+    // Hide all children of modalBg
+    const modals = $('modalBg').children;
+    for (let m of modals) {
+        m.style.display = 'none';
+    }
+    // Show background and the specific modal
+    $('modalBg').style.display = 'flex';
+    $(modalId).style.display = 'block';
+}
 
+function closeModal() { 
+    $('modalBg').style.display = 'none'; 
+}
+
+// Override default alert/confirm with premium system dialog
+window.alert = function (msg, title = "Aviso", icon = "ℹ️") {
     $('dialogTitle').textContent = title;
     $('dialogMessage').textContent = msg;
     $('dialogIcon').textContent = icon;
     $('dialogCancel').style.display = 'none';
-    $('dialogConfirm').onclick = () => { $('systemDialog').style.display = 'none'; $('modalBg').style.display = 'none'; };
-    $('modalBg').style.display = 'flex';
-    $('systemDialog').style.display = 'block';
+    $('dialogConfirm').onclick = closeDialog;
+    
+    openModal('systemDialog');
 };
 
-window.confirm = function (msg, onConfirm) {
-    // Hide other modals
-    $('newListModal').style.display = 'none';
-    $('bulkAddModal').style.display = 'none';
-    $('autoListModal').style.display = 'none';
-
-    $('dialogTitle').textContent = "Confirmação";
+window.confirm = function (msg, onConfirm, title = "Confirmação") {
+    $('dialogTitle').textContent = title;
     $('dialogMessage').textContent = msg;
     $('dialogIcon').textContent = "❓";
     $('dialogCancel').style.display = 'block';
-    $('dialogCancel').onclick = () => { $('systemDialog').style.display = 'none'; $('modalBg').style.display = 'none'; };
-    $('dialogConfirm').onclick = () => {
-        $('systemDialog').style.display = 'none';
-        $('modalBg').style.display = 'none';
+    $('dialogCancel').onclick = closeDialog;
+    $('dialogConfirm').onclick = () => { 
         if (onConfirm) onConfirm();
+        closeDialog(); 
     };
-    $('modalBg').style.display = 'flex';
-    $('systemDialog').style.display = 'block';
+    
+    openModal('systemDialog');
 };
 
-
-function closeDialog() {
-    $('systemDialog').style.display = 'none';
-    $('modalBg').style.display = 'none';
-}
-
+function closeDialog() { closeModal(); }
 // ==================== DATA PORTABILITY ====================
 function exportData() {
     const dataStr = JSON.stringify(appData, null, 2);
@@ -1443,9 +1443,7 @@ function deletePhrase(id) {
 }
 
 function showAddListModal() {
-    $('modalBg').style.display = 'flex';
-    $('newListModal').style.display = 'block';
-    $('bulkAddModal').style.display = 'none';
+    openModal('newListModal');
 }
 function closeModal() { $('modalBg').style.display = 'none'; }
 function createList() {
@@ -1501,9 +1499,7 @@ async function translateField(sourceId, targetId, sl, tl) {
 }
 
 function showBulkModal() {
-    $('modalBg').style.display = 'flex';
-    $('newListModal').style.display = 'none';
-    $('bulkAddModal').style.display = 'block';
+    openModal('bulkAddModal');
 }
 
 async function processBulkAdd() {
@@ -1983,18 +1979,38 @@ function deleteList(id) {
 // ==================== SMART LIST GENERATOR ====================
 
 const SENTENCE_POOL = [
-    // DAILY
-    { eng: "I need to buy some milk at the store.", pt: "Eu preciso comprar leite na loja.", topic: "daily" },
-    { eng: "The weather is very cold today.", pt: "O tempo está muito frio hoje.", topic: "daily" },
+    // DAILY LIFE
     { eng: "What time do you usually wake up?", pt: "A que horas você costuma acordar?", topic: "daily" },
-    { eng: "I am going to cook dinner tonight.", pt: "Eu vou cozinhar o jantar hoje à noite.", topic: "daily" },
-    { eng: "Can you turn on the lights, please?", pt: "Você pode ligar as luzes, por favor?", topic: "daily" },
-    { eng: "I forgot my keys at home.", pt: "Eu esqueci minhas chaves em casa.", topic: "daily" },
-    { eng: "She is talking on the phone right now.", pt: "Ela está falando ao telefone agora.", topic: "daily" },
+    { eng: "I need to go to the supermarket later.", pt: "Eu preciso ir ao supermercado mais tarde.", topic: "daily" },
+    { eng: "Would you like some coffee or tea?", pt: "Você gostaria de um pouco de café ou chá?", topic: "daily" },
+    { eng: "I am feeling a bit tired today.", pt: "Estou me sentindo um pouco cansado hoje.", topic: "daily" },
+    { eng: "The weather is beautiful this morning.", pt: "O tempo está lindo esta manhã.", topic: "daily" },
+    { eng: "Could you please pass me the salt?", pt: "Você poderia por favor me passar o sal?", topic: "daily" },
+    { eng: "I have to finish my homework tonight.", pt: "Eu tenho que terminar minha lição de casa hoje à noite.", topic: "daily" },
+    { eng: "What are your plans for the weekend?", pt: "Quais são os seus planos para o fim de semana?", topic: "daily" },
+    { eng: "I really enjoy reading books in my free time.", pt: "Eu gosto muito de ler livros no meu tempo livre.", topic: "daily" },
+    { eng: "She is one of my best friends.", pt: "Ela é uma das minhas melhores amigas.", topic: "daily" },
+    { eng: "It's getting late, I should go home.", pt: "Está ficando tarde, eu deveria ir para casa.", topic: "daily" },
+    { eng: "Have you seen my car keys anywhere?", pt: "Você viu as chaves do meu carro em algum lugar?", topic: "daily" },
+    { eng: "I'm going to take a shower and get ready.", pt: "Vou tomar um banho e me arrumar.", topic: "daily" },
+    { eng: "We should order pizza for dinner.", pt: "Deveríamos pedir pizza para o jantar.", topic: "daily" },
     { eng: "The children are playing in the park.", pt: "As crianças estão brincando no parque.", topic: "daily" },
     { eng: "I like to listen to music while working.", pt: "Eu gosto de ouvir música enquanto trabalho.", topic: "daily" },
     { eng: "He is drinking a glass of water.", pt: "Ele está bebendo um copo de água.", topic: "daily" },
-    
+    { eng: "I forgot to turn off the lights.", pt: "Eu esqueci de apagar as luzes.", topic: "daily" },
+    { eng: "Can you help me with these bags?", pt: "Você pode me ajudar com estas sacolas?", topic: "daily" },
+    { eng: "I'm looking forward to the party.", pt: "Estou ansioso pela festa.", topic: "daily" },
+    { eng: "What's your favorite type of food?", pt: "Qual é o seu tipo de comida favorito?", topic: "daily" },
+    { eng: "I need to do the laundry this afternoon.", pt: "Preciso lavar a roupa esta tarde.", topic: "daily" },
+    { eng: "He works from Monday to Friday.", pt: "Ele trabalha de segunda a sexta.", topic: "daily" },
+    { eng: "My brother lives in another city.", pt: "Meu irmão mora em outra cidade.", topic: "daily" },
+    { eng: "I have a doctor's appointment tomorrow.", pt: "Tenho uma consulta médica amanhã.", topic: "daily" },
+    { eng: "Do you have any pets?", pt: "Você tem algum animal de estimação?", topic: "daily" },
+    { eng: "I need to buy a new pair of shoes.", pt: "Preciso comprar um par de sapatos novos.", topic: "daily" },
+    { eng: "The movie starts at eight o'clock.", pt: "O filme começa às oito horas.", topic: "daily" },
+    { eng: "It's a pleasure to meet you.", pt: "É um prazer conhecê-lo.", topic: "daily" },
+    { eng: "How was your day at school?", pt: "Como foi o seu dia na escola?", topic: "daily" },
+
     // BUSINESS
     { eng: "We need to schedule a meeting for next week.", pt: "Precisamos agendar uma reunião para a próxima semana.", topic: "business" },
     { eng: "Could you send me the report by email?", pt: "Você poderia me enviar o relatório por e-mail?", topic: "business" },
@@ -2006,6 +2022,26 @@ const SENTENCE_POOL = [
     { eng: "The deadline is tomorrow afternoon.", pt: "O prazo é amanhã à tarde.", topic: "business" },
     { eng: "I am responsible for the marketing department.", pt: "Eu sou responsável pelo departamento de marketing.", topic: "business" },
     { eng: "Let's discuss this further in the next call.", pt: "Vamos discutir isso melhor na próxima chamada.", topic: "business" },
+    { eng: "We need to find a way to reduce costs.", pt: "Precisamos encontrar uma maneira de reduzir custos.", topic: "business" },
+    { eng: "The presentation was very professional.", pt: "A apresentação foi muito profissional.", topic: "business" },
+    { eng: "I will get back to you as soon as possible.", pt: "Eu retorno para você o mais rápido possível.", topic: "business" },
+    { eng: "We are reaching out to potential investors.", pt: "Estamos entrando em contato com investidores em potencial.", topic: "business" },
+    { eng: "Is everyone available for the conference call?", pt: "Todos estão disponíveis para a teleconferência?", topic: "business" },
+    { eng: "We should focus on the target audience.", pt: "Devemos focar no público-alvo.", topic: "business" },
+    { eng: "The project is slightly behind schedule.", pt: "O projeto está um pouco atrasado em relação ao cronograma.", topic: "business" },
+    { eng: "Could you please take minutes of the meeting?", pt: "Você poderia por favor fazer a ata da reunião?", topic: "business" },
+    { eng: "I'd like to propose a new strategy.", pt: "Eu gostaria de propor uma nova estratégia.", topic: "business" },
+    { eng: "We need to approve the budget by Friday.", pt: "Precisamos aprovar o orçamento até sexta-feira.", topic: "business" },
+    { eng: "The feedback from the client was positive.", pt: "O feedback do cliente foi positivo.", topic: "business" },
+    { eng: "I am currently out of the office.", pt: "Estou fora do escritório no momento.", topic: "business" },
+    { eng: "We are expanding our business to Europe.", pt: "Estamos expandindo nossos negócios para a Europa.", topic: "business" },
+    { eng: "The quarterly results were better than expected.", pt: "Os resultados trimestrais foram melhores que o esperado.", topic: "business" },
+    { eng: "Please keep me updated on the progress.", pt: "Por favor, mantenha-me atualizado sobre o progresso.", topic: "business" },
+    { eng: "I will send the meeting invitation shortly.", pt: "Enviarei o convite da reunião em breve.", topic: "business" },
+    { eng: "We need to sign the contract by noon.", pt: "Precisamos assinar o contrato até o meio-dia.", topic: "business" },
+    { eng: "The team is working hard on the new update.", pt: "A equipe está trabalhando duro na nova atualização.", topic: "business" },
+    { eng: "Could you explain the main points again?", pt: "Você poderia explicar os pontos principais novamente?", topic: "business" },
+    { eng: "I'm looking for a more challenging role.", pt: "Estou procurando por um cargo mais desafiador.", topic: "business" },
 
     // TRAVEL
     { eng: "Where is the nearest subway station?", pt: "Onde fica a estação de metrô mais próxima?", topic: "travel" },
@@ -2018,8 +2054,28 @@ const SENTENCE_POOL = [
     { eng: "The view from the top is amazing.", pt: "A vista do topo é incrível.", topic: "travel" },
     { eng: "Is breakfast included in the price?", pt: "O café da manhã está incluído no preço?", topic: "travel" },
     { eng: "I am looking for the departure gate.", pt: "Estou procurando o portão de embarque.", topic: "travel" },
+    { eng: "What time does the train leave?", pt: "A que horas o trem parte?", topic: "travel" },
+    { eng: "I'd like a window seat, please.", pt: "Eu gostaria de um assento na janela, por favor.", topic: "travel" },
+    { eng: "Could you recommend a good local restaurant?", pt: "Você poderia recomendar um bom restaurante local?", topic: "travel" },
+    { eng: "My luggage has been lost.", pt: "Minha bagagem foi perdida.", topic: "travel" },
+    { eng: "I'm here for a business trip.", pt: "Estou aqui para uma viagem de negócios.", topic: "travel" },
+    { eng: "Is it safe to walk here at night?", pt: "É seguro caminhar aqui à noite?", topic: "travel" },
+    { eng: "How do I get to the city center?", pt: "Como faço para chegar ao centro da cidade?", topic: "travel" },
+    { eng: "I need to rent a car for three days.", pt: "Preciso alugar um carro por três dias.", topic: "travel" },
+    { eng: "Can I pay with a credit card?", pt: "Posso pagar com cartão de crédito?", topic: "travel" },
+    { eng: "Where can I find a taxi stand?", pt: "Onde posso encontrar um ponto de táxi?", topic: "travel" },
+    { eng: "Is the tap water safe to drink?", pt: "A água da torneira é segura para beber?", topic: "travel" },
+    { eng: "I'd like to book a tour for tomorrow.", pt: "Eu gostaria de reservar um passeio para amanhã.", topic: "travel" },
+    { eng: "How long is the waiting list?", pt: "Qual é o tamanho da lista de espera?", topic: "travel" },
+    { eng: "I've lost my passport, what should I do?", pt: "Perdi meu passaporte, o que devo fazer?", topic: "travel" },
+    { eng: "Can you take a picture of us, please?", pt: "Você pode tirar uma foto nossa, por favor?", topic: "travel" },
+    { eng: "What's the best way to get around the city?", pt: "Qual é a melhor maneira de se locomover pela cidade?", topic: "travel" },
+    { eng: "I need a receipt for my records.", pt: "Preciso de um recibo para meus registros.", topic: "travel" },
+    { eng: "Is there free Wi-Fi in the lobby?", pt: "Tem Wi-Fi gratuito no saguão?", topic: "travel" },
+    { eng: "We would like a table for four.", pt: "Gostaríamos de uma mesa para quatro.", topic: "travel" },
+    { eng: "I'm just browsing, thank you.", pt: "Estou só dando uma olhadinha, obrigado.", topic: "travel" },
 
-    // GENERAL
+    // GENERAL / IDIOMS
     { eng: "It is important to study every day.", pt: "É importante estudar todos os dias.", topic: "general" },
     { eng: "I believe that anything is possible.", pt: "Eu acredito que qualquer coisa é possível.", topic: "general" },
     { eng: "The world is full of beautiful places.", pt: "O mundo está cheio de lugares bonitos.", topic: "general" },
@@ -2029,7 +2085,32 @@ const SENTENCE_POOL = [
     { eng: "Success depends on hard work.", pt: "O sucesso depende de trabalho duro.", topic: "general" },
     { eng: "Kindness is always free.", pt: "Gentileza é sempre de graça.", topic: "general" },
     { eng: "Everything happens for a reason.", pt: "Tudo acontece por uma razão.", topic: "general" },
-    { eng: "The best is yet to come.", pt: "O melhor ainda está por vir.", topic: "general" }
+    { eng: "The best is yet to come.", pt: "O melhor ainda está por vir.", topic: "general" },
+    { eng: "It's raining cats and dogs.", pt: "Está chovendo canivetes.", topic: "general" },
+    { eng: "Break a leg for your performance!", pt: "Boa sorte na sua apresentação!", topic: "general" },
+    { eng: "That's a piece of cake.", pt: "Isso é mamão com açúcar.", topic: "general" },
+    { eng: "Better late than never.", pt: "Antes tarde do que nunca.", topic: "general" },
+    { eng: "Actions speak louder than words.", pt: "Ações valem mais que palavras.", topic: "general" },
+    { eng: "Once in a blue moon.", pt: "Raramente.", topic: "general" },
+    { eng: "Costs an arm and a leg.", pt: "Custa os olhos da cara.", topic: "general" },
+    { eng: "Don't judge a book by its cover.", pt: "Não julgue o livro pela capa.", topic: "general" },
+    { eng: "Every cloud has a silver lining.", pt: "Há males que vêm para o bem.", topic: "general" },
+    { eng: "Kill two birds with one stone.", pt: "Matar dois coelhos com uma cajadada só.", topic: "general" },
+    { eng: "The early bird catches the worm.", pt: "Deus ajuda quem cedo madruga.", topic: "general" },
+    { eng: "Time flies when you're having fun.", pt: "O tempo voa quando você se diverte.", topic: "general" },
+    { eng: "Under the weather.", pt: "Sentindo-se mal / indisposto.", topic: "general" },
+    { eng: "To make a long story short.", pt: "Resumindo a história.", topic: "general" },
+    { eng: "Think outside the box.", pt: "Pense fora da caixa.", topic: "general" },
+    { eng: "Beat around the bush.", pt: "Ficar enrolando.", topic: "general" },
+    { eng: "By the way, have you called him?", pt: "A propósito, você ligou para ele?", topic: "general" },
+    { eng: "I'll keep my fingers crossed for you.", pt: "Vou ficar na torcida por você.", topic: "general" },
+    { eng: "So far, so good.", pt: "Até aqui, tudo bem.", topic: "general" },
+    { eng: "Take it easy.", pt: "Vá com calma.", topic: "general" },
+    { eng: "Make yourself at home.", pt: "Sinta-se em casa.", topic: "general" },
+    { eng: "I'm in a hurry.", pt: "Estou com pressa.", topic: "general" },
+    { eng: "It depends on the situation.", pt: "Depende da situação.", topic: "general" },
+    { eng: "As far as I know.", pt: "Até onde eu sei.", topic: "general" },
+    { eng: "I changed my mind.", pt: "Eu mudei de ideia.", topic: "general" }
 ];
 
 function showAutoListModal() {
@@ -2040,13 +2121,7 @@ function showAutoListModal() {
         targetSelect.innerHTML += `<option value="${l.id}">📁 Adicionar em: ${escapeHTML(l.name)}</option>`;
     });
 
-    $('modalBg').style.display = 'flex';
-    $('autoListModal').style.display = 'block';
-    $('newListModal').style.display = 'none';
-    $('editListModal').style.display = 'none';
-    $('bulkAddModal').style.display = 'none';
-    $('movePhraseModal').style.display = 'none';
-    $('systemDialog').style.display = 'none';
+    openModal('autoListModal');
 }
 
 function getMasteredWords() {
@@ -2099,13 +2174,20 @@ async function generateSmartList() {
     });
 
     scoredPool.sort((a, b) => b.score - a.score);
-    const selected = scoredPool.slice(0, count);
+    
+    // FILTRO ANTECIPADO: Remove frases que já existem antes de selecionar a quantidade final
+    const filteredPool = scoredPool.filter(s => !isPhraseDuplicate(s.eng));
+    const selected = filteredPool.slice(0, count);
 
     if (selected.length === 0) {
-        alert("Não encontrei frases suficientes para este tópico. Tente o modo Geral!");
+        alert("Você já domina todas as frases deste tópico no nosso banco de dados! Tente outro foco.");
         btn.disabled = false;
         btn.textContent = '✨ Gerar Lista';
         return;
+    }
+
+    if (selected.length < count) {
+        alert(`Consegui encontrar apenas ${selected.length} frases inéditas para este tópico.`);
     }
 
     saveGeneratedList(selected, topic);
@@ -2120,24 +2202,12 @@ function saveGeneratedList(phrases, topic) {
         'travel': 'Viagens'
     };
 
-    // Filtra duplicatas antes de adicionar
-    const uniquePhrases = phrases.filter(p => !isPhraseDuplicate(p.eng));
-    const duplicatesCount = phrases.length - uniquePhrases.length;
-
-    if (uniquePhrases.length === 0) {
-        alert("Todas as frases sugeridas já existem nas suas listas!", "Nada de novo", "ℹ️");
-        const btn = $('btnGenerateAuto');
-        btn.disabled = false;
-        btn.textContent = '✨ Gerar Lista';
-        return;
-    }
-    
     if (targetId === 'new') {
         const listName = `✨ IA: ${topicsMap[topic]} (${new Date().toLocaleDateString()})`;
         const newList = {
             id: 'l_auto_' + Date.now(),
             name: listName,
-            phrases: uniquePhrases.map(p => ({
+            phrases: phrases.map(p => ({
                 id: 'ph_auto_' + Date.now() + Math.random(),
                 english: p.eng,
                 portuguese: p.pt,
@@ -2149,7 +2219,7 @@ function saveGeneratedList(phrases, topic) {
     } else {
         const targetList = appData.lists.find(l => l.id === targetId);
         if (targetList) {
-            uniquePhrases.forEach(p => {
+            phrases.forEach(p => {
                 targetList.phrases.push({
                     id: 'ph_auto_' + Date.now() + Math.random(),
                     english: p.eng,
@@ -2180,9 +2250,7 @@ function saveGeneratedList(phrases, topic) {
         origin: { y: 0.6 }
     });
 
-    let msg = `Sucesso! Foram adicionadas ${uniquePhrases.length} frases.`;
-    if (duplicatesCount > 0) msg += `\n(${duplicatesCount} frases foram ignoradas por já existirem)`;
-    alert(msg);
+    alert(`Sucesso! Foram adicionadas ${phrases.length} frases novas.`);
 }
 
 function showEditListModal(id) {
@@ -2201,12 +2269,7 @@ function showEditListModal(id) {
         }
     };
 
-    $('modalBg').style.display = 'flex';
-    $('editListModal').style.display = 'block';
-    $('newListModal').style.display = 'none';
-    $('autoListModal').style.display = 'none';
-    $('bulkAddModal').style.display = 'none';
-    $('movePhraseModal').style.display = 'none';
+    openModal('editListModal');
 }
 
 function showMovePhraseModal(phraseId) {
@@ -2232,12 +2295,7 @@ function showMovePhraseModal(phraseId) {
         container.innerHTML = '<p style="text-align: center; color: var(--text-muted);">Você precisa ter outras listas para mover frases.</p>';
     }
 
-    $('modalBg').style.display = 'flex';
-    $('movePhraseModal').style.display = 'block';
-    $('newListModal').style.display = 'none';
-    $('editListModal').style.display = 'none';
-    $('autoListModal').style.display = 'none';
-    $('bulkAddModal').style.display = 'none';
+    openModal('movePhraseModal');
 }
 
 function executeMove(phraseId, fromId, toId) {
