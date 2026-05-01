@@ -224,15 +224,29 @@ function renderStats() {
     $('statReviewsSide').textContent = appData.totalReviews;
     $('dueText').textContent = due;
 
-    // Word Counter (Unique words in Level >= 5 phrases)
-    const masteredWords = new Set();
+    // Calculate stats based on specific levels (Write, Pronounce, Speak)
+    let totalStudiedWords = 0;
+    let memorizedCount = 0;
+    const studiedWordsSet = new Set();
+
     appData.lists.forEach(l => {
-        l.phrases.filter(p => p.level >= 5).forEach(p => {
-            const words = normalizeText(p.english).split(' ');
-            words.forEach(w => { if (w.length > 2) masteredWords.add(w); });
+        l.phrases.forEach(p => {
+            const lv = p.levels || {};
+            const isStudied = (lv.write > 0 || lv.pronounce > 0 || lv.speak > 0);
+            const isMemorized = (lv.write >= 5 || lv.pronounce >= 5 || lv.speak >= 5);
+
+            if (isStudied) {
+                const words = normalizeText(p.english).split(/\s+/).filter(w => w.length > 1);
+                words.forEach(w => studiedWordsSet.add(w));
+            }
+            if (isMemorized) {
+                memorizedCount++;
+            }
         });
     });
-    $('statWords').textContent = masteredWords.size;
+
+    $('statWords').textContent = studiedWordsSet.size;
+    $('statMemorized').textContent = memorizedCount;
 
     // Daily Goal (20 reviews)
     const today = new Date().toDateString();
@@ -1019,6 +1033,15 @@ function normalizeText(t) {
 
     // Always expand contractions for comparison (ignores the setting for internal logic)
     text = expandContractions(text);
+
+    // Convert digits to words for better matching (e.g., "10" -> "ten")
+    const numMap = {
+        '0': 'zero', '1': 'one', '2': 'two', '3': 'three', '4': 'four', '5': 'five',
+        '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten',
+        '11': 'eleven', '12': 'twelve', '13': 'thirteen', '14': 'fourteen', '15': 'fifteen',
+        '16': 'sixteen', '17': 'seventeen', '18': 'eighteen', '19': 'nineteen', '20': 'twenty'
+    };
+    text = text.replace(/\b(\d+)\b/g, (m) => numMap[m] || m);
 
     // Remove punctuation but keep spaces. Replace hyphens with spaces.
     return text.replace(/[.,!?;:"()\[\]{}—–]/g, '').replace(/-/g, ' ').replace(/'/g, '').replace(/\s+/g, ' ').trim();
