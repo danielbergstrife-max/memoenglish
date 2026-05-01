@@ -841,8 +841,26 @@ function processAnswer(isCorrect, userVal) {
         title.textContent = `${accuracy}% de acerto`;
 
         // HIGHLIGHT DIFFERENCES
-        const highlight = highlightDifferences(userVal, session.current.english);
-        text.innerHTML = `Você disse: <del>${escapeHTML(userVal)}</del><br>${highlight}`;
+        if (session.mode === 'speak' || session.mode === 'pronounce') {
+            const targetWords = session.current.english.split(' ');
+            let highlightHTML = 'Resultado: ';
+            
+            targetWords.forEach((w, idx) => {
+                const status = session.wordStatus[idx];
+                const color = status === 'correct' ? 'var(--success)' : (status === 'imprecise' ? 'var(--warning)' : 'var(--text-muted)');
+                const weight = status ? '800' : '400';
+                const opacity = status ? '1' : '0.5';
+                highlightHTML += `<span style="color: ${color}; font-weight: ${weight}; opacity: ${opacity}">${w}</span> `;
+            });
+
+            highlightHTML += `<br><br><span style="font-size: 0.9rem; color: var(--text-muted);">Frase esperada: <b>${session.current.english}</b></span>`;
+            highlightHTML += `<br><span style="font-size: 0.9rem; color: var(--primary); font-weight: 700;">Dica de pronúncia: <span style="font-family: monospace;">[ ${getPhoneticGuide(session.current.english)} ]</span></span>`;
+
+            text.innerHTML = `Você disse: <del>${escapeHTML(userVal || '...')}</del><br>${highlightHTML}`;
+        } else {
+            const highlight = highlightDifferences(userVal, session.current.english);
+            text.innerHTML = `Você disse: <del>${escapeHTML(userVal)}</del><br>${highlight}`;
+        }
 
         session.current.levels[mode] = Math.max(0, session.current.levels[mode] - 1);
 
@@ -1753,6 +1771,7 @@ function startListeningCorrection() {
         }
 
         const t = (fullTranscript + interimTranscript).trim();
+        session.lastTranscript = t;
         const heard = normalizeText(t);
         const heardWords = heard.split(' ');
         const target = normalizeText(session.current.english);
