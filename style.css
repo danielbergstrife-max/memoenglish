@@ -686,10 +686,19 @@ input:checked + .slider:before { transform: translateX(22px); }
 
 .mobile-header {
     display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 70px;
+    background: var(--surface-glass);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    z-index: 5001;
+    padding: 0 20px;
     align-items: center;
     justify-content: center;
-    padding: 10px 0 30px 0;
-    width: 100%;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
 /* ========== MOBILE OPTIMIZATION ========== */
@@ -707,7 +716,7 @@ input:checked + .slider:before { transform: translateX(22px); }
     .main-area { 
         margin-left: 0 !important; 
         padding: 20px !important; 
-        padding-top: 40px !important;
+        padding-top: 90px !important;
         padding-bottom: 120px !important; 
         width: 100% !important;
     }

@@ -21,16 +21,19 @@ function migrateData(data) {
     let modified = false;
     data.lists.forEach(l => {
         l.phrases.forEach(p => {
-            if (p.levels === undefined) {
-                // Migrate old single level to the new structure
-                const oldLevel = p.level || 0;
-                p.levels = {
-                    standard: oldLevel,
-                    quiz: oldLevel,
-                    write: 0,
-                    pronounce: 0,
-                    speak: 0
-                };
+            if (!p.levels) {
+                p.levels = { standard: 0, quiz: 0, write: 0, pronounce: 0, speak: 0 };
+                modified = true;
+            } else {
+                // Ensure all keys exist even if object exists
+                ['standard', 'quiz', 'write', 'pronounce', 'speak'].forEach(k => {
+                    if (p.levels[k] === undefined) {
+                        p.levels[k] = 0;
+                        modified = true;
+                    }
+                });
+            }
+            if (p.level !== undefined) {
                 delete p.level;
                 modified = true;
             }
@@ -891,16 +894,9 @@ function processAnswer(isCorrect, userVal) {
             text.innerHTML = `Você disse: <del>${escapeHTML(userVal)}</del><br>${highlight}`;
         }
 
-        session.current.levels[mode] = Math.max(0, session.current.levels[mode] - 1);
-
-        // Also decrease sub-mode level if in standard mode
-        if (mode === 'standard') {
-            const subMode = session.mode;
-            if (session.current.levels[subMode] !== undefined) {
-                session.current.levels[subMode] = Math.max(0, session.current.levels[subMode] - 1);
-            }
-        }
-
+        // Penalties are handled further down in the specialized penalty section (line 971+)
+        // This avoids double decrement.
+        
         // Always speak the correct answer on error
         playAudio(session.current.english);
 
@@ -938,8 +934,8 @@ function processAnswer(isCorrect, userVal) {
         }
     }
 
-    // Play Audio only if correct (on error it's already handled above)
-    if (isCorrect) playAudio(session.current.english);
+    // Play Audio only if correct AND not already played in pronounce mode
+    if (isCorrect && session.mode !== 'pronounce') playAudio(session.current.english);
 
     // Update Stats
     appData.history.push({ date: Date.now(), correct: isCorrect });
@@ -1003,7 +999,7 @@ function processAnswer(isCorrect, userVal) {
 
 function handleSpeakDontRemember() {
     if (!session.current) return;
-    // Penalidade centralizada no processAnswer
+    stopListening(); // Stop mic before processing
     processAnswer(false, 'Não lembro');
 }
 
@@ -1015,7 +1011,8 @@ function handlePronounceCantPronounce() {
         session.current.levels.pronounce = Math.max(0, (session.current.levels.pronounce || 0) - 1);
     }
     
-    // Não altera Standard e não atualiza SRS. Apenas pula.
+    // Não altera Standard e não atualiza SRS. Apenas pula, mas salva a penalidade.
+    saveData(appData);
     nextPhrase();
 }
 
@@ -1414,33 +1411,29 @@ function importData(input) {
     const file = input.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = function (e) {
-        try {
-            const data = JSON.parse(e.target.result);
-            if (data.lists && Array.isArray(data.lists)) {
-                confirm("Isso irá substituir todos os seus dados atuais. Deseja continuar?", () => {
-                    appData = data;
+    confirm("Isso substituirá TODOS os seus dados atuais pelo backup. Tem certeza?", () => {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (data.lists && Array.isArray(data.lists)) {
+                    appData = migrateData(data);
                     saveData(appData);
-                    location.reload();
-                });
-            } else {
-                alert("Arquivo de backup inválido!");
+                    renderLists();
+                    renderStats();
+                    alert("Backup restaurado com sucesso!");
+                } else {
+                    alert("Arquivo de backup inválido!");
+                }
+            } catch (err) {
+                alert("Erro ao ler o arquivo!");
             }
-        } catch (err) {
-            alert("Erro ao ler o arquivo!");
-        }
-    };
-    reader.readAsText(file);
+        };
+        reader.readAsText(file);
+    });
     input.value = '';
 }
 
-function deletePhrase(id) {
-    const list = appData.lists.find(l => l.id === appData.currentListId);
-    list.phrases = list.phrases.filter(p => p.id !== id);
-    saveData(appData);
-    renderPhrases();
-}
 
 function showAddListModal() {
     openModal('newListModal');
@@ -1653,10 +1646,6 @@ window.onload = () => {
     });
 };
 
-function handleSpeakDontRemember() {
-    stopListening();
-    processAnswer(false, session.lastTranscript || '');
-}
 
 let currentRecognition = null;
 let isRecognitionActive = false;
@@ -2128,8 +2117,9 @@ function getMasteredWords() {
     const masteredWords = new Set();
     appData.lists.forEach(l => {
         l.phrases.forEach(p => {
-            const lvl = p.levels?.standard || p.level || 0;
-            if (lvl >= 3) {
+            // New Rule: Mastery if ANY core skill (Write, Pronounce, Speak) is >= 5
+            const isMastered = (p.levels?.write >= 5 || p.levels?.pronounce >= 5 || p.levels?.speak >= 5);
+            if (isMastered) {
                 const words = normalizeText(p.english).split(' ');
                 words.forEach(w => { if (w.length > 2) masteredWords.add(w); });
             }
