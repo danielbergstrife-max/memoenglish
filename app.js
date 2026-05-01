@@ -813,6 +813,14 @@ function processAnswer(isCorrect, userVal) {
         // Update level for the specific mode
         session.current.levels[mode]++;
 
+        // If in standard mode, also update the specific sub-mode performed to ensure XP is gained
+        if (mode === 'standard') {
+            const subMode = session.mode; // e.g., 'quiz', 'write', 'speak'
+            if (session.current.levels[subMode] !== undefined) {
+                session.current.levels[subMode]++;
+            }
+        }
+
         $('correctionArea').style.display = 'none';
         $('voiceCorrectionArea').style.display = 'none';
         $('btnContinue').style.display = 'block';
@@ -820,7 +828,15 @@ function processAnswer(isCorrect, userVal) {
         // Play correct sound
         $('soundCorrect').play().catch(() => { });
     } else {
-        const accuracy = calculateAccuracy(userVal, session.current.english);
+        let accuracy;
+        if (session.mode === 'speak' || session.mode === 'pronounce') {
+            const targetWords = session.current.english.split(' ');
+            const correctCount = Object.values(session.wordStatus || {}).filter(v => v === 'correct' || v === 'imprecise').length;
+            accuracy = Math.round((correctCount / targetWords.length) * 100);
+        } else {
+            accuracy = calculateAccuracy(userVal, session.current.english);
+        }
+        
         title.textContent = `${accuracy}% de acerto`;
 
         // HIGHLIGHT DIFFERENCES
@@ -828,6 +844,14 @@ function processAnswer(isCorrect, userVal) {
         text.innerHTML = `Você disse: <del>${escapeHTML(userVal)}</del><br>${highlight}`;
 
         session.current.levels[mode] = Math.max(0, session.current.levels[mode] - 1);
+
+        // Also decrease sub-mode level if in standard mode
+        if (mode === 'standard') {
+            const subMode = session.mode;
+            if (session.current.levels[subMode] !== undefined) {
+                session.current.levels[subMode] = Math.max(0, session.current.levels[subMode] - 1);
+            }
+        }
 
         // Always speak the correct answer on error
         playAudio(session.current.english);
@@ -1506,6 +1530,11 @@ window.onload = () => {
         if (document.hidden) stopListening();
     });
 };
+
+function handleSpeakDontRemember() {
+    stopListening();
+    processAnswer(false, '');
+}
 
 let currentRecognition = null;
 let isRecognitionActive = false;
