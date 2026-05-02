@@ -89,10 +89,7 @@ function getModeForLevel(phrase, trainingMode) {
     if (level === 0) return 'quiz';
     if (level === 1) return 'write';
     if (level === 2) return 'pronounce';
-    if (level === 3) return 'speak';
-    
-    // Level 4 onwards: alternate between Pronounce and Speak
-    return level % 2 === 0 ? 'pronounce' : 'speak';
+    return 'speak'; // Level 3 onwards: just speak, no more alternating
 }
 
 const PHONETIC_MAP = {
@@ -289,15 +286,16 @@ function updateGlobalLevel() {
         });
     });
 
-    // Dynamic Leveling: Level 1->2 (50XP), 2->3 (60XP), 3->4 (70XP)...
-    // Formula derived: XP_total = 5N^2 + 35N - 40
-    // Solving for N: N = (-35 + sqrt(2025 + 20 * totalXP)) / 10
-    const globalLevel = Math.floor((-35 + Math.sqrt(2025 + 20 * totalXP)) / 10);
+    // Dynamic Leveling: Level 1->2 (50XP), 2->3 (100XP), 3->4 (150XP)...
+    // Total XP required to REACH level L: 25 * (L^2 - L)
+    // Solving for L: L = (1 + sqrt(1 + 4 * totalXP / 25)) / 2
+    const baseL = (1 + Math.sqrt(1 + 4 * totalXP / 25)) / 2;
+    const globalLevel = Math.floor(baseL);
 
     // XP needed to reach current level start
-    const xpForThisLevelStart = 5 * Math.pow(globalLevel, 2) + 35 * globalLevel - 40;
+    const xpForThisLevelStart = 25 * (Math.pow(globalLevel, 2) - globalLevel);
     // XP step for current level (to reach next)
-    const xpStep = 50 + (globalLevel - 1) * 10;
+    const xpStep = globalLevel * 50;
 
     const currentXPInLevel = totalXP - xpForThisLevelStart;
     const xpPct = Math.min((currentXPInLevel / xpStep) * 100, 100);
@@ -867,6 +865,8 @@ function processAnswer(isCorrect, userVal) {
             if (session.current.levels[subMode] !== undefined) {
                 session.current.levels[subMode]++;
             }
+            // Cap standard level at 3 to prevent it from growing unnecessarily
+            session.current.levels.standard = Math.min(3, session.current.levels.standard);
         }
 
         $('correctionArea').style.display = 'none';
@@ -956,32 +956,25 @@ function processAnswer(isCorrect, userVal) {
     appData.history.push({ date: Date.now(), correct: isCorrect });
     updateStreak();
 
-    // SRS multipliers based on mode difficulty (Quiz < Write < Pronounce < Speak)
-    const multipliers = {
-        quiz: 1.0,
-        write: 1.5,
-        pronounce: 2.0,
-        speak: 2.5
-    };
-    const multiplier = multipliers[session.mode] || 1.0;
+    // ------------------- LEVEL & SRS UPDATES -------------------
+    let forceImmediateReview = false;
+    const subMode = session.mode;
 
-    // SRS interval based on the level of the SPECIFIC test mode performed
-    const modeForLevel = session.trainingMode === 'standard' ? session.mode : session.trainingMode;
-    const currentLvl = session.current.levels[modeForLevel] || 0;
+    if (isCorrect) {
+        // Acerto: Puxa o standard para cima no modo focado
+        if (mode !== 'standard') {
+            session.current.levels.standard = Math.min(3, Math.max(session.current.levels.standard || 0, session.current.levels[mode]));
+        }
 
-    const baseInterval = SRS_INTERVALS[Math.min(currentLvl, 9)] * 60 * 1000;
-    const interval = baseInterval * multiplier;
+        // Checar se teve palavras amarelas no Speak
+        const impreciseWords = (session.mode === 'speak' || session.mode === 'pronounce') ? 
+            session.current.english.split(' ').filter((_, idx) => session.wordStatus[idx] === 'imprecise') : [];
 
-    session.current.nextReview = Date.now() + interval;
-
-    // Acerto: Se o nível da habilidade focada for maior que o standard, puxa o standard para cima
-    if (isCorrect && mode !== 'standard') {
-        session.current.levels.standard = Math.max(session.current.levels.standard || 0, session.current.levels[mode]);
-    }
-
-    // Erro: Penalidades Específicas
-    if (!isCorrect) {
-        const subMode = session.mode;
+        if (session.mode === 'speak' && impreciseWords.length > 0) {
+            session.current.levels.standard = 2; // Volta para Pronúncia
+            forceImmediateReview = true;
+        }
+    } else {
         const trainingMode = session.trainingMode;
         
         // 1. Reduzir nível da HABILIDADE ESPECÍFICA (Quiz, Escrita, etc.)
@@ -990,17 +983,38 @@ function processAnswer(isCorrect, userVal) {
             session.current.levels[specificSkill] = Math.max(0, session.current.levels[specificSkill] - 1);
         }
 
-        // 2. Reduzir nível STANDARD (Sequência do Modo Geral)
+        // 2. Reduzir nível STANDARD (Sequência do Modo Geral) e forçar revisão
         if (subMode === 'write') {
             session.current.levels.standard = 0; // Volta para o Quiz
+            forceImmediateReview = true;
         } 
-        else if (subMode === 'speak' && userVal === 'Não lembro') {
-            session.current.levels.standard = 2; // Volta para a Pronúncia
+        else if (subMode === 'speak' || subMode === 'pronounce') {
+            session.current.levels.standard = 1; // Volta para a Escrita
+            forceImmediateReview = true;
         }
         else {
             session.current.levels.standard = Math.max(0, (session.current.levels.standard || 0) - 1);
         }
     }
+
+    // Calcular SRS baseado no nível ATUALIZADO da habilidade
+    const multipliers = {
+        quiz: 1.0,
+        write: 1.5,
+        pronounce: 2.0,
+        speak: 2.5
+    };
+    const multiplier = multipliers[session.mode] || 1.0;
+    const modeForLevel = session.trainingMode === 'standard' ? session.mode : session.trainingMode;
+    const currentLvl = session.current.levels[modeForLevel] || 0;
+
+    let interval = SRS_INTERVALS[Math.min(currentLvl, 9)] * 60 * 1000 * multiplier;
+    
+    if (forceImmediateReview) {
+        interval = 0; // Disponível imediatamente
+    }
+
+    session.current.nextReview = Date.now() + interval;
 
     appData.totalReviews++;
     
@@ -1020,15 +1034,8 @@ function handleSpeakDontRemember() {
 
 function handlePronounceCantPronounce() {
     if (!session.current) return;
-    
-    // Penalidade: Baixar nível do teste específico em -1 (sempre >= 0)
-    if (session.current.levels) {
-        session.current.levels.pronounce = Math.max(0, (session.current.levels.pronounce || 0) - 1);
-    }
-    
-    // Não altera Standard e não atualiza SRS. Apenas pula, mas salva a penalidade.
-    saveData(appData);
-    nextPhrase();
+    stopListening(); // Stop mic before processing
+    processAnswer(false, 'Não consigo pronunciar');
 }
 
 function updateStreak() {
