@@ -1,3 +1,29 @@
+// ==================== PWA INSTALLATION ====================
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Evita o mini-infobar padrão no mobile
+    e.preventDefault();
+    // Salva o evento para acionar depois
+    deferredPrompt = e;
+    // Mostra o botão na tela de configurações
+    const installCard = document.getElementById('installAppCard');
+    if (installCard) {
+        installCard.style.display = 'block';
+    }
+});
+
+function installPWA() {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+            document.getElementById('installAppCard').style.display = 'none';
+        }
+        deferredPrompt = null;
+    });
+}
+
 // ==================== DATA LAYER ====================
 const STORAGE_KEY = 'memoenglish_data_v2';
 
