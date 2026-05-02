@@ -39,7 +39,8 @@ function getDefaultData() {
         settings: {
             expandContractions: true,
             slowAudio: false,
-            darkMode: false
+            darkMode: false,
+            notifications: true
         }
     };
 }
@@ -98,7 +99,7 @@ function startCountdownInterval() {
     setInterval(() => {
         // Se temos um tempo futuro e ele acabou de ser atingido
         if (globalMinNextReview && Date.now() >= globalMinNextReview) {
-            if (document.hidden && !notificationSent && 'Notification' in window && Notification.permission === 'granted') {
+            if (appData.settings.notifications !== false && document.hidden && !notificationSent && 'Notification' in window && Notification.permission === 'granted') {
                 new Notification("MemoEnglish", { body: "Uma nova frase está pronta para revisão!" });
                 notificationSent = true;
             }
@@ -346,6 +347,7 @@ function populateSettings() {
     $('settingExpandContractions').checked = appData.settings.expandContractions;
     $('settingSlowAudio').checked = appData.settings.slowAudio;
     $('settingDarkMode').checked = appData.settings.darkMode;
+    $('settingNotifications').checked = appData.settings.notifications !== false;
 }
 
 function updateSetting(key, val) {
@@ -353,6 +355,9 @@ function updateSetting(key, val) {
     appData.settings[key] = val;
     saveData(appData);
     if (key === 'darkMode') applyDarkMode();
+    if (key === 'notifications' && val && 'Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
 }
 
 function applyDarkMode() {
