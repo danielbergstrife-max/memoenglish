@@ -9,6 +9,7 @@ function getDefaultData() {
         history: [], // { date: timestamp, correct: bool }
         streak: 0,
         lastReviewDate: null,
+        phoneticCache: {},
         settings: {
             expandContractions: true,
             slowAudio: false,
@@ -63,6 +64,43 @@ function saveData(data) {
 
 let appData = loadData();
 
+// ==================== NOTIFICATIONS & COUNTDOWN ====================
+let globalMinNextReview = null;
+let notificationSent = false;
+
+function startCountdownInterval() {
+    setInterval(() => {
+        // Se temos um tempo futuro e ele acabou de ser atingido
+        if (globalMinNextReview && Date.now() >= globalMinNextReview) {
+            if (document.hidden && !notificationSent && 'Notification' in window && Notification.permission === 'granted') {
+                new Notification("MemoEnglish", { body: "Uma nova frase está pronta para revisão!" });
+                notificationSent = true;
+            }
+            // Atualiza a tela para mostrar que há frases devidas e recalcula o próximo tempo
+            renderStats();
+        }
+
+        const container = $('countdownContainer');
+        const countSpan = $('nextReviewCountdown');
+
+        if (globalMinNextReview && Date.now() < globalMinNextReview) {
+            const dueCount = parseInt($('dueText') ? $('dueText').textContent : '0');
+            if (dueCount === 0) {
+                if (container) container.style.display = 'block';
+            } else {
+                if (container) container.style.display = 'none';
+            }
+            const diff = globalMinNextReview - Date.now();
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            if (countSpan) countSpan.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        } else {
+            if (container) container.style.display = 'none';
+        }
+    }, 1000);
+}
+
 // ==================== SRS ====================
 const SRS_INTERVALS = [0, 10, 60, 240, 1440, 2880, 5760, 10080, 20160, 43200];
 
@@ -103,12 +141,18 @@ function getPhoneticGuide(text) {
     const words = text.toLowerCase().replace(/[.,!?;:]/g, '').split(/\s+/);
 
     return words.map(w => {
-        // 1. Dictionary priority
+        // 0. Dynamic Cached API Results
+        if (appData.phoneticCache && appData.phoneticCache[w]) return appData.phoneticCache[w];
+
+        // 1. Extended DB (CMUdict-based) - highest priority
+        if (typeof PHONETICS_DB !== 'undefined' && PHONETICS_DB[w]) return PHONETICS_DB[w];
+
+        // 2. Fallback small dictionary
         if (PHONETIC_MAP[w]) return PHONETIC_MAP[w];
 
         let p = w;
 
-        // 2. Suffixes and Clusters (Order matters)
+        // 3. Suffixes and Clusters (Order matters)
         p = p.replace(/tion\b/g, 'shun');
         p = p.replace(/sion\b/g, 'zhun');
         p = p.replace(/ture\b/g, 'tchur');
@@ -116,13 +160,13 @@ function getPhoneticGuide(text) {
         p = p.replace(/ight\b/g, 'áit');
         p = p.replace(/ing\b/g, 'in');
 
-        // 3. Magic E (a_e, i_e, o_e, u_e)
+        // 4. Magic E (a_e, i_e, o_e, u_e)
         p = p.replace(/a([bcdfghjklmnpqrstvwxyz])e\b/g, 'êi$1');
         p = p.replace(/i([bcdfghjklmnpqrstvwxyz])e\b/g, 'ái$1');
         p = p.replace(/o([bcdfghjklmnpqrstvwxyz])e\b/g, 'ou$1');
         p = p.replace(/u([bcdfghjklmnpqrstvwxyz])e\b/g, 'iú$1');
 
-        // 4. Consonants
+        // 5. Consonants
         p = p.replace(/ph/g, 'f');
         p = p.replace(/\bth/g, 'd');
         p = p.replace(/th/g, 'd');
@@ -134,7 +178,7 @@ function getPhoneticGuide(text) {
         p = p.replace(/ck/g, 'k');
         p = p.replace(/wh/g, 'u');
 
-        // 5. Vowel Clusters
+        // 6. Vowel Clusters
         p = p.replace(/ee/g, 'í');
         p = p.replace(/ea/g, 'í');
         p = p.replace(/oo/g, 'u');
@@ -143,14 +187,14 @@ function getPhoneticGuide(text) {
         p = p.replace(/ou|ow/g, 'áu');
         p = p.replace(/oa/g, 'ou');
 
-        // 6. Individual Vowels (Short/General)
+        // 7. Individual Vowels (Short/General)
         p = p.replace(/a/g, 'é');
         p = p.replace(/i/g, 'í');
 
         // Final e cleanup
         if (p.length > 2 && p.endsWith('e')) p = p.slice(0, -1);
 
-        // 7. Cleanup & Softening
+        // 8. Cleanup & Softening
         p = p.replace(/c([eiíé])/g, 'ss$1');
         p = p.replace(/c/g, 'k');
         p = p.replace(/y\b/g, 'i');
@@ -160,6 +204,85 @@ function getPhoneticGuide(text) {
         return p;
     }).join(' ');
 }
+
+// ==================== DYNAMIC PHONETICS API ====================
+const ARPABET_MAP = {
+    // Vowels
+    'AA': 'a', 'AE': 'é', 'AH': 'a', 'AO': 'o', 'AW': 'áu', 'AY': 'ái',
+    'EH': 'ê', 'ER': 'êr', 'EY': 'êi', 'IH': 'i', 'IY': 'í',
+    'OW': 'ou', 'OY': 'ói', 'UH': 'u', 'UW': 'ú',
+    // Consonants
+    'B': 'b', 'CH': 'tch', 'D': 'd', 'DH': 'd', 'F': 'f', 'G': 'gu',
+    'HH': 'r', 'JH': 'dj', 'K': 'k', 'L': 'l', 'M': 'm', 'N': 'n',
+    'NG': 'n', 'P': 'p', 'R': 'r', 'S': 's', 'SH': 'sh', 'T': 't',
+    'TH': 'd', 'V': 'v', 'W': 'u', 'Y': 'i', 'Z': 'z', 'ZH': 'zh'
+};
+
+function convertARPAbetToPT(arpaString) {
+    if (!arpaString) return "";
+    const tokens = arpaString.split(' ');
+    let ptPhonetics = '';
+    
+    tokens.forEach(token => {
+        const pureToken = token.replace(/[0-9]/g, '');
+        if (ARPABET_MAP[pureToken]) {
+            ptPhonetics += ARPABET_MAP[pureToken];
+        } else if (pureToken) {
+            ptPhonetics += pureToken.toLowerCase();
+        }
+    });
+    
+    return ptPhonetics.replace(/kk/g, 'k').replace(/ss/g, 's');
+}
+
+async function prefetchMissingPhonetics() {
+    if (!appData.phoneticCache) appData.phoneticCache = {};
+
+    const uniqueWords = new Set();
+    appData.lists.forEach(l => {
+        l.phrases.forEach(p => {
+            const text = (p.english || "").toLowerCase().replace(/[.,!?;:]/g, '');
+            const words = text.split(/\s+/).filter(w => w.length > 0);
+            words.forEach(w => uniqueWords.add(w));
+        });
+    });
+
+    let modified = false;
+
+    for (let word of uniqueWords) {
+        if (typeof PHONETICS_DB !== 'undefined' && PHONETICS_DB[word]) continue;
+        if (PHONETIC_MAP[word]) continue;
+        if (appData.phoneticCache[word] !== undefined) continue; // Already fetched or marked as empty
+
+        try {
+            const res = await fetch(`https://api.datamuse.com/words?sp=${word}&md=r&max=1`);
+            const data = await res.json();
+            if (data && data.length > 0 && data[0].tags) {
+                const pronTag = data[0].tags.find(t => t.startsWith('pron:'));
+                if (pronTag) {
+                    const arpa = pronTag.split(':')[1].trim();
+                    const ptPron = convertARPAbetToPT(arpa);
+                    if (ptPron) {
+                        appData.phoneticCache[word] = ptPron;
+                        modified = true;
+                        continue;
+                    }
+                }
+            }
+            // Mark as empty to avoid re-fetching
+            appData.phoneticCache[word] = "";
+            modified = true;
+        } catch (e) {
+            console.error("Erro ao buscar fonética para", word, e);
+        }
+    }
+
+    if (modified) {
+        saveData(appData);
+        // If user is currently studying, refresh UI implicitly by next word rendering.
+    }
+}
+
 
 // ==================== UI ====================
 function $(id) { return document.getElementById(id); }
@@ -212,13 +335,27 @@ function applyDarkMode() {
 
 function renderStats() {
     let total = 0, due = 0, memorized = 0;
+    let minTime = Infinity;
+
     appData.lists.forEach(l => {
         total += l.phrases.length;
         l.phrases.forEach(p => {
-            if (isPhraseDue(p)) due++;
+            if (isPhraseDue(p)) {
+                due++;
+            } else if (p.nextReview && p.nextReview < minTime) {
+                minTime = p.nextReview;
+            }
             if (p.level >= 5) memorized++;
         });
     });
+
+    globalMinNextReview = minTime === Infinity ? null : minTime;
+    
+    // Reseta a notificação se não houver mais frases atrasadas, 
+    // ou seja, o usuário limpou a fila e estamos aguardando a próxima.
+    if (due === 0) {
+        notificationSent = false;
+    }
 
     $('statTotal').textContent = total;
     $('statDue').textContent = due;
@@ -1597,6 +1734,7 @@ async function processBulkAdd() {
     }
 
     saveData(appData);
+    prefetchMissingPhonetics(); // Fetch phonetics for new phrases
     renderPhrases();
     renderStats();
 
@@ -1658,6 +1796,14 @@ window.onload = () => {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.getVoices();
     }
+
+    // Request notification permission if not asked yet
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+
+    startCountdownInterval();
+    prefetchMissingPhonetics();
 
     applyDarkMode();
     showView('homeView');

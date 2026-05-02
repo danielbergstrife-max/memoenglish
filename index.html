@@ -112,6 +112,7 @@
                         <div>
                             <h2 style="margin-bottom: 12px; font-weight: 800; font-size: 1.5rem;">Pronto para praticar?</h2>
                             <p style="color: var(--text-muted); font-size: 1.1rem;">Você tem <span id="dueText" style="color: var(--primary); font-weight: 800;">0</span> frases aguardando revisão.</p>
+                            <p id="countdownContainer" style="color: var(--warning); font-size: 0.95rem; margin-top: 8px; display: none; font-weight: 600;">⏳ Próxima revisão em: <span id="nextReviewCountdown">--:--:--</span></p>
                         </div>
                         <button class="btn btn-primary btn-lg" style="padding: 18px 40px; font-size: 1.1rem;" onclick="startReview('standard')">⚡ Iniciar Modo Geral</button>
                     </div>
@@ -598,6 +599,7 @@
     <audio id="soundCorrect" src="https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3"></audio>
     <audio id="soundFinish" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"></audio>
 
+    <script src="phonetics.js"></script>
     <script src="app.js"></script>
 </body>
 
