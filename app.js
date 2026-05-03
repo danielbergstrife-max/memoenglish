@@ -50,11 +50,11 @@ function migrateData(data) {
     data.lists.forEach(l => {
         l.phrases.forEach(p => {
             if (!p.levels) {
-                p.levels = { standard: 0, quiz: 0, write: 0, pronounce: 0, speak: 0 };
+                p.levels = { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 };
                 modified = true;
             } else {
                 // Ensure all keys exist even if object exists
-                ['standard', 'quiz', 'write', 'pronounce', 'speak'].forEach(k => {
+                ['standard', 'quiz', 'write', 'listen', 'pronounce', 'speak'].forEach(k => {
                     if (p.levels[k] === undefined) {
                         p.levels[k] = 0;
                         modified = true;
@@ -143,7 +143,7 @@ let session = {
     originalCount: 0,
     current: null,
     mode: 'quiz',
-    trainingMode: 'standard' // 'standard', 'quiz', 'write', 'pronounce', 'speak'
+    trainingMode: 'standard' // 'standard', 'quiz', 'write', 'listen', 'pronounce', 'speak'
 };
 
 function getModeForLevel(phrase, trainingMode) {
@@ -153,8 +153,9 @@ function getModeForLevel(phrase, trainingMode) {
     const level = phrase.levels?.standard || 0;
     if (level === 0) return 'quiz';
     if (level === 1) return 'write';
-    if (level === 2) return 'pronounce';
-    return 'speak'; // Level 3 onwards: just speak, no more alternating
+    if (level === 2) return 'listen';
+    if (level === 3) return 'pronounce';
+    return 'speak'; // Level 4 onwards: just speak, no more alternating
 }
 
 const PHONETIC_MAP = {
@@ -402,8 +403,8 @@ function renderStats() {
     appData.lists.forEach(l => {
         l.phrases.forEach(p => {
             const lv = p.levels || {};
-            const isStudied = (lv.quiz > 0 || lv.write > 0 || lv.pronounce > 0 || lv.speak > 0);
-            const isMemorized = (lv.write >= 5 || lv.pronounce >= 5 || lv.speak >= 5);
+            const isStudied = (lv.quiz > 0 || lv.write > 0 || lv.listen > 0 || lv.pronounce > 0 || lv.speak > 0);
+            const isMemorized = (lv.write >= 5 || lv.listen >= 5 || lv.pronounce >= 5 || lv.speak >= 5);
 
             if (isStudied) {
                 const words = normalizeText(p.english).split(/\s+/).filter(w => w.length > 1);
@@ -431,7 +432,7 @@ function renderStats() {
 }
 
 function updateGlobalLevel() {
-    // New XP Weights: Quiz=5, Write=10, Pronounce=15, Speak=20
+    // New XP Weights: Quiz=5, Write=10, Listen=12, Pronounce=15, Speak=20
     let totalXP = 0;
     appData.lists.forEach(l => {
         l.phrases.forEach(p => {
@@ -444,6 +445,9 @@ function updateGlobalLevel() {
 
                 const lw = p.levels.write || 0;
                 totalXP += (10 * lw) + (2 * (lw * (lw + 1) / 2));
+
+                const ll = p.levels.listen || 0;
+                totalXP += (12 * ll) + (2.5 * (ll * (ll + 1) / 2));
 
                 const lp = p.levels.pronounce || 0;
                 totalXP += (15 * lp) + (3 * (lp * (lp + 1) / 2));
@@ -547,6 +551,7 @@ function renderPhrases() {
                     <div class="skill-grid-mini">
                         <div style="color: var(--primary);" title="Quiz">Q: ${p.levels?.quiz || 0}</div>
                         <div style="color: var(--success);" title="Escrita">W: ${p.levels?.write || 0}</div>
+                        <div style="color: #06b6d4;" title="Escuta">L: ${p.levels?.listen || 0}</div>
                         <div style="color: #f59e0b;" title="Pronúncia">P: ${p.levels?.pronounce || 0}</div>
                         <div style="color: var(--danger);" title="Fala">S: ${p.levels?.speak || 0}</div>
                     </div>
@@ -591,7 +596,7 @@ function renderMetrics() {
     let totalPoints = 0;
     allPhrases.forEach(p => {
         if (p.levels) {
-            totalPoints += (p.levels.quiz || 0) + (p.levels.write || 0) + (p.levels.pronounce || 0) + (p.levels.speak || 0);
+            totalPoints += (p.levels.quiz || 0) + (p.levels.write || 0) + (p.levels.listen || 0) + (p.levels.pronounce || 0) + (p.levels.speak || 0);
         }
     });
     $('statTotalPoints').textContent = totalPoints;
@@ -600,6 +605,7 @@ function renderMetrics() {
     const skillData = [
         { id: 'quiz', name: 'Quiz', icon: '🧩', color: 'var(--primary)' },
         { id: 'write', name: 'Escrita', icon: '✍️', color: 'var(--success)' },
+        { id: 'listen', name: 'Escuta', icon: '👂', color: '#06b6d4' },
         { id: 'pronounce', name: 'Pronúncia', icon: '🗣️', color: '#f59e0b' },
         { id: 'speak', name: 'Fala', icon: '🎙️', color: 'var(--danger)' }
     ];
@@ -626,7 +632,7 @@ function renderMetrics() {
         let lvl;
         if (skill === 'standard') {
             // New rule: Mastery if any skill >= 5
-            const isMastered = (p.levels?.write >= 5 || p.levels?.pronounce >= 5 || p.levels?.speak >= 5);
+            const isMastered = (p.levels?.write >= 5 || p.levels?.listen >= 5 || p.levels?.pronounce >= 5 || p.levels?.speak >= 5);
             if (isMastered) {
                 counts.mastered++;
             } else {
@@ -712,7 +718,7 @@ function startReview(mode = 'standard') {
     allDue.forEach(p => {
         if (!p.levels) {
             const lvl = p.level || 0;
-            p.levels = { standard: lvl, quiz: lvl, write: lvl, pronounce: lvl, speak: lvl };
+            p.levels = { standard: lvl, quiz: lvl, write: lvl, listen: lvl, pronounce: lvl, speak: lvl };
         }
     });
 
@@ -755,7 +761,11 @@ function renderExercise() {
     const p = session.current;
     const modeLvl = p.levels?.[session.mode] || 0;
 
-    $('phrasePt').textContent = p.portuguese;
+    if (session.mode === 'listen') {
+        $('phrasePt').textContent = '';
+    } else {
+        $('phrasePt').textContent = p.portuguese;
+    }
     $('modeLabel').innerHTML = `
         <span style="background: var(--primary-soft); color: var(--primary); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800;">
             ${session.mode.toUpperCase()} - LV ${modeLvl}
@@ -764,6 +774,7 @@ function renderExercise() {
 
     $('quizArea').style.display = 'none';
     $('writeArea').style.display = 'none';
+    $('listenArea').style.display = 'none';
     $('speakArea').style.display = 'none';
     $('pronounceArea').style.display = 'none';
 
@@ -799,6 +810,12 @@ function renderExercise() {
         $('writeInput').value = '';
         $('writeInputMirror').innerHTML = '';
         setTimeout(() => $('writeInput').focus(), 100);
+    } else if (session.mode === 'listen') {
+        $('listenArea').style.display = 'block';
+        $('listenInput').value = '';
+        $('listenInputMirror').innerHTML = '';
+        setTimeout(() => playAudio(p.english), 500); // Play audio automatically
+        setTimeout(() => $('listenInput').focus(), 1000);
     } else if (session.mode === 'pronounce') {
         $('pronounceArea').style.display = 'block';
         $('pronounceIntegrated').style.display = 'none';
@@ -990,6 +1007,118 @@ function calculateAccuracy(user, target) {
     return Math.round((correct / tWords.length) * 100);
 }
 
+function updateListenMirror() {
+    const text = $('listenInput').value;
+    if (text === '') {
+        $('listenInputMirror').innerHTML = '';
+        return;
+    }
+
+    const target = session.current.english;
+    const targetNorm = normalizeText(target);
+    const targetWordsNorm = targetNorm.split(' ');
+
+    // Track word availability in target
+    const wordCounts = {};
+    targetWordsNorm.forEach(w => wordCounts[w] = (wordCounts[w] || 0) + 1);
+
+    const tokens = text.match(/\S+|\s+/g) || [];
+    let html = '';
+    let cumulativeInput = '';
+
+    // First pass: Pre-calculate Green matches to consume word counts
+    const analyzedTokens = [];
+    tokens.forEach((token, i) => {
+        if (/\s+/.test(token)) {
+            analyzedTokens.push({ type: 'space', content: token });
+            cumulativeInput += token;
+            return;
+        }
+
+        const isBeingTyped = (i === tokens.length - 1) && !text.endsWith(' ');
+        const normU = normalizeText(token);
+        const normUWords = normU.split(' ').filter(w => w);
+
+        // Find how many words we've already matched in the target
+        const wordsMatchedSoFar = analyzedTokens.reduce((acc, t) => {
+            if (t.type === 'space') return acc;
+            return acc + (t.normWords ? t.normWords.length : 0);
+        }, 0);
+
+        // Check if these words match the target words starting at wordsMatchedSoFar
+        let isSequenceMatch = false;
+        if (normUWords.length > 0) {
+            const relevantTargetWords = targetWordsNorm.slice(wordsMatchedSoFar, wordsMatchedSoFar + normUWords.length);
+
+            if (relevantTargetWords.length === normUWords.length) {
+                const allMatch = normUWords.every((w, idx) => w === relevantTargetWords[idx]);
+                if (allMatch) {
+                    isSequenceMatch = true;
+                } else if (isBeingTyped) {
+                    // Check for prefix match on the last word of the normalized token
+                    const lastWordMatch = relevantTargetWords[normUWords.length - 1].startsWith(normUWords[normUWords.length - 1]);
+                    const previousWordsMatch = normUWords.slice(0, -1).every((w, idx) => w === relevantTargetWords[idx]);
+                    if (lastWordMatch && previousWordsMatch) isSequenceMatch = true;
+                }
+            }
+        }
+
+        if (isSequenceMatch) {
+            normUWords.forEach(w => { if (wordCounts[w] > 0) wordCounts[w]--; });
+            analyzedTokens.push({ type: 'correct', content: token, normWords: normUWords, isBeingTyped });
+        } else {
+            analyzedTokens.push({ type: 'pending', content: token, normWords: normUWords, isBeingTyped });
+        }
+    });
+
+    // Second pass: Generate HTML with correct colors
+    analyzedTokens.forEach((tokenObj) => {
+        if (tokenObj.type === 'space') {
+            html += tokenObj.content;
+            return;
+        }
+
+        let color = 'var(--danger)';
+        const normWords = tokenObj.normWords || [];
+
+        if (tokenObj.type === 'correct') {
+            color = 'var(--success)';
+        } else if (normWords.length > 0) {
+            // Check for Yellow: Words exist in target and still have available counts
+            const allWordsAvailable = normWords.every(w => wordCounts[w] > 0);
+            if (allWordsAvailable) {
+                color = 'var(--warning)';
+                normWords.forEach(w => wordCounts[w]--);
+            } else if (tokenObj.isBeingTyped) {
+                // For "being typed", allow prefix match from the pool
+                const canBePrefix = targetWordsNorm.some(w => wordCounts[w] > 0 && w.startsWith(normWords[normWords.length - 1]));
+                const previousWordsMatch = normWords.slice(0, -1).every(w => wordCounts[w] > 0);
+                if (canBePrefix && (normWords.length === 1 || previousWordsMatch)) {
+                    color = 'var(--warning)';
+                }
+            }
+        }
+
+        html += `<span style="color: ${color}">${tokenObj.content}</span>`;
+    });
+
+    $('listenInputMirror').innerHTML = html;
+}
+
+function checkListenAnswer() {
+    if ($('feedbackBar').classList.contains('active')) return;
+    const val = $('listenInput').value.trim();
+    const isCorrect = normalizeText(val) === normalizeText(session.current.english);
+    processAnswer(isCorrect, val);
+}
+
+// Initializing the input listeners for write and listen modes
+setTimeout(() => {
+    if ($('listenInput')) {
+        $('listenInput').addEventListener('input', updateListenMirror);
+    }
+}, 1000);
+
 function processAnswer(isCorrect, userVal) {
     // SECURITY LOCK: Prevent double processing
     if ($('feedbackBar').classList.contains('active')) return;
@@ -1004,7 +1133,7 @@ function processAnswer(isCorrect, userVal) {
 
     // Ensure levels object exists
     if (!session.current.levels) {
-        session.current.levels = { standard: 0, quiz: 0, write: 0, pronounce: 0, speak: 0 };
+        session.current.levels = { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 };
     }
     const mode = session.trainingMode;
 
@@ -1033,10 +1162,11 @@ function processAnswer(isCorrect, userVal) {
             if (session.current.levels[subMode] !== undefined) {
                 session.current.levels[subMode]++;
             }
-            // Cap standard level at 3 to prevent it from growing unnecessarily
-            session.current.levels.standard = Math.min(3, session.current.levels.standard);
+            // Cap standard level at 4 so it possa ir de 0 a 4
+            session.current.levels.standard = Math.min(4, session.current.levels.standard);
         }
 
+        // Hide any correction UI leftover from previous wrong answers
         $('correctionArea').style.display = 'none';
         $('voiceCorrectionArea').style.display = 'none';
         $('btnContinue').style.display = 'block';
@@ -1131,7 +1261,7 @@ function processAnswer(isCorrect, userVal) {
     if (isCorrect) {
         // Acerto: Puxa o standard para cima no modo focado
         if (mode !== 'standard') {
-            session.current.levels.standard = Math.min(3, Math.max(session.current.levels.standard || 0, session.current.levels[mode]));
+            session.current.levels.standard = Math.min(4, Math.max(session.current.levels.standard || 0, session.current.levels[mode]));
         }
 
         // Checar se teve palavras amarelas no Speak
@@ -1156,6 +1286,10 @@ function processAnswer(isCorrect, userVal) {
             session.current.levels.standard = 0; // Volta para o Quiz
             forceImmediateReview = true;
         } 
+        else if (subMode === 'listen') {
+            session.current.levels.standard = 1; // Volta para a Escrita no modo geral
+            forceImmediateReview = true;
+        }
         else if (subMode === 'speak' || subMode === 'pronounce') {
             session.current.levels.standard = 1; // Volta para a Escrita
             forceImmediateReview = true;
@@ -1169,6 +1303,7 @@ function processAnswer(isCorrect, userVal) {
     const multipliers = {
         quiz: 1.0,
         write: 1.5,
+        listen: 1.5,
         pronounce: 2.0,
         speak: 2.5
     };
@@ -1453,7 +1588,7 @@ function addPhrase() {
         id: 'ph_' + Date.now(),
         english: eng,
         portuguese: pt,
-        levels: { standard: 0, quiz: 0, write: 0, pronounce: 0, speak: 0 },
+        levels: { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 },
         nextReview: null
     });
     saveData(appData);
@@ -1718,7 +1853,7 @@ async function processBulkAdd() {
                     id: 'ph_' + Date.now() + Math.random(),
                     english: eng,
                     portuguese: pt,
-                    levels: { standard: 0, quiz: 0, write: 0, pronounce: 0, speak: 0 },
+                    levels: { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 },
                     nextReview: null
                 });
                 addedCount++;
@@ -1756,7 +1891,7 @@ async function processBulkAdd() {
                     id: 'ph_' + Date.now() + Math.random(),
                     english: eng,
                     portuguese: pt,
-                    levels: { standard: 0, quiz: 0, write: 0, pronounce: 0, speak: 0 },
+                    levels: { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 },
                     nextReview: null
                 });
                 addedCount++;
@@ -1799,11 +1934,12 @@ window.onload = () => {
         if (e.key === 'Enter') {
             if ($('feedbackBar').classList.contains('active')) {
                 continueSession();
-            } else if (session.active && session.mode === 'write') {
-                // Only trigger if the user is actually typing in the write input or its wrapper
-                if (document.activeElement === $('writeInput') || document.activeElement === $('correctionInput')) {
+            } else if (session.active && (session.mode === 'write' || session.mode === 'listen')) {
+                // Only trigger if the user is actually typing in the write/listen input or its wrapper
+                if (document.activeElement === $('writeInput') || document.activeElement === $('listenInput') || document.activeElement === $('correctionInput')) {
                     e.preventDefault();
                     if (document.activeElement === $('writeInput')) checkWriteAnswer();
+                    if (document.activeElement === $('listenInput')) checkListenAnswer();
                     // continueSession is already handled by the first if
                 }
             }
@@ -2410,7 +2546,7 @@ function saveGeneratedList(phrases, topic) {
                 id: 'ph_auto_' + Date.now() + Math.random(),
                 english: p.eng,
                 portuguese: p.pt,
-                levels: { standard: 0, quiz: 0, write: 0, pronounce: 0, speak: 0 },
+                levels: { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 },
                 nextReview: null
             }))
         };
@@ -2423,7 +2559,7 @@ function saveGeneratedList(phrases, topic) {
                     id: 'ph_auto_' + Date.now() + Math.random(),
                     english: p.eng,
                     portuguese: p.pt,
-                    levels: { standard: 0, quiz: 0, write: 0, pronounce: 0, speak: 0 },
+                    levels: { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 },
                     nextReview: null
                 });
             });
