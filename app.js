@@ -963,7 +963,7 @@ function updateWriteMirror() {
 
         const isBeingTyped = (i === tokens.length - 1) && !text.endsWith(' ');
         const normU = normalizeText(token);
-        const normUWords = normU.split(' ').filter(w => w);
+        let normUWords = normU.split(' ').filter(w => w);
 
         // Find how many words we've already matched in the target
         const wordsMatchedSoFar = analyzedTokens.reduce((acc, t) => {
@@ -987,9 +987,21 @@ function updateWriteMirror() {
                     if (lastWordMatch && previousWordsMatch) isSequenceMatch = true;
                 }
             }
-        } else if (normU === '' && token.length > 0) {
-            // Handle case where token is just punctuation or something that normalizes to empty
-            // Treat it as correct if it's in the right place? For now, just ignore it.
+        }
+
+        // Special handling for contractions being typed (like "o'clock" -> "of the clock")
+        if (!isSequenceMatch && isBeingTyped && token.includes("'")) {
+            const expandedWords = getContractionExpansionPrefix(token);
+            if (expandedWords && expandedWords.length > 0) {
+                const relevantTargetWords = targetWordsNorm.slice(wordsMatchedSoFar, wordsMatchedSoFar + expandedWords.length);
+                if (relevantTargetWords.length === expandedWords.length) {
+                    const allMatch = expandedWords.every((w, idx) => w === relevantTargetWords[idx]);
+                    if (allMatch) {
+                        isSequenceMatch = true;
+                        normUWords = expandedWords;
+                    }
+                }
+            }
         }
 
         if (isSequenceMatch) {
@@ -998,8 +1010,6 @@ function updateWriteMirror() {
         } else {
             analyzedTokens.push({ type: 'pending', content: token, normWords: normUWords, isBeingTyped });
         }
-
-
     });
 
     // Second pass: Generate HTML with correct colors
@@ -1026,10 +1036,19 @@ function updateWriteMirror() {
                 const previousWordsMatch = normWords.slice(0, -1).every(w => wordCounts[w] > 0);
                 if (canBePrefix && (normWords.length === 1 || previousWordsMatch)) {
                     color = 'var(--warning)';
+                } else if (tokenObj.content.includes("'")) {
+                    // Special handling for contractions being typed (yellow for out-of-order)
+                    const expandedWords = getContractionExpansionPrefix(tokenObj.content);
+                    if (expandedWords && expandedWords.length > 0) {
+                        const allExpandedAvailable = expandedWords.every(w => wordCounts[w] > 0);
+                        if (allExpandedAvailable) {
+                            color = 'var(--warning)';
+                            expandedWords.forEach(w => wordCounts[w]--);
+                        }
+                    }
                 }
             }
         }
-
 
         html += `<span style="color: ${color}">${tokenObj.content}</span>`;
     });
@@ -1087,7 +1106,7 @@ function updateListenMirror() {
 
         const isBeingTyped = (i === tokens.length - 1) && !text.endsWith(' ');
         const normU = normalizeText(token);
-        const normUWords = normU.split(' ').filter(w => w);
+        let normUWords = normU.split(' ').filter(w => w);
 
         // Find how many words we've already matched in the target
         const wordsMatchedSoFar = analyzedTokens.reduce((acc, t) => {
@@ -1109,6 +1128,21 @@ function updateListenMirror() {
                     const lastWordMatch = relevantTargetWords[normUWords.length - 1].startsWith(normUWords[normUWords.length - 1]);
                     const previousWordsMatch = normUWords.slice(0, -1).every((w, idx) => w === relevantTargetWords[idx]);
                     if (lastWordMatch && previousWordsMatch) isSequenceMatch = true;
+                }
+            }
+        }
+
+        // Special handling for contractions being typed (like "o'clock" -> "of the clock")
+        if (!isSequenceMatch && isBeingTyped && token.includes("'")) {
+            const expandedWords = getContractionExpansionPrefix(token);
+            if (expandedWords && expandedWords.length > 0) {
+                const relevantTargetWords = targetWordsNorm.slice(wordsMatchedSoFar, wordsMatchedSoFar + expandedWords.length);
+                if (relevantTargetWords.length === expandedWords.length) {
+                    const allMatch = expandedWords.every((w, idx) => w === relevantTargetWords[idx]);
+                    if (allMatch) {
+                        isSequenceMatch = true;
+                        normUWords = expandedWords;
+                    }
                 }
             }
         }
@@ -1145,6 +1179,16 @@ function updateListenMirror() {
                 const previousWordsMatch = normWords.slice(0, -1).every(w => wordCounts[w] > 0);
                 if (canBePrefix && (normWords.length === 1 || previousWordsMatch)) {
                     color = 'var(--warning)';
+                } else if (tokenObj.content.includes("'")) {
+                    // Special handling for contractions being typed (yellow for out-of-order)
+                    const expandedWords = getContractionExpansionPrefix(tokenObj.content);
+                    if (expandedWords && expandedWords.length > 0) {
+                        const allExpandedAvailable = expandedWords.every(w => wordCounts[w] > 0);
+                        if (allExpandedAvailable) {
+                            color = 'var(--warning)';
+                            expandedWords.forEach(w => wordCounts[w]--);
+                        }
+                    }
                 }
             }
         }
@@ -1510,6 +1554,17 @@ function expandContractions(text) {
         lower = lower.replace(regex, val);
     }
     return lower;
+}
+
+function getContractionExpansionPrefix(token) {
+    if (!token) return null;
+    const normalized = token.toLowerCase().replace(/[’‘`]/g, "'");
+    for (const [key, val] of Object.entries(CONTRACTIONS)) {
+        if (key.startsWith(normalized)) {
+            return normalizeText(val).split(' ').filter(w => w);
+        }
+    }
+    return null;
 }
 
 function normalizeText(t) {
