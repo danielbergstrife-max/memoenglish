@@ -1856,9 +1856,17 @@ async function translateText(text, sl, tl) {
             translatedText = data[0].map(s => s[0]).join("");
         }
 
+        // Extract detected language code correctly
+        let detectedLang = null;
+        if (data[2]) {
+            detectedLang = Array.isArray(data[2]) ? data[2][0] : data[2];
+        } else if (data[8] && Array.isArray(data[8]) && data[8][0]) {
+            detectedLang = Array.isArray(data[8][0]) ? data[8][0][0] : data[8][0];
+        }
+
         return {
             translated: translatedText,
-            detected: data[2] // Detected language
+            detected: detectedLang
         };
     } catch (e) {
         console.error('Erro na tradução:', e);
@@ -1866,6 +1874,9 @@ async function translateText(text, sl, tl) {
     }
 }
 
+function isProbablyPortuguese(text) {
+    return /[áàãâéêíóôúçÁÀÃÂÉÊÍÓÔÚÇ]|\b(?:da|de|do|das|dos|uma|um|e|com|por|para|não|mais|sobre|pessoas|população|equivalente|abriga|correspondente|km|km²)\b/i.test(text);
+}
 
 async function translateField(sourceId, targetId, sl, tl) {
     const text = $(sourceId).value.trim();
@@ -1900,70 +1911,104 @@ async function processBulkAdd() {
     btn.disabled = true;
     btn.textContent = 'Processando...';
 
-    // 1. Quebrar em linhas
-    let lines = rawInput.split('\n').map(l => l.trim()).filter(l => l);
-
     let addedCount = 0;
     let duplicateCount = 0;
 
-    // 2. Se não houver pontos e vírgulas e NÃO for auto-tradução, tentar detectar pares
-    const hasSemicolon = rawInput.includes(';');
+    if (autoTranslate) {
+        // MODO AUTO-TRADUÇÃO: apenas . separa frases, ignora ; completamente
+        let lines = rawInput.split('\n').map(l => l.trim()).filter(l => l);
+        let phrases = [];
+        
+        for (let line of lines) {
+            let parts = line.split(/\.(?!\d)/).map(s => s.trim()).filter(s => s);
+            phrases.push(...parts);
+        }
 
-    if (!hasSemicolon && lines.length >= 2 && !autoTranslate) {
-        for (let i = 0; i < lines.length; i += 2) {
-            const eng = lines[i];
-            const pt = lines[i + 1];
-            if (eng && pt) {
-                if (isPhraseDuplicate(eng)) {
-                    duplicateCount++;
-                    continue;
+        // Traduzir cada frase automaticamente
+        for (let phrase of phrases) {
+            const res = await translateText(phrase, 'auto', 'pt');
+            if (res) {
+                let eng = '', pt = '';
+                const likelyPt = res.detected === 'pt' || isProbablyPortuguese(phrase) || (res.translated === phrase && /[áàãâéêíóôúçÁÀÃÂÉÊÍÓÔÚÇ]/.test(phrase));
+
+                if (likelyPt) {
+                    const resEng = await translateText(phrase, 'pt', 'en');
+                    eng = resEng ? resEng.translated : '';
+                    pt = phrase;
+                } else {
+                    eng = phrase;
+                    pt = res.translated;
                 }
-                list.phrases.push({
-                    id: 'ph_' + Date.now() + Math.random(),
-                    english: eng,
-                    portuguese: pt,
-                    levels: { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 },
-                    nextReview: null
-                });
-                addedCount++;
+
+                if (eng && pt) {
+                    if (isPhraseDuplicate(eng)) {
+                        duplicateCount++;
+                        continue;
+                    }
+                    list.phrases.push({
+                        id: 'ph_' + Date.now() + Math.random(),
+                        english: eng,
+                        portuguese: pt,
+                        levels: { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 },
+                        nextReview: null
+                    });
+                    addedCount++;
+                }
             }
         }
     } else {
+        // MODO MANUAL: ; para tradução manual, . para separar frases
+        let lines = rawInput.split('\n').map(l => l.trim()).filter(l => l);
+        let entries = [];
+        
         for (let line of lines) {
-            let [part1, part2] = line.split(';').map(s => s ? s.trim() : '');
-            let eng = '', pt = '';
+            // Split por . para separar múltiplas frases em uma linha
+            let phrases = line.split(/\.(?!\d)/).map(s => s.trim()).filter(s => s);
+            entries.push(...phrases);
+        }
 
-            if (part1 && part2) {
-                eng = part1; pt = part2;
-            } else if (part1 && !part2 && autoTranslate) {
-                const res = await translateText(part1, 'auto', 'pt');
-                if (res) {
-                    if (res.detected === 'pt') {
-                        const resEng = await translateText(part1, 'pt', 'en');
-                        eng = resEng ? resEng.translated : '';
-                        pt = part1;
-                    } else {
-                        eng = part1;
-                        pt = res.translated;
+        // Verificar se há traduções manuais com ;
+        const hasSemicolon = entries.some(e => e.includes(';'));
+
+        if (hasSemicolon) {
+            // Modo pares manuais: parte1; parte2
+            for (let entry of entries) {
+                let [part1, part2] = entry.split(';').map(s => s ? s.trim() : '');
+                
+                if (part1 && part2) {
+                    if (isPhraseDuplicate(part1)) {
+                        duplicateCount++;
+                        continue;
                     }
+                    list.phrases.push({
+                        id: 'ph_' + Date.now() + Math.random(),
+                        english: part1,
+                        portuguese: part2,
+                        levels: { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 },
+                        nextReview: null
+                    });
+                    addedCount++;
                 }
-            } else if (part1 && !part2) {
-                continue;
             }
-
-            if (eng && pt) {
-                if (isPhraseDuplicate(eng)) {
-                    duplicateCount++;
-                    continue;
+        } else if (entries.length >= 2) {
+            // Pareamento automático de linhas: linha 1 = eng, linha 2 = pt, etc
+            for (let i = 0; i < entries.length; i += 2) {
+                const eng = entries[i];
+                const pt = entries[i + 1];
+                if (eng && pt) {
+                    if (isPhraseDuplicate(eng)) {
+                        duplicateCount++;
+                        continue;
+                    }
+                    list.phrases.push({
+                        id: 'ph_' + Date.now() + Math.random(),
+                        english: eng,
+                        portuguese: pt,
+                        levels: { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 },
+                        nextReview: null
+                    });
+                    addedCount++;
                 }
-                list.phrases.push({
-                    id: 'ph_' + Date.now() + Math.random(),
-                    english: eng,
-                    portuguese: pt,
-                    levels: { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 },
-                    nextReview: null
-                });
-                addedCount++;
             }
         }
     }
