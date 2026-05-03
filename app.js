@@ -94,13 +94,63 @@ let appData = loadData();
 // ==================== NOTIFICATIONS & COUNTDOWN ====================
 let globalMinNextReview = null;
 let notificationSent = false;
+let swRegistration = null;
+
+function displayNotification(title, body) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') displayNotification(title, body);
+        });
+        return;
+    }
+    if (Notification.permission !== 'granted') return;
+
+    const options = {
+        body,
+        icon: './assets/logo.png',
+        badge: './assets/logo.png',
+        tag: 'memoenglish-review-ready',
+        renotify: true,
+        requireInteraction: true,
+        data: { url: window.location.origin }
+    };
+
+    const show = (reg) => {
+        if (reg && reg.showNotification) {
+            reg.showNotification(title, options).catch(() => {
+                new Notification(title, options);
+            });
+        } else {
+            new Notification(title, options);
+        }
+    };
+
+    if (swRegistration) {
+        show(swRegistration);
+    } else if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(show).catch(() => {
+            new Notification(title, options);
+        });
+    } else {
+        new Notification(title, options);
+    }
+}
 
 function startCountdownInterval() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(reg => {
+            swRegistration = reg;
+        }).catch(() => {
+            swRegistration = null;
+        });
+    }
+
     setInterval(() => {
         // Se temos um tempo futuro e ele acabou de ser atingido
         if (globalMinNextReview && Date.now() >= globalMinNextReview) {
-            if (appData.settings.notifications !== false && document.hidden && !notificationSent && 'Notification' in window && Notification.permission === 'granted') {
-                new Notification("MemoEnglish", { body: "Uma nova frase está pronta para revisão!" });
+            if (appData.settings.notifications !== false && !notificationSent && 'Notification' in window) {
+                displayNotification("MemoEnglish", "Uma nova frase está pronta para revisão!");
                 notificationSent = true;
             }
             // Atualiza a tela para mostrar que há frases devidas e recalcula o próximo tempo
@@ -1269,7 +1319,7 @@ function processAnswer(isCorrect, userVal) {
             session.current.english.split(' ').filter((_, idx) => session.wordStatus[idx] === 'imprecise') : [];
 
         if (session.mode === 'speak' && impreciseWords.length > 0) {
-            session.current.levels.standard = 2; // Volta para Pronúncia
+            session.current.levels.standard = 3; // Volta para Pronúncia
             forceImmediateReview = true;
         }
     } else {
@@ -1468,6 +1518,25 @@ function normalizeText(t) {
 
     // Always expand contractions for comparison (ignores the setting for internal logic)
     text = expandContractions(text);
+
+    // Convert times (H:MM or HH:MM) to words first
+    text = text.replace(/(\d{1,2}):(\d{2})/g, (match, hours, minutes) => {
+        const hourWords = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
+            'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty',
+            'twenty one', 'twenty two', 'twenty three'];
+        const minWords = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+        const h = parseInt(hours);
+        const m = parseInt(minutes);
+        let result = hourWords[h] || hours;
+        if (m > 0) {
+            if (m < 10 && m !== 0) result += ' o ' + minWords[m];
+            else if (m === 30) result += ' thirty';
+            else if (m === 15) result += ' fifteen';
+            else if (m === 45) result += ' forty five';
+            else result += ' ' + (minWords[Math.floor(m / 10)] || '') + (m % 10 > 0 ? ' ' + minWords[m % 10] : '');
+        }
+        return result;
+    });
 
     // Convert digits to words for better matching (e.g., "10" -> "ten")
     const numMap = {
