@@ -778,6 +778,10 @@ function startReview(mode = 'standard') {
     const newPhrases = allDue.filter(p => getLvl(p) === 0).sort(() => Math.random() - 0.5);
 
     session.queue = [...reviewPhrases, ...newPhrases];
+    session.isSpeaking = false;
+    session.lastTranscript = '';
+    session.wordStatus = {};
+    session.matchedIndices = new Set();
     session.originalCount = session.queue.length;
 
     if (session.queue.length > 0) {
@@ -828,10 +832,12 @@ function renderExercise() {
     $('speakArea').style.display = 'none';
     $('pronounceArea').style.display = 'none';
 
-    // Initialize progress for speech modes
+    // Reset phrase-specific state
     session.matchedIndices = new Set();
-    session.wordStatus = {}; // Tracks 'correct' or 'imprecise' for each word index
+    session.wordStatus = {};
     session.lastTranscript = '';
+    session.isSpeaking = session.isSpeaking || false; 
+
     const { status, statusCorrection } = { 
         status: $('micStatus'), 
         statusPronounce: $('micStatusPronounce'),
@@ -874,6 +880,8 @@ function renderExercise() {
     } else if (session.mode === 'speak') {
         $('speakArea').style.display = 'block';
         renderSpeechInitialState();
+        // Start listening automatically in speak mode for "always on" feel
+        setTimeout(() => startListening(), 500);
     }
 }
 
@@ -1728,18 +1736,20 @@ function playAudio(t) {
     unlockAudio(); // Ensure unlocked
     window.speechSynthesis.cancel();
 
+    // Sync mic: Set speaking flag instead of stopping
+    // This prevents the "beep" on mobile by not restarting the mic hardware
+    session.isSpeaking = true;
+    
     const u = new SpeechSynthesisUtterance(t);
     
-    u.onstart = () => {
-        isAudioPlaying = true;
-    };
-
+    // Sync mic: Reset flag after audio ends
     u.onend = () => {
-        isAudioPlaying = false;
-    };
-
-    u.onerror = () => {
-        isAudioPlaying = false;
+        session.isSpeaking = false;
+        // Ensure mic is definitely on if we are in a speech mode
+        const isResultVisible = $('feedbackBar').classList.contains('active');
+        if (session.active && !isResultVisible && (session.mode === 'speak' || session.mode === 'pronounce')) {
+            if (!isRecognitionActive) startListening();
+        }
     };
 
     const speak = () => {
@@ -2230,10 +2240,6 @@ window.onload = () => {
 
 let currentRecognition = null;
 let isRecognitionActive = false;
-let isAudioPlaying = false;
-let isStartingMic = false;
-let silentAudioNodes = null; // Store nodes to stop them later
-let keepAliveStream = null;
 
 function getActiveMicElements() {
     const isPronounce = session.mode === 'pronounce';
@@ -2265,35 +2271,13 @@ function stopListening() {
         status.textContent = "⚪ Microfone Desligado";
         status.style.color = "var(--text-muted)";
     }
-    
-    // Stop continuous silent audio
-    if (silentAudioNodes) {
-        try {
-            silentAudioNodes.oscillator.stop();
-            silentAudioNodes.oscillator.disconnect();
-            silentAudioNodes.gainNode.disconnect();
-        } catch (e) {}
-        silentAudioNodes = null;
-    }
-
-    // Stop hardware keep-alive stream
-    if (keepAliveStream) {
-        keepAliveStream.getTracks().forEach(track => track.stop());
-        keepAliveStream = null;
-    }
 }
 
 function startListening() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
 
-    if (isStartingMic) return;
-    if (currentRecognition) {
-        currentRecognition.onend = null;
-        currentRecognition.onerror = null;
-        currentRecognition.stop();
-    }
-
+    if (currentRecognition) currentRecognition.stop();
 
     const rec = new SR();
     currentRecognition = rec;
@@ -2304,32 +2288,6 @@ function startListening() {
     const { btn, status, hint } = getActiveMicElements();
 
     isRecognitionActive = true;
-    isStartingMic = true;
-
-    // Keep-alive: Continuous inaudible oscillator
-    if (!silentAudioNodes) {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        const audioCtx = new AudioCtx();
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(1, audioCtx.currentTime); 
-        gainNode.gain.setValueAtTime(0, audioCtx.currentTime); 
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
-        oscillator.start();
-        silentAudioNodes = { oscillator, gainNode, ctx: audioCtx };
-    } else if (silentAudioNodes.ctx.state === 'suspended') {
-        silentAudioNodes.ctx.resume();
-    }
-
-    // Hardware Keep-alive: Persistent stream
-    if (!keepAliveStream) {
-        navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(stream => { keepAliveStream = stream; })
-            .catch(err => console.error("Hardware keep-alive failed:", err));
-    }
-
     if (btn) btn.classList.add('listening');
     if (status) {
         status.textContent = "🎙️ Microfone Ativo (Gravando...)";
@@ -2339,7 +2297,7 @@ function startListening() {
     let success = false;
 
     rec.onresult = (e) => {
-        if (isAudioPlaying) return; // Ignore input while the system is speaking
+        if (session.isSpeaking) return; // Skip processing if app is speaking to avoid feedback/beeps
 
         let fullTranscript = '';
         let interimTranscript = '';
@@ -2425,12 +2383,9 @@ function startListening() {
 
         if (isFullMatch) {
             success = true;
-            isRecognitionActive = false; // Stop permanently on success
-            
             // Security: Nullify onresult and onend to prevent multiple triggers
             rec.onresult = null;
             rec.onend = null;
-            rec.onerror = null;
             rec.stop();
 
             if (btn) btn.classList.remove('listening');
@@ -2447,46 +2402,22 @@ function startListening() {
         }
     };
 
-    rec.onstart = () => {
-        isStartingMic = false;
-    };
-
     rec.onerror = (e) => {
-        isStartingMic = false;
         if (e.error === 'no-speech') return;
-        if (e.error === 'aborted') return;
-        
         console.error('Speech error:', e.error);
-        if (status) {
-            status.textContent = "⚠️ Erro no microfone: " + e.error;
-            status.style.color = "var(--warning)";
-        }
-        
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-            isRecognitionActive = false;
-            stopListening();
-        }
     };
 
     rec.onend = () => {
         // Only restart if not successful AND still intended to be listening AND session is active
         const isCorrectMode = session.mode === 'speak' || session.mode === 'pronounce';
         if (!success && isRecognitionActive && session.active && isCorrectMode && currentRecognition === rec) {
-            // No mobile, precisamos garantir que o AudioContext não "durma"
-            if (silentAudioNodes && silentAudioNodes.ctx.state === 'suspended') {
-                silentAudioNodes.ctx.resume();
-            }
-
-            const restartDelay = 300; 
+            // Mobile persistence trick: reduced delay but with a safety check
+            const delay = /Android|iPhone|iPad/i.test(navigator.userAgent) ? 300 : 100;
             setTimeout(() => {
                 try { 
-                    if (!success && isRecognitionActive && session.active && currentRecognition === rec) {
-                        rec.start(); 
-                    }
-                } catch (err) { 
-                    isStartingMic = false;
-                }
-            }, restartDelay);
+                    if (!success && isRecognitionActive && session.active && !session.isSpeaking) rec.start(); 
+                } catch (err) { console.error("Erro ao reiniciar:", err); }
+            }, delay);
         } else {
             // Ensure visual state is updated if we stop
             if (currentRecognition === rec) stopListening();
@@ -2517,8 +2448,7 @@ function startListeningCorrection() {
     };
 
     recognition.onresult = (event) => {
-        if (isAudioPlaying) return; // Ignore input while system speaks
-
+        if (session.isSpeaking) return;
         let fullTranscript = '';
         let interimTranscript = '';
         let latestConfidence = 0;
