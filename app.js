@@ -1728,19 +1728,18 @@ function playAudio(t) {
     unlockAudio(); // Ensure unlocked
     window.speechSynthesis.cancel();
 
-    // Sync mic: Stop if active
-    const wasListening = isRecognitionActive;
-    if (wasListening) stopListening();
-
     const u = new SpeechSynthesisUtterance(t);
     
-    // Sync mic: Restart after audio ends
+    u.onstart = () => {
+        isAudioPlaying = true;
+    };
+
     u.onend = () => {
-        // Don't restart if we are showing results or if session ended
-        const isResultVisible = $('feedbackBar').classList.contains('active');
-        if (wasListening && session.active && !isResultVisible && (session.mode === 'speak' || session.mode === 'pronounce')) {
-            startListening();
-        }
+        isAudioPlaying = false;
+    };
+
+    u.onerror = () => {
+        isAudioPlaying = false;
     };
 
     const speak = () => {
@@ -2231,6 +2230,7 @@ window.onload = () => {
 
 let currentRecognition = null;
 let isRecognitionActive = false;
+let isAudioPlaying = false;
 
 function getActiveMicElements() {
     const isPronounce = session.mode === 'pronounce';
@@ -2288,6 +2288,8 @@ function startListening() {
     let success = false;
 
     rec.onresult = (e) => {
+        if (isAudioPlaying) return; // Ignore input while the system is speaking
+
         let fullTranscript = '';
         let interimTranscript = '';
 
@@ -2400,12 +2402,13 @@ function startListening() {
         // Only restart if not successful AND still intended to be listening AND session is active
         const isCorrectMode = session.mode === 'speak' || session.mode === 'pronounce';
         if (!success && isRecognitionActive && session.active && isCorrectMode && currentRecognition === rec) {
-            // Reduced delay for faster restart, aiming for "always on" feel
+            // Se o áudio estiver tocando, esperamos um pouco mais ou tentamos imediatamente sem parar
+            const restartDelay = isAudioPlaying ? 500 : 50; 
             setTimeout(() => {
                 try { 
-                    if (!success && isRecognitionActive && session.active) rec.start(); 
-                } catch (err) { console.error("Erro ao reiniciar:", err); }
-            }, 100);
+                    if (!success && isRecognitionActive && session.active && currentRecognition === rec) rec.start(); 
+                } catch (err) { }
+            }, restartDelay);
         } else {
             // Ensure visual state is updated if we stop
             if (currentRecognition === rec) stopListening();
@@ -2436,6 +2439,8 @@ function startListeningCorrection() {
     };
 
     recognition.onresult = (event) => {
+        if (isAudioPlaying) return; // Ignore input while system speaks
+
         let fullTranscript = '';
         let interimTranscript = '';
         let latestConfidence = 0;
