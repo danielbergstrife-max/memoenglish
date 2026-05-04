@@ -24,6 +24,30 @@ function installPWA() {
     });
 }
 
+// ==================== MIC KEEP-ALIVE (FOR MOBILE) ====================
+let micKeepAliveStream = null;
+
+async function initMicKeepAlive() {
+    // Only try on mobile devices to save battery on desktop
+    if (!/Android|iPhone|iPad/i.test(navigator.userAgent)) return;
+    if (micKeepAliveStream) return;
+    
+    try {
+        // This keeps the hardware mic "hot", preventing the OS from releasing it
+        // which helps avoid the beep and prevents timeout during silence.
+        micKeepAliveStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+        console.warn("Mic Keep-Alive failed (permissions?):", err);
+    }
+}
+
+function stopMicKeepAlive() {
+    if (micKeepAliveStream) {
+        micKeepAliveStream.getTracks().forEach(track => track.stop());
+        micKeepAliveStream = null;
+    }
+}
+
 // ==================== DATA LAYER ====================
 const STORAGE_KEY = 'memoenglish_data_v2';
 
@@ -1519,6 +1543,7 @@ function endSession() {
     setTimeout(() => {
         alert(`Sessão finalizada! 🎉\n\nVocê acertou ${correct} de ${total} frases (${pct}% de precisão).\nContinue assim!`);
     }, 500);
+    stopMicKeepAlive();
 }
 
 function updateProgress() {
@@ -2274,6 +2299,8 @@ function stopListening() {
 }
 
 function startListening() {
+    initMicKeepAlive(); // Ensure hardware remains active
+
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
 
