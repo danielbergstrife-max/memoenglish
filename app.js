@@ -778,10 +778,6 @@ function startReview(mode = 'standard') {
     const newPhrases = allDue.filter(p => getLvl(p) === 0).sort(() => Math.random() - 0.5);
 
     session.queue = [...reviewPhrases, ...newPhrases];
-    session.isSpeaking = false;
-    session.lastTranscript = '';
-    session.wordStatus = {};
-    session.matchedIndices = new Set();
     session.originalCount = session.queue.length;
 
     if (session.queue.length > 0) {
@@ -832,12 +828,10 @@ function renderExercise() {
     $('speakArea').style.display = 'none';
     $('pronounceArea').style.display = 'none';
 
-    // Reset phrase-specific state
+    // Initialize progress for speech modes
     session.matchedIndices = new Set();
-    session.wordStatus = {};
+    session.wordStatus = {}; // Tracks 'correct' or 'imprecise' for each word index
     session.lastTranscript = '';
-    session.isSpeaking = session.isSpeaking || false; 
-
     const { status, statusCorrection } = { 
         status: $('micStatus'), 
         statusPronounce: $('micStatusPronounce'),
@@ -880,8 +874,6 @@ function renderExercise() {
     } else if (session.mode === 'speak') {
         $('speakArea').style.display = 'block';
         renderSpeechInitialState();
-        // Start listening automatically in speak mode for "always on" feel
-        setTimeout(() => startListening(), 500);
     }
 }
 
@@ -1573,6 +1565,7 @@ const CONTRACTIONS = {
 };
 
 let audioUnlocked = false;
+let micKeepAliveStream = null;
 function unlockAudio() {
     if (audioUnlocked) return;
     if (!('speechSynthesis' in window)) return;
@@ -1580,8 +1573,26 @@ function unlockAudio() {
     const silent = new SpeechSynthesisUtterance("");
     silent.volume = 0;
     window.speechSynthesis.speak(silent);
+
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then((stream) => {
+                micKeepAliveStream = stream;
+                console.log('Microfone mantido ativo para mobile');
+            })
+            .catch((err) => {
+                console.warn('Não foi possível abrir o microfone de keep-alive:', err);
+            });
+    }
+
     audioUnlocked = true;
     console.log("Audio unlocked for mobile");
+}
+
+function stopMicKeepAlive() {
+    if (!micKeepAliveStream) return;
+    micKeepAliveStream.getTracks().forEach(track => track.stop());
+    micKeepAliveStream = null;
 }
 
 function expandContractions(text) {
@@ -1736,19 +1747,18 @@ function playAudio(t) {
     unlockAudio(); // Ensure unlocked
     window.speechSynthesis.cancel();
 
-    // Sync mic: Set speaking flag instead of stopping
-    // This prevents the "beep" on mobile by not restarting the mic hardware
-    session.isSpeaking = true;
-    
+    // Sync mic: Stop if active
+    const wasListening = isRecognitionActive;
+    if (wasListening) stopListening();
+
     const u = new SpeechSynthesisUtterance(t);
     
-    // Sync mic: Reset flag after audio ends
+    // Sync mic: Restart after audio ends
     u.onend = () => {
-        session.isSpeaking = false;
-        // Ensure mic is definitely on if we are in a speech mode
+        // Don't restart if we are showing results or if session ended
         const isResultVisible = $('feedbackBar').classList.contains('active');
-        if (session.active && !isResultVisible && (session.mode === 'speak' || session.mode === 'pronounce')) {
-            if (!isRecognitionActive) startListening();
+        if (wasListening && session.active && !isResultVisible && (session.mode === 'speak' || session.mode === 'pronounce')) {
+            startListening();
         }
     };
 
@@ -2297,8 +2307,6 @@ function startListening() {
     let success = false;
 
     rec.onresult = (e) => {
-        if (session.isSpeaking) return; // Skip processing if app is speaking to avoid feedback/beeps
-
         let fullTranscript = '';
         let interimTranscript = '';
 
@@ -2411,13 +2419,12 @@ function startListening() {
         // Only restart if not successful AND still intended to be listening AND session is active
         const isCorrectMode = session.mode === 'speak' || session.mode === 'pronounce';
         if (!success && isRecognitionActive && session.active && isCorrectMode && currentRecognition === rec) {
-            // Mobile persistence trick: reduced delay but with a safety check
-            const delay = /Android|iPhone|iPad/i.test(navigator.userAgent) ? 300 : 100;
+            // Reduced delay for faster restart, aiming for "always on" feel
             setTimeout(() => {
                 try { 
-                    if (!success && isRecognitionActive && session.active && !session.isSpeaking) rec.start(); 
+                    if (!success && isRecognitionActive && session.active) rec.start(); 
                 } catch (err) { console.error("Erro ao reiniciar:", err); }
-            }, delay);
+            }, 100);
         } else {
             // Ensure visual state is updated if we stop
             if (currentRecognition === rec) stopListening();
@@ -2448,7 +2455,6 @@ function startListeningCorrection() {
     };
 
     recognition.onresult = (event) => {
-        if (session.isSpeaking) return;
         let fullTranscript = '';
         let interimTranscript = '';
         let latestConfidence = 0;
