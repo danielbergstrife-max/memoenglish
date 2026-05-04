@@ -449,6 +449,25 @@
                                 style="width: 100%; height: 100%; min-height: 120px; font-size: 1.5rem; padding: 24px; color: transparent; caret-color: var(--text); line-height: 1.2; background: transparent; border: none; outline: none; position: relative; z-index: 2; font-family: inherit; font-weight: 700; text-align: left; resize: none; overflow: hidden; display: block;"
                                 placeholder="Digite em inglês..." autocomplete="off"></textarea>
                         </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px; padding: 0 8px 16px; color: var(--text-muted); font-size: 0.9rem;">
+                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--success);"></span>
+                                Correto
+                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--danger);"></span>
+                                Errado
+                            </div>
+                            </div>
+                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--primary);"></span>
+                                Letra certa, mas posição errada
+                            </div>
+                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--warning);"></span>
+                                Palavra certa, mas posição errada
+                            </div>
+
+                        </div>
                         <button class="btn btn-primary" onclick="checkWriteAnswer()"
                             style="width: 100%; padding: 20px;">Verificar Resposta</button>
                     </div>
@@ -470,6 +489,25 @@
                             <textarea id="listenInput"
                                 style="width: 100%; height: 100%; min-height: 120px; font-size: 1.5rem; padding: 24px; color: transparent; caret-color: var(--text); line-height: 1.2; background: transparent; border: none; outline: none; position: relative; z-index: 2; font-family: inherit; font-weight: 700; text-align: left; resize: none; overflow: hidden; display: block;"
                                 placeholder="Digite o que você ouviu em inglês..." autocomplete="off" oninput="updateListenMirror()"></textarea>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px; padding: 0 8px 16px; color: var(--text-muted); font-size: 0.9rem;">
+                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--success);"></span>
+                                Correto
+                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--danger);"></span>
+                                Errado
+                            </div>
+                            </div>
+                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--primary);"></span>
+                                Letra certa, mas posição errada
+                            </div>
+                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--warning);"></span>
+                                Palavra certa, mas posição errada
+                            </div>
+
                         </div>
                         <button class="btn btn-primary" onclick="checkListenAnswer()"
                             style="width: 100%; padding: 20px;">Verificar Resposta</button>

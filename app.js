@@ -973,9 +973,10 @@ function updateWriteMirror() {
 
         // Check if these words match the target words starting at wordsMatchedSoFar
         let isSequenceMatch = false;
-        if (normUWords.length > 0) {
-            const relevantTargetWords = targetWordsNorm.slice(wordsMatchedSoFar, wordsMatchedSoFar + normUWords.length);
+        const relevantTargetWords = targetWordsNorm.slice(wordsMatchedSoFar, wordsMatchedSoFar + normUWords.length);
+        const matchedTargetWord = (relevantTargetWords.length === 1 ? targetWordsNorm[wordsMatchedSoFar] : null);
 
+        if (normUWords.length > 0) {
             if (relevantTargetWords.length === normUWords.length) {
                 const allMatch = normUWords.every((w, idx) => w === relevantTargetWords[idx]);
                 if (allMatch) {
@@ -1006,9 +1007,9 @@ function updateWriteMirror() {
 
         if (isSequenceMatch) {
             normUWords.forEach(w => { if (wordCounts[w] > 0) wordCounts[w]--; });
-            analyzedTokens.push({ type: 'correct', content: token, normWords: normUWords, isBeingTyped });
+            analyzedTokens.push({ type: 'correct', content: token, normWords: normUWords, isBeingTyped, targetWord: matchedTargetWord });
         } else {
-            analyzedTokens.push({ type: 'pending', content: token, normWords: normUWords, isBeingTyped });
+            analyzedTokens.push({ type: 'pending', content: token, normWords: normUWords, isBeingTyped, targetWord: matchedTargetWord });
         }
     });
 
@@ -1024,7 +1025,22 @@ function updateWriteMirror() {
 
         if (tokenObj.type === 'correct') {
             color = 'var(--success)';
-        } else if (normWords.length > 0) {
+            html += `<span style="color: ${color}">${tokenObj.content}</span>`;
+            return;
+        }
+
+        if (tokenObj.isBeingTyped && tokenObj.targetWord) {
+            const normalizedToken = normalizeText(tokenObj.content);
+            const normalizedTargetWord = normalizeText(tokenObj.targetWord);
+            const similarity = getSimilarity(normalizedToken, normalizedTargetWord);
+            const hasMisplacedLetter = normalizedToken.split('').some((ch, idx) => ch !== normalizedTargetWord[idx] && normalizedTargetWord.includes(ch));
+            if ((normalizedTargetWord.startsWith(normalizedToken) || (similarity >= 0.45 && hasMisplacedLetter)) && normalizedToken.length > 0) {
+                html += colorizeTypedWordChars(tokenObj.content, tokenObj.targetWord);
+                return;
+            }
+        }
+
+        if (normWords.length > 0) {
             // Check for Yellow: Words exist in target and still have available counts
             const allWordsAvailable = normWords.every(w => wordCounts[w] > 0);
             if (allWordsAvailable) {
@@ -1116,9 +1132,10 @@ function updateListenMirror() {
 
         // Check if these words match the target words starting at wordsMatchedSoFar
         let isSequenceMatch = false;
-        if (normUWords.length > 0) {
-            const relevantTargetWords = targetWordsNorm.slice(wordsMatchedSoFar, wordsMatchedSoFar + normUWords.length);
+        const relevantTargetWords = targetWordsNorm.slice(wordsMatchedSoFar, wordsMatchedSoFar + normUWords.length);
+        const matchedTargetWord = (relevantTargetWords.length === 1 ? targetWordsNorm[wordsMatchedSoFar] : null);
 
+        if (normUWords.length > 0) {
             if (relevantTargetWords.length === normUWords.length) {
                 const allMatch = normUWords.every((w, idx) => w === relevantTargetWords[idx]);
                 if (allMatch) {
@@ -1149,9 +1166,9 @@ function updateListenMirror() {
 
         if (isSequenceMatch) {
             normUWords.forEach(w => { if (wordCounts[w] > 0) wordCounts[w]--; });
-            analyzedTokens.push({ type: 'correct', content: token, normWords: normUWords, isBeingTyped });
+            analyzedTokens.push({ type: 'correct', content: token, normWords: normUWords, isBeingTyped, targetWord: matchedTargetWord });
         } else {
-            analyzedTokens.push({ type: 'pending', content: token, normWords: normUWords, isBeingTyped });
+            analyzedTokens.push({ type: 'pending', content: token, normWords: normUWords, isBeingTyped, targetWord: matchedTargetWord });
         }
     });
 
@@ -1167,7 +1184,22 @@ function updateListenMirror() {
 
         if (tokenObj.type === 'correct') {
             color = 'var(--success)';
-        } else if (normWords.length > 0) {
+            html += `<span style="color: ${color}">${tokenObj.content}</span>`;
+            return;
+        }
+
+        if (tokenObj.isBeingTyped && tokenObj.targetWord) {
+            const normalizedToken = normalizeText(tokenObj.content);
+            const normalizedTargetWord = normalizeText(tokenObj.targetWord);
+            const similarity = getSimilarity(normalizedToken, normalizedTargetWord);
+            const hasMisplacedLetter = normalizedToken.split('').some((ch, idx) => ch !== normalizedTargetWord[idx] && normalizedTargetWord.includes(ch));
+            if ((normalizedTargetWord.startsWith(normalizedToken) || (similarity >= 0.45 && hasMisplacedLetter)) && normalizedToken.length > 0) {
+                html += colorizeTypedWordChars(tokenObj.content, tokenObj.targetWord);
+                return;
+            }
+        }
+
+        if (normWords.length > 0) {
             // Check for Yellow: Words exist in target and still have available counts
             const allWordsAvailable = normWords.every(w => wordCounts[w] > 0);
             if (allWordsAvailable) {
@@ -1604,6 +1636,52 @@ function normalizeText(t) {
 
     // Remove punctuation but keep spaces. Replace hyphens with spaces.
     return text.replace(/[.,!?;:"()\[\]{}—–]/g, '').replace(/-/g, ' ').replace(/'/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function colorizeTypedWordChars(token, targetWord) {
+    const normalizedToken = normalizeText(token);
+    const normalizedTarget = normalizeText(targetWord);
+    const normTokenChars = normalizedToken.split('');
+    const tokenChars = token.split('');
+
+    // Build a count of unmatched target letters
+    const unmatchedTarget = {};
+    normTokenChars.forEach((ch, idx) => {
+        if (normalizedTarget[idx] !== ch) {
+            unmatchedTarget[normalizedTarget[idx]] = (unmatchedTarget[normalizedTarget[idx]] || 0) + 1;
+        }
+    });
+    for (let i = normTokenChars.length; i < normalizedTarget.length; i++) {
+        const ch = normalizedTarget[i];
+        unmatchedTarget[ch] = (unmatchedTarget[ch] || 0) + 1;
+    }
+
+    let normIndex = 0;
+    let html = '';
+
+    tokenChars.forEach((char) => {
+        const isLetter = /[A-Za-z0-9]/.test(char);
+        if (!isLetter) {
+            html += `<span style="color: var(--danger)">${escapeHTML(char)}</span>`;
+            return;
+        }
+
+        const currentNormChar = normTokenChars[normIndex] || '';
+        const targetChar = normalizedTarget[normIndex] || '';
+
+        if (currentNormChar === targetChar) {
+            html += `<span style="color: var(--success)">${escapeHTML(char)}</span>`;
+        } else if (unmatchedTarget[currentNormChar] > 0) {
+            html += `<span style="color: var(--primary)">${escapeHTML(char)}</span>`;
+            unmatchedTarget[currentNormChar]--;
+        } else {
+            html += `<span style="color: var(--danger)">${escapeHTML(char)}</span>`;
+        }
+
+        normIndex++;
+    });
+
+    return html;
 }
 
 function getSimilarity(s1, s2) {
