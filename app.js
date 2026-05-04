@@ -1565,7 +1565,28 @@ const CONTRACTIONS = {
 };
 
 let audioUnlocked = false;
-let micKeepAliveStream = null;
+let micStream = null;
+function keepMicrophoneAlive() {
+    if (micStream) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            micStream = stream;
+            console.log('Microfone mantido aberto para mobile');
+        })
+        .catch(err => {
+            console.warn('Não foi possível manter o microfone aberto:', err);
+        });
+}
+
+function releaseMicrophone() {
+    if (!micStream) return;
+    micStream.getTracks().forEach(track => track.stop());
+    micStream = null;
+    console.log('Microfone liberado');
+}
+
 function unlockAudio() {
     if (audioUnlocked) return;
     if (!('speechSynthesis' in window)) return;
@@ -1573,26 +1594,8 @@ function unlockAudio() {
     const silent = new SpeechSynthesisUtterance("");
     silent.volume = 0;
     window.speechSynthesis.speak(silent);
-
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices.getUserMedia({ audio: true })
-            .then((stream) => {
-                micKeepAliveStream = stream;
-                console.log('Microfone mantido ativo para mobile');
-            })
-            .catch((err) => {
-                console.warn('Não foi possível abrir o microfone de keep-alive:', err);
-            });
-    }
-
     audioUnlocked = true;
     console.log("Audio unlocked for mobile");
-}
-
-function stopMicKeepAlive() {
-    if (!micKeepAliveStream) return;
-    micKeepAliveStream.getTracks().forEach(track => track.stop());
-    micKeepAliveStream = null;
 }
 
 function expandContractions(text) {
@@ -2275,6 +2278,7 @@ function stopListening() {
         currentRecognition = null;
     }
     isRecognitionActive = false;
+    releaseMicrophone();
     const { btn, status } = getActiveMicElements();
     if (btn) btn.classList.remove('listening');
     if (status) {
@@ -2284,6 +2288,7 @@ function stopListening() {
 }
 
 function startListening() {
+    keepMicrophoneAlive();
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
 
