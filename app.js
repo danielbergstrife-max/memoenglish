@@ -2231,6 +2231,8 @@ window.onload = () => {
 let currentRecognition = null;
 let isRecognitionActive = false;
 let isAudioPlaying = false;
+let isStartingMic = false;
+let silentAudioInterval = null;
 
 function getActiveMicElements() {
     const isPronounce = session.mode === 'pronounce';
@@ -2262,13 +2264,25 @@ function stopListening() {
         status.textContent = "⚪ Microfone Desligado";
         status.style.color = "var(--text-muted)";
     }
+    
+    // Stop silent loop
+    if (silentAudioInterval) {
+        clearInterval(silentAudioInterval);
+        silentAudioInterval = null;
+    }
 }
 
 function startListening() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
 
-    if (currentRecognition) currentRecognition.stop();
+    if (isStartingMic) return;
+    if (currentRecognition) {
+        currentRecognition.onend = null;
+        currentRecognition.onerror = null;
+        currentRecognition.stop();
+    }
+
 
     const rec = new SR();
     currentRecognition = rec;
@@ -2279,6 +2293,25 @@ function startListening() {
     const { btn, status, hint } = getActiveMicElements();
 
     isRecognitionActive = true;
+    isStartingMic = true;
+
+    // Keep-alive trick: Play a tiny silent sound to keep the mic context active
+    if (!silentAudioInterval) {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        silentAudioInterval = setInterval(() => {
+            if (!isRecognitionActive) return;
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(1, audioCtx.currentTime); // Inaudible frequency
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime); // Zero volume
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.1);
+        }, 10000); // Every 10 seconds to keep context alive
+    }
+
     if (btn) btn.classList.add('listening');
     if (status) {
         status.textContent = "🎙️ Microfone Ativo (Gravando...)";
@@ -2374,9 +2407,12 @@ function startListening() {
 
         if (isFullMatch) {
             success = true;
+            isRecognitionActive = false; // Stop permanently on success
+            
             // Security: Nullify onresult and onend to prevent multiple triggers
             rec.onresult = null;
             rec.onend = null;
+            rec.onerror = null;
             rec.stop();
 
             if (btn) btn.classList.remove('listening');
@@ -2393,21 +2429,42 @@ function startListening() {
         }
     };
 
+    rec.onstart = () => {
+        isStartingMic = false;
+    };
+
     rec.onerror = (e) => {
+        isStartingMic = false;
         if (e.error === 'no-speech') return;
+        if (e.error === 'aborted') return;
+        
         console.error('Speech error:', e.error);
+        if (status) {
+            status.textContent = "⚠️ Erro no microfone: " + e.error;
+            status.style.color = "var(--warning)";
+        }
+        
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+            isRecognitionActive = false;
+            stopListening();
+        }
     };
 
     rec.onend = () => {
         // Only restart if not successful AND still intended to be listening AND session is active
         const isCorrectMode = session.mode === 'speak' || session.mode === 'pronounce';
         if (!success && isRecognitionActive && session.active && isCorrectMode && currentRecognition === rec) {
-            // Se o áudio estiver tocando, esperamos um pouco mais ou tentamos imediatamente sem parar
-            const restartDelay = isAudioPlaying ? 500 : 50; 
+            // Aumentamos o delay de reinício para ser menos intrusivo.
+            // O navegador agora deve demorar mais para desligar devido ao loop de silêncio acima.
+            const restartDelay = isAudioPlaying ? 3000 : 2000; 
             setTimeout(() => {
                 try { 
-                    if (!success && isRecognitionActive && session.active && currentRecognition === rec) rec.start(); 
-                } catch (err) { }
+                    if (!success && isRecognitionActive && session.active && currentRecognition === rec) {
+                        rec.start(); 
+                    }
+                } catch (err) { 
+                    isStartingMic = false;
+                }
             }, restartDelay);
         } else {
             // Ensure visual state is updated if we stop
