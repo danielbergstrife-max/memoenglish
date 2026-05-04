@@ -2232,7 +2232,8 @@ let currentRecognition = null;
 let isRecognitionActive = false;
 let isAudioPlaying = false;
 let isStartingMic = false;
-let silentAudioInterval = null;
+let silentAudioNodes = null; // Store nodes to stop them later
+let keepAliveStream = null;
 
 function getActiveMicElements() {
     const isPronounce = session.mode === 'pronounce';
@@ -2265,10 +2266,20 @@ function stopListening() {
         status.style.color = "var(--text-muted)";
     }
     
-    // Stop silent loop
-    if (silentAudioInterval) {
-        clearInterval(silentAudioInterval);
-        silentAudioInterval = null;
+    // Stop continuous silent audio
+    if (silentAudioNodes) {
+        try {
+            silentAudioNodes.oscillator.stop();
+            silentAudioNodes.oscillator.disconnect();
+            silentAudioNodes.gainNode.disconnect();
+        } catch (e) {}
+        silentAudioNodes = null;
+    }
+
+    // Stop hardware keep-alive stream
+    if (keepAliveStream) {
+        keepAliveStream.getTracks().forEach(track => track.stop());
+        keepAliveStream = null;
     }
 }
 
@@ -2295,21 +2306,28 @@ function startListening() {
     isRecognitionActive = true;
     isStartingMic = true;
 
-    // Keep-alive trick: Play a tiny silent sound to keep the mic context active
-    if (!silentAudioInterval) {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        silentAudioInterval = setInterval(() => {
-            if (!isRecognitionActive) return;
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(1, audioCtx.currentTime); // Inaudible frequency
-            gainNode.gain.setValueAtTime(0, audioCtx.currentTime); // Zero volume
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            oscillator.start();
-            oscillator.stop(audioCtx.currentTime + 0.1);
-        }, 10000); // Every 10 seconds to keep context alive
+    // Keep-alive: Continuous inaudible oscillator
+    if (!silentAudioNodes) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioCtx();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(1, audioCtx.currentTime); 
+        gainNode.gain.setValueAtTime(0, audioCtx.currentTime); 
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.start();
+        silentAudioNodes = { oscillator, gainNode, ctx: audioCtx };
+    } else if (silentAudioNodes.ctx.state === 'suspended') {
+        silentAudioNodes.ctx.resume();
+    }
+
+    // Hardware Keep-alive: Persistent stream
+    if (!keepAliveStream) {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => { keepAliveStream = stream; })
+            .catch(err => console.error("Hardware keep-alive failed:", err));
     }
 
     if (btn) btn.classList.add('listening');
@@ -2454,9 +2472,12 @@ function startListening() {
         // Only restart if not successful AND still intended to be listening AND session is active
         const isCorrectMode = session.mode === 'speak' || session.mode === 'pronounce';
         if (!success && isRecognitionActive && session.active && isCorrectMode && currentRecognition === rec) {
-            // Aumentamos o delay de reinício para ser menos intrusivo.
-            // O navegador agora deve demorar mais para desligar devido ao loop de silêncio acima.
-            const restartDelay = isAudioPlaying ? 3000 : 2000; 
+            // No mobile, precisamos garantir que o AudioContext não "durma"
+            if (silentAudioNodes && silentAudioNodes.ctx.state === 'suspended') {
+                silentAudioNodes.ctx.resume();
+            }
+
+            const restartDelay = 300; 
             setTimeout(() => {
                 try { 
                     if (!success && isRecognitionActive && session.active && currentRecognition === rec) {
