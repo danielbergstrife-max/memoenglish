@@ -915,19 +915,46 @@ function setupMicEvents() {
     btn.ontouchstart = null;
     btn.ontouchend = null;
 
+    const supportsPointer = 'onpointerdown' in window;
     const isMobile = 'ontouchstart' in window;
-    if (isMobile) {
+    if (supportsPointer) {
+        btn.onpointerdown = (e) => {
+            if (e.pointerType === 'mouse') return;
+            e.preventDefault();
+            if (!isRecognitionActive) startListening();
+            try {
+                btn.setPointerCapture(e.pointerId);
+            } catch (err) {}
+        };
+        btn.onpointerup = (e) => {
+            if (e.pointerType === 'mouse') return;
+            e.preventDefault();
+            if (isRecognitionActive) stopListening();
+            try {
+                btn.releasePointerCapture(e.pointerId);
+            } catch (err) {}
+        };
+        btn.onpointercancel = (e) => {
+            if (e.pointerType === 'mouse') return;
+            if (isRecognitionActive) stopListening();
+        };
+        btn.onclick = isMobile ? null : toggleListening;
+    } else if (isMobile) {
         btn.ontouchstart = (e) => {
             e.preventDefault();
-            startListening();
+            if (!isRecognitionActive) startListening();
         };
         btn.ontouchend = (e) => {
             e.preventDefault();
-            stopListening();
+            if (isRecognitionActive) stopListening();
+        };
+        btn.ontouchcancel = (e) => {
+            if (isRecognitionActive) stopListening();
         };
     } else {
         btn.onclick = toggleListening;
     }
+    btn.style.touchAction = 'none';
 }
 
 function generateQuizOptions(correct) {
