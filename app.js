@@ -2405,7 +2405,7 @@ function startListening() {
                 try { 
                     if (!success && isRecognitionActive && session.active) rec.start(); 
                 } catch (err) { console.error("Erro ao reiniciar:", err); }
-            }, 5000);
+            }, 60000);
         } else {
             // Ensure visual state is updated if we stop
             if (currentRecognition === rec) stopListening();
@@ -2521,7 +2521,7 @@ function startListeningCorrection() {
             // Give the mic a longer pause before restarting to reduce repeated auto-stop behavior
             setTimeout(() => {
                 try { recognition.start(); } catch (e) { }
-            }, 5000);
+            }, 60000);
         } else {
             $('micBtnCorrection').classList.remove('listening');
             $('correctionVoiceHint').textContent = "⚪ Microfone Desligado";
