@@ -107,7 +107,8 @@
                         <span class="stat-label">Palavras Estudadas</span>
                     </div>
                     <div class="stat-card"
-                        style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">
+                        style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; cursor: pointer;"
+                        onclick="showMasteredModal()">
                         <span class="stat-value" id="statMemorized" style="color: white;">0</span>
                         <span class="stat-label" style="color: rgba(255,255,255,0.8);">Frases Memorizadas</span>
                     </div>
@@ -259,11 +260,8 @@
                     </div>
                 </div>
 
-                <h2 style="margin-bottom: 20px;">Palavras que você mais conhece</h2>
-                <div id="masteredPhrasesContainer"
-                    style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;">
-                    <!-- Frases masterizadas aqui -->
-                </div>
+                <!-- Seção movida para modal -->
+                <div id="masteredPhrasesContainer" style="display: none;"></div>
             </div>
 
             <!-- SETTINGS VIEW -->
@@ -377,6 +375,25 @@
                     </div>
                 </div>
 
+                <!-- Global Search Bar -->
+                <div class="card search-card" style="margin-bottom: 24px; padding: 16px 24px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 1.2rem;">🔍</span>
+                        <input type="text" id="globalSearchInput" class="input-box search-input"
+                            placeholder="Procurar frases ou palavras..." oninput="handleGlobalSearch(this.value)"
+                            style="border: none; background: transparent; padding: 8px 0; font-size: 1rem;">
+                        <button id="clearGlobalSearch" class="btn btn-outline btn-sm"
+                            style="display: none; padding: 4px 8px;" onclick="clearGlobalSearch()">✕</button>
+                    </div>
+                </div>
+
+                <div id="searchResultsContainer" style="display: none; margin-bottom: 32px;">
+                    <h2 style="margin-bottom: 20px; font-size: 1.2rem; color: var(--text-muted);">Resultados da Busca
+                    </h2>
+                    <div id="searchResultsList" style="display: flex; flex-direction: column; gap: 12px;"></div>
+                    <div style="margin-top: 16px; border-bottom: 2px solid var(--border); padding-bottom: 16px;"></div>
+                </div>
+
                 <div id="listsContainer"
                     style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
                     <!-- Listas aqui -->
@@ -385,9 +402,31 @@
 
             <!-- PHRASES VIEW -->
             <div id="phrasesView" class="view" style="display: none;">
-                <div class="view-header" style="justify-content: flex-start;">
-                    <button class="btn btn-outline" onclick="showView('listsView')">←</button>
-                    <h1 id="currentListTitle" style="font-weight: 800; font-size: 2rem;">Nome da Lista</h1>
+                <div class="view-header"
+                    style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <button class="btn btn-outline" onclick="showView('listsView')">←</button>
+                        <h1 id="currentListTitle" style="font-weight: 800; font-size: 2rem;">Nome da Lista</h1>
+                    </div>
+
+                    <div class="search-mini-container"
+                        style="flex: 1; min-width: 250px; max-width: 500px; display: flex; gap: 12px; align-items: center;">
+                        <div class="card search-card" style="padding: 10px 16px; flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 1rem; opacity: 0.7;">🔍</span>
+                                <input type="text" id="phraseSearchInput" class="input-box search-input"
+                                    placeholder="Procurar..." oninput="renderPhrases(this.value)"
+                                    style="border: none; background: transparent; padding: 4px 0; font-size: 0.9rem;">
+                            </div>
+                        </div>
+                        <select id="phraseSortSelector" onchange="renderPhrases($('phraseSearchInput').value)"
+                            style="background: var(--primary-soft); border: none; padding: 10px 16px; border-radius: 12px; font-weight: 700; color: var(--primary); font-size: 0.85rem; cursor: pointer; outline: none; height: 46px;">
+                            <option value="newest">Mais recentes</option>
+                            <option value="oldest">Mais antigas</option>
+                            <option value="due">Próxima revisão</option>
+                            <option value="due_far">Revisão mais distante</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="card" style="margin-bottom: 32px;">
@@ -449,24 +488,23 @@
                                 style="width: 100%; height: 100%; min-height: 120px; font-size: 1.5rem; padding: 24px; color: transparent; caret-color: var(--text); line-height: 1.2; background: transparent; border: none; outline: none; position: relative; z-index: 2; font-family: inherit; font-weight: 700; text-align: left; resize: none; overflow: hidden; display: block;"
                                 placeholder="Digite em inglês..." autocomplete="off"></textarea>
                         </div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 12px; padding: 0 8px 16px; color: var(--text-muted); font-size: 0.9rem;">
-                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px; padding: 0 8px 16px; color: var(--text-muted); font-size: 0.9rem; justify-content: center;">
+                            <div id="writeLegendCorrect" style="display: none; align-items: center; gap: 8px;">
                                 <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--success);"></span>
                                 Correto
-                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                            </div>
+                            <div id="writeLegendError" style="display: none; align-items: center; gap: 8px;">
                                 <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--danger);"></span>
                                 Errado
                             </div>
-                            </div>
-                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                            <div id="writeLegendMisplacedChar" style="display: none; align-items: center; gap: 8px;">
                                 <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--primary);"></span>
-                                Letra certa, mas posição errada
+                                Letra na posição errada
                             </div>
-                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                            <div id="writeLegendMisplacedWord" style="display: none; align-items: center; gap: 8px;">
                                 <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--warning);"></span>
-                                Palavra certa, mas posição errada
+                                Palavra na posição errada
                             </div>
-
                         </div>
                         <button class="btn btn-primary" onclick="checkWriteAnswer()"
                             style="width: 100%; padding: 20px;">Verificar Resposta</button>
@@ -477,7 +515,8 @@
                         <div style="text-align: center; margin-bottom: 24px;">
                             <button class="btn btn-outline" onclick="playAudio(session.current.english)"
                                 style="padding: 16px 32px; font-size: 1rem; font-weight: 700;">🔊 Ouvir Áudio</button>
-                            <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 12px; max-width: 360px; margin-left: auto; margin-right: auto; line-height: 1.4;">
+                            <p
+                                style="color: var(--text-muted); font-size: 0.95rem; margin-top: 12px; max-width: 360px; margin-left: auto; margin-right: auto; line-height: 1.4;">
                                 Ouça o áudio e digite em inglês o que você ouviu.
                             </p>
                         </div>
@@ -488,26 +527,26 @@
                             </div>
                             <textarea id="listenInput"
                                 style="width: 100%; height: 100%; min-height: 120px; font-size: 1.5rem; padding: 24px; color: transparent; caret-color: var(--text); line-height: 1.2; background: transparent; border: none; outline: none; position: relative; z-index: 2; font-family: inherit; font-weight: 700; text-align: left; resize: none; overflow: hidden; display: block;"
-                                placeholder="Digite o que você ouviu em inglês..." autocomplete="off" oninput="updateListenMirror()"></textarea>
+                                placeholder="Digite o que você ouviu em inglês..." autocomplete="off"
+                                oninput="updateListenMirror()"></textarea>
                         </div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 12px; padding: 0 8px 16px; color: var(--text-muted); font-size: 0.9rem;">
-                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px; padding: 0 8px 16px; color: var(--text-muted); font-size: 0.9rem; justify-content: center;">
+                            <div id="listenLegendCorrect" style="display: none; align-items: center; gap: 8px;">
                                 <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--success);"></span>
                                 Correto
-                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                            </div>
+                            <div id="listenLegendError" style="display: none; align-items: center; gap: 8px;">
                                 <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--danger);"></span>
                                 Errado
                             </div>
-                            </div>
-                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                            <div id="listenLegendMisplacedChar" style="display: none; align-items: center; gap: 8px;">
                                 <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--primary);"></span>
-                                Letra certa, mas posição errada
+                                Letra na posição errada
                             </div>
-                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                            <div id="listenLegendMisplacedWord" style="display: none; align-items: center; gap: 8px;">
                                 <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--warning);"></span>
-                                Palavra certa, mas posição errada
+                                Palavra na posição errada
                             </div>
-
                         </div>
                         <button class="btn btn-primary" onclick="checkListenAnswer()"
                             style="width: 100%; padding: 20px;">Verificar Resposta</button>
@@ -682,6 +721,35 @@
                     <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancelar</button>
                     <button class="btn btn-primary" style="flex:2" id="btnGenerateAuto" onclick="generateSmartList()">✨
                         Gerar Lista</button>
+                </div>
+            </div>
+
+            <!-- Mastered Phrases Modal -->
+            <div id="masteredModal" class="card"
+                style="width: 100%; max-width: 800px; display: none; max-height: 90vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="font-weight: 800; font-size: 1.5rem;">Frases Dominadas</h2>
+                    <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+                </div>
+
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 16px;">
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">Aqui estão as frases que você já
+                        domina completamente.</p>
+                    <select id="masteredSkillSelector" onchange="renderMasteredPhrases()"
+                        style="background: var(--primary-soft); border: none; padding: 8px 16px; border-radius: 20px; font-weight: 700; color: var(--primary); font-size: 0.85rem; cursor: pointer; outline: none;">
+                        <option value="standard">Geral</option>
+                        <option value="quiz">Quiz</option>
+                        <option value="write">Escrita</option>
+                        <option value="listen">Escuta</option>
+                        <option value="pronounce">Pronúncia</option>
+                        <option value="speak">Fala</option>
+                    </select>
+                </div>
+
+                <div id="masteredModalList"
+                    style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; align-content: start;">
+                    <!-- Frases masterizadas aqui -->
                 </div>
             </div>
 

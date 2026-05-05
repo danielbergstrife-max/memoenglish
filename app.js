@@ -462,7 +462,7 @@ function renderStats() {
         l.phrases.forEach(p => {
             const lv = p.levels || {};
             const isStudied = (lv.quiz > 0 || lv.write > 0 || lv.listen > 0 || lv.pronounce > 0 || lv.speak > 0);
-            const isMemorized = (lv.write >= 5 || lv.listen >= 5 || lv.pronounce >= 5 || lv.speak >= 5);
+            const isMemorized = (lv.quiz >= 5 || lv.write >= 5 || lv.listen >= 5 || lv.pronounce >= 5 || lv.speak >= 5);
 
             if (isStudied) {
                 const words = normalizeText(p.english).split(/\s+/).filter(w => w.length > 1);
@@ -573,11 +573,12 @@ function renderLists() {
 function selectList(id) {
     appData.currentListId = id;
     saveData(appData);
+    if ($('phraseSearchInput')) $('phraseSearchInput').value = '';
     renderPhrases();
     showView('phrasesView');
 }
 
-function renderPhrases() {
+function renderPhrases(filter = "") {
     const list = appData.lists.find(l => l.id === appData.currentListId);
     if (!list) return;
 
@@ -585,19 +586,46 @@ function renderPhrases() {
     const container = $('phrasesContainer');
     container.innerHTML = '';
 
-    if (list.phrases.length === 0) {
-        container.innerHTML = '<div class="card" style="text-align:center; color:var(--text-muted);">Nenhuma frase nesta lista ainda.</div>';
+    const query = filter.toLowerCase().trim();
+    let phrasesToRender = list.phrases.filter(p => 
+        p.english.toLowerCase().includes(query) || 
+        p.portuguese.toLowerCase().includes(query)
+    );
+
+    if (phrasesToRender.length === 0) {
+        container.innerHTML = `<div class="card" style="text-align:center; color:var(--text-muted);">${query ? 'Nenhuma frase encontrada para esta busca.' : 'Nenhuma frase nesta lista ainda.'}</div>`;
         return;
     }
 
+    // Apply Sorting
+    const sortMode = $('phraseSortSelector')?.value || 'newest';
+    if (sortMode === 'due') {
+        phrasesToRender.sort((a, b) => {
+            const nextA = a.nextReview || 0;
+            const nextB = b.nextReview || 0;
+            return nextA - nextB;
+        });
+    } else if (sortMode === 'due_far') {
+        phrasesToRender.sort((a, b) => {
+            const nextA = a.nextReview || 0;
+            const nextB = b.nextReview || 0;
+            return nextB - nextA;
+        });
+    } else if (sortMode === 'oldest') {
+        // Default is oldest first in appData.lists[i].phrases
+    } else {
+        // newest (default)
+        phrasesToRender = phrasesToRender.slice().reverse();
+    }
+
     const now = Date.now();
-    list.phrases.slice().reverse().forEach(p => {
+    phrasesToRender.forEach(p => {
         const diff = (p.nextReview || 0) - now;
         const dueText = diff <= 0 ? 'Agora' : formatRelativeTime(diff);
         const dueClass = diff <= 0 ? 'color: var(--danger); font-weight: 800;' : 'color: var(--text-muted); font-size: 0.8rem;';
 
         container.innerHTML += `
-            <div class="card phrase-card">
+            <div class="card phrase-card" id="phrase-${p.id}">
                 <div class="phrase-content">
                     <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 4px;">${escapeHTML(p.english)}</div>
                     <div style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 8px;">${escapeHTML(p.portuguese)}</div>
@@ -623,6 +651,95 @@ function renderPhrases() {
             </div>
         `;
     });
+}
+
+function handleGlobalSearch(query) {
+    const q = query.toLowerCase().trim();
+    const resultsContainer = $('searchResultsContainer');
+    const resultsList = $('searchResultsList');
+    const clearBtn = $('clearGlobalSearch');
+
+    if (!q) {
+        resultsContainer.style.display = 'none';
+        clearBtn.style.display = 'none';
+        renderLists(); // Refresh lists to show all
+        return;
+    }
+
+    clearBtn.style.display = 'block';
+    resultsContainer.style.display = 'block';
+    resultsList.innerHTML = '';
+
+    let foundAny = false;
+    const now = Date.now();
+
+    // Search phrases in all lists
+    appData.lists.forEach(l => {
+        const matches = l.phrases.filter(p => 
+            p.english.toLowerCase().includes(q) || 
+            p.portuguese.toLowerCase().includes(q)
+        );
+
+        matches.forEach(p => {
+            foundAny = true;
+            const diff = (p.nextReview || 0) - now;
+            const dueText = diff <= 0 ? 'Agora' : formatRelativeTime(diff);
+            const dueClass = diff <= 0 ? 'color: var(--danger); font-weight: 800;' : 'color: var(--text-muted); font-size: 0.8rem;';
+
+            resultsList.innerHTML += `
+                <div class="card phrase-card" style="border-left: 4px solid var(--primary);">
+                    <div class="phrase-content">
+                        <div style="font-size: 0.7rem; font-weight: 800; color: var(--primary); text-transform: uppercase; margin-bottom: 4px;">LISTA: ${escapeHTML(l.name)}</div>
+                        <div style="font-weight: 700; font-size: 1rem; margin-bottom: 4px;">${escapeHTML(p.english)}</div>
+                        <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 8px;">${escapeHTML(p.portuguese)}</div>
+                        <div style="${dueClass}">Revisão: ${dueText}</div>
+                    </div>
+                    <div class="phrase-actions">
+                        <button class="btn btn-primary btn-sm" onclick="selectListAndScroll('${l.id}', '${p.id}')">Ir para Lista</button>
+                    </div>
+                </div>
+            `;
+        });
+    });
+
+    if (!foundAny) {
+        resultsList.innerHTML = '<div class="card" style="text-align:center; color:var(--text-muted);">Nenhuma frase encontrada em nenhuma lista.</div>';
+    }
+
+    // Also filter lists by name
+    const listCards = $('listsContainer').children;
+    Array.from(listCards).forEach(card => {
+        const title = card.querySelector('h3')?.textContent.toLowerCase() || '';
+        if (title.includes(q)) {
+            card.style.display = 'flex';
+        } else if (foundAny) {
+            // If we found phrases, we might want to hide lists that don't match the name to focus on results
+            card.style.display = 'none';
+        } else {
+            card.style.display = 'flex';
+        }
+    });
+}
+
+function selectListAndScroll(listId, phraseId) {
+    selectList(listId);
+    setTimeout(() => {
+        const el = $(`phrase-${phraseId}`);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.style.border = '2px solid var(--primary)';
+            el.style.boxShadow = '0 0 30px var(--primary-soft)';
+            setTimeout(() => {
+                el.style.border = '';
+                el.style.boxShadow = '';
+            }, 3000);
+        }
+    }, 400);
+}
+
+function clearGlobalSearch() {
+    $('globalSearchInput').value = '';
+    handleGlobalSearch('');
 }
 
 function formatRelativeTime(ms) {
@@ -690,7 +807,7 @@ function renderMetrics() {
         let lvl;
         if (skill === 'standard') {
             // New rule: Mastery if any skill >= 5
-            const isMastered = (p.levels?.write >= 5 || p.levels?.listen >= 5 || p.levels?.pronounce >= 5 || p.levels?.speak >= 5);
+            const isMastered = (p.levels?.quiz >= 5 || p.levels?.write >= 5 || p.levels?.listen >= 5 || p.levels?.pronounce >= 5 || p.levels?.speak >= 5);
             if (isMastered) {
                 counts.mastered++;
             } else {
@@ -724,26 +841,41 @@ function renderMetrics() {
         legends[2].textContent = `🟢 Dominadas (${counts.mastered})`;
     }
 
-    // 4. MASTERED PHRASES GRID
-    const isMasteredGeneral = (p) => (p.levels?.write >= 5 || p.levels?.pronounce >= 5 || p.levels?.speak >= 5);
-    const mastered = allPhrases.filter(p => skill === 'standard' ? isMasteredGeneral(p) : getLvl(p) >= 5)
-        .sort((a, b) => getLvl(b) - getLvl(a))
-        .slice(0, 12);
-    
-    const container = $('masteredPhrasesContainer');
+    // 4. MASTERED PHRASES GRID (Moved to Modal, but still keeping helper for updates)
+    renderMasteredPhrases();
+}
 
+function showMasteredModal() {
+    renderMasteredPhrases();
+    openModal('masteredModal');
+}
+
+function renderMasteredPhrases() {
+    const container = $('masteredModalList');
+    if (!container) return;
+
+    let allPhrases = [];
+    appData.lists.forEach(l => allPhrases = allPhrases.concat(l.phrases));
+
+    const skill = $('masteredSkillSelector')?.value || 'standard';
+    const getLvl = (p, s) => p.levels?.[s || skill] || 0;
+
+    const isMasteredGeneral = (p) => (p.levels?.quiz >= 5 || p.levels?.write >= 5 || p.levels?.listen >= 5 || p.levels?.pronounce >= 5 || p.levels?.speak >= 5);
+    const mastered = allPhrases.filter(p => skill === 'standard' ? isMasteredGeneral(p) : getLvl(p) >= 5)
+        .sort((a, b) => getLvl(b) - getLvl(a));
+    
     if (mastered.length === 0) {
-        container.innerHTML = '<div class="card" style="grid-column: 1/-1; text-align:center; color:var(--text-muted);">Ainda não há frases dominadas nesta categoria.</div>';
+        container.innerHTML = '<div class="card" style="grid-column: 1/-1; text-align:center; color:var(--text-muted); padding: 40px;">Ainda não há frases dominadas nesta categoria. Continue praticando!</div>';
     } else {
         container.innerHTML = mastered.map(p => {
-            const displayLvl = skill === 'standard' ? Math.max(p.levels?.write || 0, p.levels?.pronounce || 0, p.levels?.speak || 0) : getLvl(p);
+            const displayLvl = skill === 'standard' ? Math.max(p.levels?.quiz || 0, p.levels?.write || 0, p.levels?.listen || 0, p.levels?.pronounce || 0, p.levels?.speak || 0) : getLvl(p);
             return `
                 <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-left: 4px solid var(--success); animation: fadeIn 0.5s ease;">
-                    <div style="overflow: hidden;">
-                        <div style="font-weight:700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(p.english)}</div>
-                        <div style="color:var(--text-muted); font-size:0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(p.portuguese)}</div>
+                    <div style="overflow: hidden; flex: 1;">
+                        <div style="font-weight:700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHTML(p.english)}">${escapeHTML(p.english)}</div>
+                        <div style="color:var(--text-muted); font-size:0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHTML(p.portuguese)}">${escapeHTML(p.portuguese)}</div>
                     </div>
-                    <div style="background: var(--success-soft); color: var(--success); padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 800; margin-left: 12px;">Lvl ${displayLvl}</div>
+                    <div style="background: var(--success-soft); color: var(--success); padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 800; margin-left: 12px; flex-shrink: 0;">Lvl ${displayLvl}</div>
                 </div>
             `;
         }).join('');
@@ -1021,6 +1153,8 @@ function updateWriteMirror() {
         }
     });
 
+    const usage = { correct: false, error: false, misplacedChar: false, misplacedWord: false };
+
     // Second pass: Generate HTML with correct colors
     analyzedTokens.forEach((tokenObj) => {
         if (tokenObj.type === 'space') {
@@ -1033,6 +1167,7 @@ function updateWriteMirror() {
 
         if (tokenObj.type === 'correct') {
             color = 'var(--success)';
+            usage.correct = true;
             html += `<span style="color: ${color}">${tokenObj.content}</span>`;
             return;
         }
@@ -1043,7 +1178,7 @@ function updateWriteMirror() {
             const similarity = getSimilarity(normalizedToken, normalizedTargetWord);
             const hasMisplacedLetter = normalizedToken.split('').some((ch, idx) => ch !== normalizedTargetWord[idx] && normalizedTargetWord.includes(ch));
             if ((normalizedTargetWord.startsWith(normalizedToken) || (similarity >= 0.45 && hasMisplacedLetter)) && normalizedToken.length > 0) {
-                html += colorizeTypedWordChars(tokenObj.content, tokenObj.targetWord);
+                html += colorizeTypedWordChars(tokenObj.content, tokenObj.targetWord, usage);
                 return;
             }
         }
@@ -1053,6 +1188,7 @@ function updateWriteMirror() {
             const allWordsAvailable = normWords.every(w => wordCounts[w] > 0);
             if (allWordsAvailable) {
                 color = 'var(--warning)';
+                usage.misplacedWord = true;
                 normWords.forEach(w => wordCounts[w]--);
             } else if (tokenObj.isBeingTyped) {
                 // For "being typed", allow prefix match from the pool
@@ -1060,6 +1196,7 @@ function updateWriteMirror() {
                 const previousWordsMatch = normWords.slice(0, -1).every(w => wordCounts[w] > 0);
                 if (canBePrefix && (normWords.length === 1 || previousWordsMatch)) {
                     color = 'var(--warning)';
+                    usage.misplacedWord = true;
                 } else if (tokenObj.content.includes("'")) {
                     // Special handling for contractions being typed (yellow for out-of-order)
                     const expandedWords = getContractionExpansionPrefix(tokenObj.content);
@@ -1067,6 +1204,7 @@ function updateWriteMirror() {
                         const allExpandedAvailable = expandedWords.every(w => wordCounts[w] > 0);
                         if (allExpandedAvailable) {
                             color = 'var(--warning)';
+                            usage.misplacedWord = true;
                             expandedWords.forEach(w => wordCounts[w]--);
                         }
                     }
@@ -1074,10 +1212,23 @@ function updateWriteMirror() {
             }
         }
 
+        if (color === 'var(--danger)') usage.error = true;
         html += `<span style="color: ${color}">${tokenObj.content}</span>`;
     });
 
     $('writeInputMirror').innerHTML = html;
+    
+    // Update Legends (One at a time, by priority)
+    let activeId = null;
+    if (usage.error) activeId = 'writeLegendError';
+    else if (usage.misplacedWord) activeId = 'writeLegendMisplacedWord';
+    else if (usage.misplacedChar) activeId = 'writeLegendMisplacedChar';
+    else if (usage.correct) activeId = 'writeLegendCorrect';
+
+    ['writeLegendCorrect', 'writeLegendError', 'writeLegendMisplacedChar', 'writeLegendMisplacedWord'].forEach(id => {
+        const el = $(id);
+        if (el) el.style.display = (id === activeId) ? 'inline-flex' : 'none';
+    });
 }
 
 // Initializing the input listener
@@ -1180,6 +1331,8 @@ function updateListenMirror() {
         }
     });
 
+    const usage = { correct: false, error: false, misplacedChar: false, misplacedWord: false };
+
     // Second pass: Generate HTML with correct colors
     analyzedTokens.forEach((tokenObj) => {
         if (tokenObj.type === 'space') {
@@ -1192,6 +1345,7 @@ function updateListenMirror() {
 
         if (tokenObj.type === 'correct') {
             color = 'var(--success)';
+            usage.correct = true;
             html += `<span style="color: ${color}">${tokenObj.content}</span>`;
             return;
         }
@@ -1202,7 +1356,7 @@ function updateListenMirror() {
             const similarity = getSimilarity(normalizedToken, normalizedTargetWord);
             const hasMisplacedLetter = normalizedToken.split('').some((ch, idx) => ch !== normalizedTargetWord[idx] && normalizedTargetWord.includes(ch));
             if ((normalizedTargetWord.startsWith(normalizedToken) || (similarity >= 0.45 && hasMisplacedLetter)) && normalizedToken.length > 0) {
-                html += colorizeTypedWordChars(tokenObj.content, tokenObj.targetWord);
+                html += colorizeTypedWordChars(tokenObj.content, tokenObj.targetWord, usage);
                 return;
             }
         }
@@ -1212,6 +1366,7 @@ function updateListenMirror() {
             const allWordsAvailable = normWords.every(w => wordCounts[w] > 0);
             if (allWordsAvailable) {
                 color = 'var(--warning)';
+                usage.misplacedWord = true;
                 normWords.forEach(w => wordCounts[w]--);
             } else if (tokenObj.isBeingTyped) {
                 // For "being typed", allow prefix match from the pool
@@ -1219,6 +1374,7 @@ function updateListenMirror() {
                 const previousWordsMatch = normWords.slice(0, -1).every(w => wordCounts[w] > 0);
                 if (canBePrefix && (normWords.length === 1 || previousWordsMatch)) {
                     color = 'var(--warning)';
+                    usage.misplacedWord = true;
                 } else if (tokenObj.content.includes("'")) {
                     // Special handling for contractions being typed (yellow for out-of-order)
                     const expandedWords = getContractionExpansionPrefix(tokenObj.content);
@@ -1226,6 +1382,7 @@ function updateListenMirror() {
                         const allExpandedAvailable = expandedWords.every(w => wordCounts[w] > 0);
                         if (allExpandedAvailable) {
                             color = 'var(--warning)';
+                            usage.misplacedWord = true;
                             expandedWords.forEach(w => wordCounts[w]--);
                         }
                     }
@@ -1233,10 +1390,23 @@ function updateListenMirror() {
             }
         }
 
+        if (color === 'var(--danger)') usage.error = true;
         html += `<span style="color: ${color}">${tokenObj.content}</span>`;
     });
 
     $('listenInputMirror').innerHTML = html;
+
+    // Update Legends (One at a time, by priority)
+    let activeId = null;
+    if (usage.error) activeId = 'listenLegendError';
+    else if (usage.misplacedWord) activeId = 'listenLegendMisplacedWord';
+    else if (usage.misplacedChar) activeId = 'listenLegendMisplacedChar';
+    else if (usage.correct) activeId = 'listenLegendCorrect';
+
+    ['listenLegendCorrect', 'listenLegendError', 'listenLegendMisplacedChar', 'listenLegendMisplacedWord'].forEach(id => {
+        const el = $(id);
+        if (el) el.style.display = (id === activeId) ? 'inline-flex' : 'none';
+    });
 }
 
 function checkListenAnswer() {
@@ -1646,14 +1816,13 @@ function normalizeText(t) {
     return text.replace(/[.,!?;:"()\[\]{}—–]/g, '').replace(/-/g, ' ').replace(/'/g, '').replace(/\s+/g, ' ').trim();
 }
 
-function colorizeTypedWordChars(token, targetWord) {
+function colorizeTypedWordChars(token, targetWord, usageTracker = {}) {
     const normalizedToken = normalizeText(token);
     const normalizedTarget = normalizeText(targetWord);
     const normTokenChars = normalizedToken.split('');
     const tokenChars = token.split('');
-
-    // Build a count of unmatched target letters
     const unmatchedTarget = {};
+    
     normTokenChars.forEach((ch, idx) => {
         if (normalizedTarget[idx] !== ch) {
             unmatchedTarget[normalizedTarget[idx]] = (unmatchedTarget[normalizedTarget[idx]] || 0) + 1;
@@ -1663,34 +1832,33 @@ function colorizeTypedWordChars(token, targetWord) {
         const ch = normalizedTarget[i];
         unmatchedTarget[ch] = (unmatchedTarget[ch] || 0) + 1;
     }
-
+    
     let normIndex = 0;
     let html = '';
-
     tokenChars.forEach((char) => {
-        const isLetter = /[A-Za-z0-9]/.test(char);
+        const isLetter = /[a-z0-9]/i.test(char);
         if (!isLetter) {
-            html += `<span style="color: var(--danger)">${escapeHTML(char)}</span>`;
+            html += char;
             return;
         }
-
-        const currentNormChar = normTokenChars[normIndex] || '';
-        const targetChar = normalizedTarget[normIndex] || '';
-
-        if (currentNormChar === targetChar) {
-            html += `<span style="color: var(--success)">${escapeHTML(char)}</span>`;
-        } else if (unmatchedTarget[currentNormChar] > 0) {
-            html += `<span style="color: var(--primary)">${escapeHTML(char)}</span>`;
-            unmatchedTarget[currentNormChar]--;
+        const normCh = normTokenChars[normIndex];
+        let color = 'var(--danger)'; 
+        if (normCh === normalizedTarget[normIndex]) {
+            color = 'var(--success)';
+            usageTracker.correct = true;
+        } else if (normalizedTarget.includes(normCh) && unmatchedTarget[normCh] > 0) {
+            color = 'var(--primary)';
+            unmatchedTarget[normCh]--;
+            usageTracker.misplacedChar = true;
         } else {
-            html += `<span style="color: var(--danger)">${escapeHTML(char)}</span>`;
+            usageTracker.error = true;
         }
-
+        html += `<span style="color: ${color}">${char}</span>`;
         normIndex++;
     });
-
     return html;
 }
+
 
 function getSimilarity(s1, s2) {
     let longer = s1;
@@ -1845,10 +2013,14 @@ function openModal(modalId) {
     // Show background and the specific modal
     $('modalBg').style.display = 'flex';
     $(modalId).style.display = 'block';
+    
+    // Scroll Lock
+    document.body.classList.add('modal-open');
 }
 
 function closeModal() { 
     $('modalBg').style.display = 'none'; 
+    document.body.classList.remove('modal-open');
 }
 
 // Override default alert/confirm with premium system dialog
@@ -1973,7 +2145,6 @@ function importData(input) {
 function showAddListModal() {
     openModal('newListModal');
 }
-function closeModal() { $('modalBg').style.display = 'none'; }
 function createList() {
     const n = $('newListName').value.trim();
     if (!n) return;
@@ -2177,6 +2348,10 @@ window.onload = () => {
             unlockAudio();
             showView(el.dataset.view);
         });
+    });
+
+    $('modalBg').addEventListener('click', (e) => {
+        if (e.target === $('modalBg')) closeModal();
     });
 
     document.addEventListener('click', unlockAudio, { once: false });
@@ -2718,7 +2893,7 @@ function getMasteredWords() {
     appData.lists.forEach(l => {
         l.phrases.forEach(p => {
             // New Rule: Mastery if ANY core skill (Write, Pronounce, Speak) is >= 5
-            const isMastered = (p.levels?.write >= 5 || p.levels?.pronounce >= 5 || p.levels?.speak >= 5);
+            const isMastered = (p.levels?.quiz >= 5 || p.levels?.write >= 5 || p.levels?.listen >= 5 || p.levels?.pronounce >= 5 || p.levels?.speak >= 5);
             if (isMastered) {
                 const words = normalizeText(p.english).split(' ');
                 words.forEach(w => { if (w.length > 2) masteredWords.add(w); });

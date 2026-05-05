@@ -99,6 +99,10 @@
 body.dark-mode::before { background: #312e81; opacity: 0.3; }
 body.dark-mode::after { background: #831843; opacity: 0.3; }
 
+.modal-open {
+    overflow: hidden;
+}
+
 /* Base Reset & Typography */
 * {
     margin: 0;
@@ -383,6 +387,28 @@ body.dark-mode .card {
     border-color: var(--primary);
     box-shadow: 0 0 0 4px var(--primary-soft);
     background: var(--surface);
+}
+
+.search-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.search-card:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 8px 16px rgba(99, 102, 241, 0.15);
+}
+
+.search-input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.6;
+}
+
+.search-input {
+    width: 100% !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
 }
 
 #writeInput::placeholder {
@@ -834,7 +860,7 @@ input:checked + .slider:before { transform: translateX(22px); }
         overflow-y: auto;
     }
 
-    .modal-bg .card {
+    .modal-bg > .card {
         margin: 20px auto 120px auto !important; /* Space for bottom nav */
         max-height: none !important;
         width: 100% !important;
