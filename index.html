@@ -522,7 +522,7 @@
 
                         <div id="pronounceMicArea"
                             style="background: var(--surface-glass); padding: 30px; border-radius: 24px; border: 1px solid var(--border);">
-                            <button id="micBtnPronounce" class="mic-btn"
+                            <button id="micBtnPronounce" class="mic-btn" onclick="toggleListening()"
                                 style="transform: scale(1.1); margin-bottom: 10px;">🎤</button>
                             <div id="micStatusPronounce"
                                 style="font-size: 0.8rem; font-weight: 800; margin-bottom: 10px; color: var(--text-muted);">
@@ -543,7 +543,7 @@
 
                     <!-- SPEAK AREA -->
                     <div id="speakArea" style="display: none; animation: fadeIn 0.5s ease;">
-                        <button id="micBtn" class="mic-btn">🎤</button>
+                        <button id="micBtn" class="mic-btn" onclick="toggleListening()">🎤</button>
                         <div id="micStatus"
                             style="font-size: 0.8rem; font-weight: 800; margin-top: 10px; color: var(--text-muted);">⚪
                             Microfone Desligado</div>

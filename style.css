@@ -515,7 +515,6 @@ body.dark-mode .card {
     border: none;
     cursor: pointer;
     box-shadow: 0 8px 16px rgba(79, 70, 229, 0.4);
-    touch-action: none;
 }
 
 .mic-btn.listening {
