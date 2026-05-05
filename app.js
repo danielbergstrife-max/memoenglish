@@ -871,9 +871,11 @@ function renderExercise() {
         $('pronounceIntegrated').style.display = 'none';
         renderSpeechInitialState();
         playAudio(p.english);
+        setupMicEvents();
     } else if (session.mode === 'speak') {
         $('speakArea').style.display = 'block';
         renderSpeechInitialState();
+        setupMicEvents();
     }
 }
 
@@ -902,6 +904,30 @@ function renderSpeechInitialState() {
     });
 
     hint.innerHTML = html;
+}
+
+function setupMicEvents() {
+    const { btn } = getActiveMicElements();
+    if (!btn) return;
+
+    // Remove existing listeners
+    btn.onclick = null;
+    btn.ontouchstart = null;
+    btn.ontouchend = null;
+
+    const isMobile = 'ontouchstart' in window;
+    if (isMobile) {
+        btn.ontouchstart = (e) => {
+            e.preventDefault();
+            startListening();
+        };
+        btn.ontouchend = (e) => {
+            e.preventDefault();
+            stopListening();
+        };
+    } else {
+        btn.onclick = toggleListening;
+    }
 }
 
 function generateQuizOptions(correct) {
@@ -2400,12 +2426,12 @@ function startListening() {
         // Only restart if not successful AND still intended to be listening AND session is active
         const isCorrectMode = session.mode === 'speak' || session.mode === 'pronounce';
         if (!success && isRecognitionActive && session.active && isCorrectMode && currentRecognition === rec) {
-            // Give the mic a little more time before restarting to avoid quick stop/start flicker
+            // Reduced delay for faster restart, aiming for "always on" feel
             setTimeout(() => {
                 try { 
                     if (!success && isRecognitionActive && session.active) rec.start(); 
                 } catch (err) { console.error("Erro ao reiniciar:", err); }
-            }, 60000);
+            }, 100);
         } else {
             // Ensure visual state is updated if we stop
             if (currentRecognition === rec) stopListening();
@@ -2518,10 +2544,9 @@ function startListeningCorrection() {
 
     recognition.onend = () => {
         if (!success && session.active && currentRecognition === recognition) {
-            // Give the mic a longer pause before restarting to reduce repeated auto-stop behavior
             setTimeout(() => {
                 try { recognition.start(); } catch (e) { }
-            }, 60000);
+            }, 300);
         } else {
             $('micBtnCorrection').classList.remove('listening');
             $('correctionVoiceHint').textContent = "⚪ Microfone Desligado";
