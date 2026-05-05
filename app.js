@@ -1565,28 +1565,6 @@ const CONTRACTIONS = {
 };
 
 let audioUnlocked = false;
-let micStream = null;
-function keepMicrophoneAlive() {
-    if (micStream) return;
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-
-    navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => {
-            micStream = stream;
-            console.log('Microfone mantido aberto para mobile');
-        })
-        .catch(err => {
-            console.warn('Não foi possível manter o microfone aberto:', err);
-        });
-}
-
-function releaseMicrophone() {
-    if (!micStream) return;
-    micStream.getTracks().forEach(track => track.stop());
-    micStream = null;
-    console.log('Microfone liberado');
-}
-
 function unlockAudio() {
     if (audioUnlocked) return;
     if (!('speechSynthesis' in window)) return;
@@ -2278,7 +2256,6 @@ function stopListening() {
         currentRecognition = null;
     }
     isRecognitionActive = false;
-    releaseMicrophone();
     const { btn, status } = getActiveMicElements();
     if (btn) btn.classList.remove('listening');
     if (status) {
@@ -2288,7 +2265,6 @@ function stopListening() {
 }
 
 function startListening() {
-    keepMicrophoneAlive();
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
 
@@ -2424,12 +2400,12 @@ function startListening() {
         // Only restart if not successful AND still intended to be listening AND session is active
         const isCorrectMode = session.mode === 'speak' || session.mode === 'pronounce';
         if (!success && isRecognitionActive && session.active && isCorrectMode && currentRecognition === rec) {
-            // Reduced delay for faster restart, aiming for "always on" feel
+            // Give the mic a little more time before restarting to avoid quick stop/start flicker
             setTimeout(() => {
                 try { 
                     if (!success && isRecognitionActive && session.active) rec.start(); 
                 } catch (err) { console.error("Erro ao reiniciar:", err); }
-            }, 100);
+            }, 1000);
         } else {
             // Ensure visual state is updated if we stop
             if (currentRecognition === rec) stopListening();
@@ -2542,9 +2518,10 @@ function startListeningCorrection() {
 
     recognition.onend = () => {
         if (!success && session.active && currentRecognition === recognition) {
+            // Give the mic a longer pause before restarting to reduce repeated auto-stop behavior
             setTimeout(() => {
                 try { recognition.start(); } catch (e) { }
-            }, 300);
+            }, 1000);
         } else {
             $('micBtnCorrection').classList.remove('listening');
             $('correctionVoiceHint').textContent = "⚪ Microfone Desligado";
