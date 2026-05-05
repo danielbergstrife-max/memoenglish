@@ -49,7 +49,9 @@ function getDefaultData() {
             slowAudio: false,
             darkMode: false,
             notifications: true
-        }
+        },
+        definitionCache: {},
+        translationCache: {}
     };
 }
 
@@ -221,6 +223,8 @@ const PHONETIC_MAP = {
     "of": "óv", "for": "fór", "were": "uêr", "their": "dér", "to": "tú",
     "my": "mái", "name": "nêim", "a": "êi", "an": "én", "and": "énd"
 };
+
+let studiedWordsList = [];
 
 function getPhoneticGuide(text) {
     if (!text) return "";
@@ -848,6 +852,164 @@ function renderMetrics() {
 function showMasteredModal() {
     renderMasteredPhrases();
     openModal('masteredModal');
+}
+
+function showStudiedWordsModal() {
+    openModal('studiedWordsModal');
+    renderStudiedWordsModal();
+}
+
+async function getWordDefinition(word) {
+    if (!word) return { definition: '' };
+    const normalized = word.toLowerCase().trim();
+    appData.definitionCache = appData.definitionCache || {};
+    if (appData.definitionCache[normalized]) return appData.definitionCache[normalized];
+
+    try {
+        const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(normalized)}`);
+        if (!res.ok) throw new Error('not-found');
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+            const entry = data[0];
+            const meaning = entry.meanings?.find(m => Array.isArray(m.definitions) && m.definitions.length > 0);
+            const definitionText = meaning?.definitions?.[0]?.definition || entry.meanings?.[0]?.definitions?.[0]?.definition || '';
+            const label = meaning?.partOfSpeech ? `${meaning.partOfSpeech}: ` : '';
+            const definition = definitionText ? `${label}${definitionText}` : '';
+            appData.definitionCache[normalized] = { definition };
+            saveData(appData);
+            return appData.definitionCache[normalized];
+        }
+    } catch (e) {
+        console.error('Erro ao buscar definição para', word, e);
+    }
+
+    appData.definitionCache[normalized] = { definition: '' };
+    saveData(appData);
+    return appData.definitionCache[normalized];
+}
+
+async function translateTextToPortuguese(text) {
+    if (!text) return '';
+    appData.translationCache = appData.translationCache || {};
+    if (appData.translationCache[text]) return appData.translationCache[text];
+
+    try {
+        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|pt-BR`;
+        const res = await fetch(url);
+        if (res.ok) {
+            const data = await res.json();
+            const translated = data?.responseData?.translatedText;
+            if (translated) {
+                appData.translationCache[text] = translated;
+                saveData(appData);
+                return translated;
+            }
+        }
+    } catch (e) {
+        console.error('Erro ao traduzir texto', text, e);
+    }
+
+    appData.translationCache[text] = text;
+    saveData(appData);
+    return text;
+}
+
+async function getStudiedWordInfo(word) {
+    const defObj = await getWordDefinition(word);
+    const pt = defObj.definition ? await translateTextToPortuguese(defObj.definition) : '';
+    return {
+        word,
+        definition: defObj.definition || 'Definição não encontrada',
+        definitionPt: pt || 'Tradução não disponível'
+    };
+}
+
+async function renderStudiedWordsModal() {
+    const wordListContainer = $('studiedWordsList');
+    if (!wordListContainer) return;
+
+    const studiedWords = new Set();
+    appData.lists.forEach(l => l.phrases.forEach(p => {
+        const lv = p.levels || {};
+        const studied = lv.quiz > 0 || lv.write > 0 || lv.listen > 0 || lv.pronounce > 0 || lv.speak > 0;
+        if (studied) {
+            normalizeText(p.english).split(/\s+/).filter(w => w.length > 1).forEach(w => studiedWords.add(w));
+        }
+    }));
+
+    if (studiedWords.size === 0) {
+        wordListContainer.innerHTML = '<div class="card" style="text-align:center; color:var(--text-muted); padding: 40px;">Você ainda não estudou nenhuma palavra nas frases. Complete algumas revisões para ver a lista aqui.</div>';
+        return;
+    }
+
+    studiedWordsList = Array.from(studiedWords).sort((a, b) => a.localeCompare(b, 'en'));
+    $('studiedWordsSearch').value = '';
+    renderStudiedWordsList(studiedWordsList);
+}
+
+function renderStudiedWordsList(words) {
+    const wordListContainer = $('studiedWordsList');
+    if (!wordListContainer) return;
+
+    if (words.length === 0) {
+        wordListContainer.innerHTML = '<div class="card" style="text-align:center; color:var(--text-muted); padding: 40px;">Nenhuma palavra corresponde à busca.</div>';
+        return;
+    }
+
+    wordListContainer.innerHTML = words.map((word, index) => `
+        <div class="card" style="padding: 12px 16px; border-left: 4px solid var(--primary); background: var(--surface);">
+            <button type="button" class="studied-word-item" data-index="${index}" data-word="${escapeHTML(word)}" style="text-align:left; width:100%; border:none; background:none; padding: 0; cursor: pointer;">
+                <div style="font-weight: 800; font-size: 1rem;">${escapeHTML(word)}</div>
+            </button>
+            <div id="studiedWordDetail-${index}" class="studied-word-detail" style="display:none; color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-top: 12px;"></div>
+        </div>
+    `).join('');
+
+    wordListContainer.querySelectorAll('.studied-word-item').forEach(button => {
+        button.addEventListener('click', async () => {
+            const index = button.dataset.index;
+            const word = button.dataset.word;
+            if (!word || typeof index === 'undefined') return;
+            await showStudiedWordMeaning(word, index, button);
+        });
+    });
+}
+
+function filterStudiedWords() {
+    const search = normalizeText($('studiedWordsSearch')?.value || '');
+    const filtered = studiedWordsList.filter(word => normalizeText(word).includes(search));
+    renderStudiedWordsList(filtered);
+}
+
+async function showStudiedWordMeaning(word, index, button) {
+    const detailEl = $(`studiedWordDetail-${index}`);
+    if (!detailEl) return;
+
+    // If this word's detail is already visible, hide it (toggle off)
+    if (detailEl.style.display === 'block') {
+        detailEl.style.display = 'none';
+        button.classList.remove('active-word-item');
+        return;
+    }
+
+    // Hide all other details and remove active class
+    document.querySelectorAll('.studied-word-item').forEach(btn => btn.classList.remove('active-word-item'));
+    document.querySelectorAll('.studied-word-detail').forEach(el => el.style.display = 'none');
+
+    // Show this one
+    button.classList.add('active-word-item');
+    detailEl.style.display = 'block';
+
+    // Load if not already loaded
+    if (detailEl.dataset.loaded !== 'true') {
+        detailEl.textContent = 'Carregando significado...';
+        const info = await getStudiedWordInfo(word);
+        detailEl.innerHTML = `
+            <div style="margin-bottom: 10px;"><strong>Significado (EN):</strong> ${escapeHTML(info.definition)}</div>
+            <div><strong>Significado em PT:</strong> ${escapeHTML(info.definitionPt)}</div>
+        `;
+        detailEl.dataset.loaded = 'true';
+    }
 }
 
 function renderMasteredPhrases() {
