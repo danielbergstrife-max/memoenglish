@@ -19,6 +19,14 @@ function installPWA() {
     deferredPrompt.userChoice.then((choiceResult) => {
         if (choiceResult.outcome === 'accepted') {
             document.getElementById('installAppCard').style.display = 'none';
+            // Register background sync for periodic checks
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.ready.then(reg => {
+                    if ('sync' in reg) {
+                        reg.sync.register('background-check');
+                    }
+                });
+            }
         }
         deferredPrompt = null;
     });
@@ -2400,12 +2408,12 @@ function startListening() {
         // Only restart if not successful AND still intended to be listening AND session is active
         const isCorrectMode = session.mode === 'speak' || session.mode === 'pronounce';
         if (!success && isRecognitionActive && session.active && isCorrectMode && currentRecognition === rec) {
-            // Give the mic a little more time before restarting to avoid quick stop/start flicker
+            // Reduced delay for faster restart, aiming for "always on" feel
             setTimeout(() => {
                 try { 
                     if (!success && isRecognitionActive && session.active) rec.start(); 
                 } catch (err) { console.error("Erro ao reiniciar:", err); }
-            }, 10);
+            }, 100);
         } else {
             // Ensure visual state is updated if we stop
             if (currentRecognition === rec) stopListening();
@@ -2518,10 +2526,9 @@ function startListeningCorrection() {
 
     recognition.onend = () => {
         if (!success && session.active && currentRecognition === recognition) {
-            // Give the mic a longer pause before restarting to reduce repeated auto-stop behavior
             setTimeout(() => {
                 try { recognition.start(); } catch (e) { }
-            }, 10);
+            }, 300);
         } else {
             $('micBtnCorrection').classList.remove('listening');
             $('correctionVoiceHint').textContent = "⚪ Microfone Desligado";

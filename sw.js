@@ -46,6 +46,20 @@ self.addEventListener('activate', event => {
   );
 });
 
+self.addEventListener('sync', event => {
+  if (event.tag === 'background-check') {
+    event.waitUntil(doBackgroundCheck());
+  }
+});
+
+function doBackgroundCheck() {
+  return self.registration.showNotification('MemoEnglish', {
+    body: 'Verifique suas revisões pendentes!',
+    icon: './icon-192.png',
+    tag: 'memoenglish-background'
+  });
+}
+
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   event.waitUntil(
