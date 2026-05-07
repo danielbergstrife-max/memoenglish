@@ -370,7 +370,8 @@
                                     style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
                                     <input type="password" id="displayPassword" value="******" readonly
                                         style="background: transparent; border: none; font-weight: 700; color: var(--text); flex: 1; outline: none; font-size: 1rem;">
-                                    <button class="btn btn-outline btn-sm" onclick="togglePasswordVisibility('displayPassword')"
+                                    <button class="btn btn-outline btn-sm"
+                                        onclick="togglePasswordVisibility('displayPassword')"
                                         style="padding: 4px 8px;">👁️</button>
                                 </div>
                             </div>
@@ -881,8 +882,9 @@
                         <label
                             style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Senha</label>
                         <div style="position: relative;">
-                            <input type="password" id="loginPass" class="input-box" placeholder="Sua senha secreta" style="padding-right: 50px;">
-                            <button type="button" onclick="togglePasswordVisibility('loginPass')" 
+                            <input type="password" id="loginPass" class="input-box" placeholder="Sua senha secreta"
+                                style="padding-right: 50px;">
+                            <button type="button" onclick="togglePasswordVisibility('loginPass')"
                                 style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem; padding: 4px; display: flex; align-items: center; justify-content: center; z-index: 5;">
                                 👁️
                             </button>
@@ -894,9 +896,29 @@
                         Usuário ou senha incorretos.
                     </div>
 
-                    <div id="loginLoading" style="display: none; text-align: center; padding: 10px; color: var(--primary); font-weight: 700; font-size: 0.9rem;">
+                    <div id="loginLoading"
+                        style="display: none; text-align: center; padding: 10px; color: var(--primary); font-weight: 700; font-size: 0.9rem;">
                         <span class="sync-spinner" style="margin-bottom: 8px;"></span><br>
                         Aguarde um momento, estamos sincronizando seus dados...
+                    </div>
+
+                    <!-- Bot Verification (Captcha) -->
+                    <div id="captchaContainer"
+                        style="background: var(--primary-soft); padding: 8px; border-radius: 10px; border: 1px solid var(--border); margin-top: 6px;">
+                        <label
+                            style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.65rem; color: var(--primary); text-transform: uppercase;">Verificação
+                            Humana</label>
+                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                            <div id="captchaText"
+                                style="font-weight: 800; font-size: 0.95rem; color: var(--text); background: var(--surface); padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); letter-spacing: 0px; user-select: none; min-width: 80px; text-align: center;">
+                                5 + 3 = ?
+                            </div>
+                            <input type="number" id="loginCaptcha" class="input-box" placeholder="Resposta..."
+                                style="flex: 1; padding: 6px; text-align: center; min-width: 60px; height: 36px; font-size: 0.9rem;">
+                            <button type="button" onclick="generateCaptcha()"
+                                style="background: var(--surface); border: 1px solid var(--border); cursor: pointer; font-size: 0.9rem; padding: 4px; border-radius: 6px; display: flex; align-items: center; justify-content: center; height: 36px; width: 36px;"
+                                title="Novo desafio">🔄</button>
+                        </div>
                     </div>
 
                     <div id="loginActionButtons"

@@ -501,21 +501,34 @@ async function callGas(data) {
     }
 }
 
+let currentCaptchaResult = null;
+
+function generateCaptcha() {
+    const num1 = Math.floor(Math.random() * 10) + 1;
+    const num2 = Math.floor(Math.random() * 10) + 1;
+    currentCaptchaResult = num1 + num2;
+    $('captchaText').textContent = `${num1} + ${num2} = ?`;
+    $('loginCaptcha').value = '';
+}
+
 function showLoginModal() {
     openModal('loginModal');
     $('loginError').style.display = 'none';
     $('loginLoading').style.display = 'none';
     $('loginActionButtons').style.display = 'grid';
     $('loginModalHint').style.display = 'block';
+    generateCaptcha();
 }
 
 async function handleLoginSubmit(mode) {
     const user = $('loginUser').value.trim();
     const pass = $('loginPass').value.trim();
+    const captchaInput = parseInt($('loginCaptcha').value);
     const errorEl = $('loginError');
     const loadingEl = $('loginLoading');
     const actionsEl = $('loginActionButtons');
     const hintEl = $('loginModalHint');
+    const captchaContainer = $('captchaContainer');
 
     if (!user || !pass) {
         errorEl.textContent = "Preencha todos os campos.";
@@ -523,10 +536,18 @@ async function handleLoginSubmit(mode) {
         return;
     }
 
+    if (captchaInput !== currentCaptchaResult) {
+        errorEl.textContent = "Verificação humana incorreta.";
+        errorEl.style.display = 'block';
+        generateCaptcha();
+        return;
+    }
+
     errorEl.style.display = 'none';
     loadingEl.style.display = 'block';
     actionsEl.style.display = 'none';
     hintEl.style.display = 'none';
+    captchaContainer.style.display = 'none';
 
     try {
         const res = await callGas({
@@ -553,6 +574,8 @@ async function handleLoginSubmit(mode) {
             loadingEl.style.display = 'none';
             actionsEl.style.display = 'grid';
             hintEl.style.display = 'block';
+            captchaContainer.style.display = 'block';
+            generateCaptcha();
             errorEl.textContent = res.error || (mode === 'signup' ? "Usuário já existe." : "Usuário ou senha incorretos.");
             errorEl.style.display = 'block';
         }
@@ -560,6 +583,8 @@ async function handleLoginSubmit(mode) {
         loadingEl.style.display = 'none';
         actionsEl.style.display = 'grid';
         hintEl.style.display = 'block';
+        captchaContainer.style.display = 'block';
+        generateCaptcha();
         errorEl.textContent = "Erro de conexão.";
         errorEl.style.display = 'block';
     }
