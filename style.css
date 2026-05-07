@@ -974,3 +974,24 @@ input:checked + .slider:before { transform: translateX(22px); }
     background-size: 16px;
     padding-right: 48px;
 }
+
+/* Sync Spinner Animation */
+.sync-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--primary-soft);
+    border-top: 2px solid var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

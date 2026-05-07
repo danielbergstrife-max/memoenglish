@@ -34,6 +34,7 @@ function installPWA() {
 
 // ==================== DATA LAYER ====================
 const STORAGE_KEY = 'memoenglish_data_v2';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxO5PcEJnB3M88trJRn96ae8UN40PfFgdOt8RZo5zQzVCzunuPidnP5zX-8m7ToK8K7/exec';
 
 function getDefaultData() {
     return {
@@ -51,7 +52,16 @@ function getDefaultData() {
             notifications: true
         },
         definitionCache: {},
-        translationCache: {}
+        translationCache: {},
+        auth: {
+            isLoggedIn: false,
+            username: "",
+            password: "",
+            lastSync: null
+        },
+        syncSettings: {
+            gasUrl: ""
+        }
     };
 }
 
@@ -97,6 +107,10 @@ function loadData() {
 
 function saveData(data) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    // Trigger background sync if possible
+    if (data.auth && data.auth.isLoggedIn && navigator.onLine) {
+        syncWithCloud(false);
+    }
 }
 
 let appData = loadData();
@@ -181,7 +195,7 @@ function startCountdownInterval() {
             const h = Math.floor(diff / 3600000);
             const m = Math.floor((diff % 3600000) / 60000);
             const s = Math.floor((diff % 60000) / 1000);
-            if (countSpan) countSpan.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+            if (countSpan) countSpan.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
         } else {
             if (container) container.style.display = 'none';
         }
@@ -312,7 +326,7 @@ function convertARPAbetToPT(arpaString) {
     if (!arpaString) return "";
     const tokens = arpaString.split(' ');
     let ptPhonetics = '';
-    
+
     tokens.forEach(token => {
         const pureToken = token.replace(/[0-9]/g, '');
         if (ARPABET_MAP[pureToken]) {
@@ -321,7 +335,7 @@ function convertARPAbetToPT(arpaString) {
             ptPhonetics += pureToken.toLowerCase();
         }
     });
-    
+
     return ptPhonetics.replace(/kk/g, 'k').replace(/ss/g, 's');
 }
 
@@ -373,6 +387,253 @@ async function prefetchMissingPhonetics() {
     }
 }
 
+
+// ==================== SYNC LAYER ====================
+
+function calculateTotalProgress(data) {
+    if (!data || !data.lists) return 0;
+    let totalXP = 0;
+    data.lists.forEach(l => {
+        l.phrases.forEach(p => {
+            if (p.levels) {
+                const lq = p.levels.quiz || 0;
+                totalXP += (5 * lq) + (1 * (lq * (lq + 1) / 2));
+                const lw = p.levels.write || 0;
+                totalXP += (10 * lw) + (2 * (lw * (lw + 1) / 2));
+                const ll = p.levels.listen || 0;
+                totalXP += (12 * ll) + (2.5 * (ll * (ll + 1) / 2));
+                const lp = p.levels.pronounce || 0;
+                totalXP += (15 * lp) + (3 * (lp * (lp + 1) / 2));
+                const ls = p.levels.speak || 0;
+                totalXP += (20 * ls) + (4 * (ls * (ls + 1) / 2));
+            }
+        });
+    });
+    return totalXP;
+}
+
+async function syncWithCloud(isManual = false) {
+    if (!appData.auth.isLoggedIn) {
+        if (isManual) alert("Por favor, faça login primeiro.");
+        return;
+    }
+
+    const statusIndicator = $('syncStatusIndicator');
+    const actionArea = $('syncActionArea');
+    if (statusIndicator) statusIndicator.style.display = 'flex';
+    if (actionArea) actionArea.style.display = 'flex';
+
+    try {
+        const remoteData = await callGas({
+            action: 'load',
+            username: appData.auth.username,
+            password: appData.auth.password
+        });
+
+        if (remoteData && remoteData.success) {
+            const remotePayload = remoteData.payload;
+
+            if (!remotePayload) {
+                // Cloud is empty, push local
+                await pushToCloud();
+            } else {
+                const localXP = calculateTotalProgress(appData);
+                const remoteXP = calculateTotalProgress(remotePayload);
+
+                if (remoteXP > localXP) {
+                    // Remote has more progress
+                    const updateLocal = () => {
+                        appData = { ...remotePayload, auth: appData.auth, syncSettings: appData.syncSettings };
+                        appData.auth.lastSync = Date.now();
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+                        location.reload(); // Refresh to apply changes
+                    };
+
+                    if (isManual) {
+                        confirm("Dados na nuvem têm mais progresso. Deseja atualizar o local com os dados da nuvem?", updateLocal);
+                    } else {
+                        // Silent update in background if remote is ahead? 
+                        // User request: "sincronize... levando sempre em consideração qual está com o maior progresso"
+                        // If remote is ahead, we should probably update.
+                        updateLocal();
+                    }
+                } else if (localXP > remoteXP) {
+                    // Local has more progress
+                    await pushToCloud();
+                } else {
+                    // Equal progress, just update lastSync
+                    appData.auth.lastSync = Date.now();
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Erro na sincronização:", e);
+        if (isManual) alert("Erro ao sincronizar. Verifique sua conexão e a URL do script.");
+    } finally {
+        if (statusIndicator) statusIndicator.style.display = 'none';
+        renderSyncStatus();
+    }
+}
+
+async function pushToCloud() {
+    const res = await callGas({
+        action: 'save',
+        username: appData.auth.username,
+        password: appData.auth.password,
+        payload: appData
+    });
+    if (res && res.success) {
+        appData.auth.lastSync = Date.now();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+    }
+}
+
+async function callGas(data) {
+    try {
+        const res = await fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+        return await res.json();
+    } catch (e) {
+        console.error("GAS Call Error:", e);
+        return { success: false, error: e.toString() };
+    }
+}
+
+function showLoginModal() {
+    openModal('loginModal');
+    $('loginError').style.display = 'none';
+    $('loginLoading').style.display = 'none';
+    $('loginActionButtons').style.display = 'grid';
+    $('loginModalHint').style.display = 'block';
+}
+
+async function handleLoginSubmit(mode) {
+    const user = $('loginUser').value.trim();
+    const pass = $('loginPass').value.trim();
+    const errorEl = $('loginError');
+    const loadingEl = $('loginLoading');
+    const actionsEl = $('loginActionButtons');
+    const hintEl = $('loginModalHint');
+
+    if (!user || !pass) {
+        errorEl.textContent = "Preencha todos os campos.";
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    errorEl.style.display = 'none';
+    loadingEl.style.display = 'block';
+    actionsEl.style.display = 'none';
+    hintEl.style.display = 'none';
+
+    try {
+        const res = await callGas({
+            action: mode, // 'login' or 'signup'
+            username: user,
+            password: pass
+        });
+
+        if (res && res.success) {
+            appData.auth.isLoggedIn = true;
+            appData.auth.username = user;
+            appData.auth.password = pass;
+            appData.auth.lastSync = Date.now();
+            saveData(appData);
+
+            // IMPORTANTE: Só fecha o modal após a sincronização inicial terminar
+            // syncWithCloud(true) pode disparar um location.reload() se os dados da nuvem forem mais recentes
+            await syncWithCloud(true);
+
+            // Se não recarregou a página, fecha o modal normalmente
+            closeModal();
+            renderSyncStatus();
+        } else {
+            loadingEl.style.display = 'none';
+            actionsEl.style.display = 'grid';
+            hintEl.style.display = 'block';
+            errorEl.textContent = res.error || (mode === 'signup' ? "Usuário já existe." : "Usuário ou senha incorretos.");
+            errorEl.style.display = 'block';
+        }
+    } catch (e) {
+        loadingEl.style.display = 'none';
+        actionsEl.style.display = 'grid';
+        hintEl.style.display = 'block';
+        errorEl.textContent = "Erro de conexão.";
+        errorEl.style.display = 'block';
+    }
+}
+
+function handleLogout() {
+    if (window.confirm) {
+        window.confirm("Deseja realmente sair? Os dados locais permanecerão, mas a sincronização será desativada.", () => {
+            appData.auth.isLoggedIn = false;
+            appData.auth.username = "";
+            appData.auth.password = "";
+            saveData(appData);
+            renderSyncStatus();
+        });
+    } else {
+        // Fallback for native confirm if custom one fails to load
+        if (confirm("Deseja realmente sair?")) {
+            appData.auth.isLoggedIn = false;
+            appData.auth.username = "";
+            appData.auth.password = "";
+            saveData(appData);
+            renderSyncStatus();
+        }
+    }
+}
+
+function updateSyncUrl(url) {
+    appData.syncSettings.gasUrl = url.trim();
+    saveData(appData);
+}
+
+function manualSync() {
+    syncWithCloud(true);
+}
+
+function renderSyncStatus() {
+    const userInfo = $('syncUserInfo');
+    const loggedOutView = $('syncLoggedOutView');
+    const userDisplay = $('syncUserDisplay');
+    const lastSync = $('syncLastTime');
+    const actionArea = $('syncActionArea');
+    const displayPass = $('displayPassword');
+
+    if (appData.auth.isLoggedIn) {
+        if (loggedOutView) loggedOutView.style.display = 'none';
+        if (userInfo) userInfo.style.display = 'block';
+        if (actionArea) actionArea.style.display = 'flex';
+        if (userDisplay) userDisplay.textContent = `Usuário: ${appData.auth.username}`;
+        if (displayPass) displayPass.value = appData.auth.password;
+        if (lastSync) {
+            const time = appData.auth.lastSync ? new Date(appData.auth.lastSync).toLocaleString() : "Nunca";
+            lastSync.textContent = `Última sincronização: ${time}`;
+        }
+    } else {
+        if (loggedOutView) loggedOutView.style.display = 'block';
+        if (userInfo) userInfo.style.display = 'none';
+        if (actionArea) actionArea.style.display = 'none';
+    }
+}
+
+function togglePasswordVisibility(inputId) {
+    const passInput = $(inputId || 'displayPassword');
+    if (!passInput) return;
+
+    if (passInput.type === 'password') {
+        passInput.type = 'text';
+    } else {
+        passInput.type = 'password';
+    }
+}
+
+window.addEventListener('online', () => {
+    if (appData.auth.isLoggedIn) syncWithCloud(false);
+});
 
 // ==================== UI ====================
 function $(id) { return document.getElementById(id); }
@@ -444,7 +705,7 @@ function renderStats() {
     });
 
     globalMinNextReview = minTime === Infinity ? null : minTime;
-    
+
     // Reseta a notificação se não houver mais frases atrasadas, 
     // ou seja, o usuário limpou a fila e estamos aguardando a próxima.
     if (due === 0) {
@@ -501,7 +762,7 @@ function updateGlobalLevel() {
             if (p.levels) {
                 // Formula: Sum of (Base + Mult*i) for i from 1 to L
                 // Sum = Base*L + Mult * (L*(L+1)/2)
-                
+
                 const lq = p.levels.quiz || 0;
                 totalXP += (5 * lq) + (1 * (lq * (lq + 1) / 2));
 
@@ -591,8 +852,8 @@ function renderPhrases(filter = "") {
     container.innerHTML = '';
 
     const query = filter.toLowerCase().trim();
-    let phrasesToRender = list.phrases.filter(p => 
-        p.english.toLowerCase().includes(query) || 
+    let phrasesToRender = list.phrases.filter(p =>
+        p.english.toLowerCase().includes(query) ||
         p.portuguese.toLowerCase().includes(query)
     );
 
@@ -679,8 +940,8 @@ function handleGlobalSearch(query) {
 
     // Search phrases in all lists
     appData.lists.forEach(l => {
-        const matches = l.phrases.filter(p => 
-            p.english.toLowerCase().includes(q) || 
+        const matches = l.phrases.filter(p =>
+            p.english.toLowerCase().includes(q) ||
             p.portuguese.toLowerCase().includes(q)
         );
 
@@ -1025,7 +1286,7 @@ function renderMasteredPhrases() {
     const isMasteredGeneral = (p) => (p.levels?.quiz >= 5 || p.levels?.write >= 5 || p.levels?.listen >= 5 || p.levels?.pronounce >= 5 || p.levels?.speak >= 5);
     const mastered = allPhrases.filter(p => skill === 'standard' ? isMasteredGeneral(p) : getLvl(p) >= 5)
         .sort((a, b) => getLvl(b) - getLvl(a));
-    
+
     if (mastered.length === 0) {
         container.innerHTML = '<div class="card" style="grid-column: 1/-1; text-align:center; color:var(--text-muted); padding: 40px;">Ainda não há frases dominadas nesta categoria. Continue praticando!</div>';
     } else {
@@ -1134,8 +1395,8 @@ function renderExercise() {
     session.matchedIndices = new Set();
     session.wordStatus = {}; // Tracks 'correct' or 'imprecise' for each word index
     session.lastTranscript = '';
-    const { status, statusCorrection } = { 
-        status: $('micStatus'), 
+    const { status, statusCorrection } = {
+        status: $('micStatus'),
         statusPronounce: $('micStatusPronounce'),
         statusCorrection: $('correctionVoiceHint')
     };
@@ -1379,7 +1640,7 @@ function updateWriteMirror() {
     });
 
     $('writeInputMirror').innerHTML = html;
-    
+
     // Update Legends (One at a time, by priority)
     let activeId = null;
     if (usage.error) activeId = 'writeLegendError';
@@ -1588,7 +1849,7 @@ setTimeout(() => {
 function processAnswer(isCorrect, userVal) {
     // SECURITY LOCK: Prevent double processing
     if ($('feedbackBar').classList.contains('active')) return;
-    
+
     const bar = $('feedbackBar');
     const info = $('feedbackInfo');
     const title = $('feedbackTitle');
@@ -1605,9 +1866,9 @@ function processAnswer(isCorrect, userVal) {
 
     if (isCorrect) {
         title.textContent = "Excelente! 🎉";
-        
+
         // Handle yellow/imprecise words feedback for voice modes
-        const impreciseWords = (session.mode === 'speak' || session.mode === 'pronounce') ? 
+        const impreciseWords = (session.mode === 'speak' || session.mode === 'pronounce') ?
             session.current.english.split(' ').filter((_, idx) => session.wordStatus[idx] === 'imprecise') : [];
 
         if (impreciseWords.length > 0) {
@@ -1648,14 +1909,14 @@ function processAnswer(isCorrect, userVal) {
         } else {
             accuracy = calculateAccuracy(userVal, session.current.english);
         }
-        
+
         title.textContent = `${accuracy}% de acerto`;
 
         // HIGHLIGHT DIFFERENCES
         if (session.mode === 'speak' || session.mode === 'pronounce') {
             const targetWords = session.current.english.split(' ');
             let highlightHTML = 'Resultado: ';
-            
+
             targetWords.forEach((w, idx) => {
                 const status = session.wordStatus[idx];
                 const color = status === 'correct' ? 'var(--success)' : (status === 'imprecise' ? 'var(--warning)' : 'var(--text-muted)');
@@ -1675,7 +1936,7 @@ function processAnswer(isCorrect, userVal) {
 
         // Penalties are handled further down in the specialized penalty section (line 971+)
         // This avoids double decrement.
-        
+
         // Always speak the correct answer on error
         playAudio(session.current.english);
 
@@ -1731,7 +1992,7 @@ function processAnswer(isCorrect, userVal) {
         }
 
         // Checar se teve palavras amarelas no Speak
-        const impreciseWords = (session.mode === 'speak' || session.mode === 'pronounce') ? 
+        const impreciseWords = (session.mode === 'speak' || session.mode === 'pronounce') ?
             session.current.english.split(' ').filter((_, idx) => session.wordStatus[idx] === 'imprecise') : [];
 
         if (session.mode === 'speak' && impreciseWords.length > 0) {
@@ -1740,7 +2001,7 @@ function processAnswer(isCorrect, userVal) {
         }
     } else {
         const trainingMode = session.trainingMode;
-        
+
         // 1. Reduzir nível da HABILIDADE ESPECÍFICA (Quiz, Escrita, etc.)
         const specificSkill = (trainingMode === 'standard') ? subMode : trainingMode;
         if (session.current.levels && session.current.levels[specificSkill] !== undefined) {
@@ -1751,7 +2012,7 @@ function processAnswer(isCorrect, userVal) {
         if (subMode === 'write') {
             session.current.levels.standard = 0; // Volta para o Quiz
             forceImmediateReview = true;
-        } 
+        }
         else if (subMode === 'listen') {
             session.current.levels.standard = 1; // Volta para a Escrita no modo geral
             forceImmediateReview = true;
@@ -1778,7 +2039,7 @@ function processAnswer(isCorrect, userVal) {
     const currentLvl = session.current.levels[modeForLevel] || 0;
 
     let interval = SRS_INTERVALS[Math.min(currentLvl, 9)] * 60 * 1000 * multiplier;
-    
+
     if (forceImmediateReview) {
         interval = 0; // Disponível imediatamente
     }
@@ -1786,7 +2047,7 @@ function processAnswer(isCorrect, userVal) {
     session.current.nextReview = Date.now() + interval;
 
     appData.totalReviews++;
-    
+
     // EXPLICITLY ensure mic is stopped and WON'T restart
     isRecognitionActive = false;
     stopListening();
@@ -1984,7 +2245,7 @@ function colorizeTypedWordChars(token, targetWord, usageTracker = {}) {
     const normTokenChars = normalizedToken.split('');
     const tokenChars = token.split('');
     const unmatchedTarget = {};
-    
+
     normTokenChars.forEach((ch, idx) => {
         if (normalizedTarget[idx] !== ch) {
             unmatchedTarget[normalizedTarget[idx]] = (unmatchedTarget[normalizedTarget[idx]] || 0) + 1;
@@ -1994,7 +2255,7 @@ function colorizeTypedWordChars(token, targetWord, usageTracker = {}) {
         const ch = normalizedTarget[i];
         unmatchedTarget[ch] = (unmatchedTarget[ch] || 0) + 1;
     }
-    
+
     let normIndex = 0;
     let html = '';
     tokenChars.forEach((char) => {
@@ -2004,7 +2265,7 @@ function colorizeTypedWordChars(token, targetWord, usageTracker = {}) {
             return;
         }
         const normCh = normTokenChars[normIndex];
-        let color = 'var(--danger)'; 
+        let color = 'var(--danger)';
         if (normCh === normalizedTarget[normIndex]) {
             color = 'var(--success)';
             usageTracker.correct = true;
@@ -2071,7 +2332,7 @@ function playAudio(t) {
     if (wasListening) stopListening();
 
     const u = new SpeechSynthesisUtterance(t);
-    
+
     // Sync mic: Restart after audio ends
     u.onend = () => {
         // Don't restart if we are showing results or if session ended
@@ -2175,13 +2436,13 @@ function openModal(modalId) {
     // Show background and the specific modal
     $('modalBg').style.display = 'flex';
     $(modalId).style.display = 'block';
-    
+
     // Scroll Lock
     document.body.classList.add('modal-open');
 }
 
-function closeModal() { 
-    $('modalBg').style.display = 'none'; 
+function closeModal() {
+    $('modalBg').style.display = 'none';
     document.body.classList.remove('modal-open');
 }
 
@@ -2192,7 +2453,7 @@ window.alert = function (msg, title = "Aviso", icon = "ℹ️") {
     $('dialogIcon').textContent = icon;
     $('dialogCancel').style.display = 'none';
     $('dialogConfirm').onclick = closeDialog;
-    
+
     openModal('systemDialog');
 };
 
@@ -2202,11 +2463,11 @@ window.confirm = function (msg, onConfirm, title = "Confirmação") {
     $('dialogIcon').textContent = "❓";
     $('dialogCancel').style.display = 'block';
     $('dialogCancel').onclick = closeDialog;
-    $('dialogConfirm').onclick = () => { 
+    $('dialogConfirm').onclick = () => {
         if (onConfirm) onConfirm();
-        closeDialog(); 
+        closeDialog();
     };
-    
+
     openModal('systemDialog');
 };
 
@@ -2251,7 +2512,7 @@ function importIndividualList(input) {
             if (data.phrases && Array.isArray(data.phrases)) {
                 // It's an individual list
                 data.id = 'list_' + Date.now(); // New ID to avoid collision
-                
+
                 // Filtra duplicatas globais na lista importada
                 const originalCount = data.phrases.length;
                 data.phrases = data.phrases.filter(p => !isPhraseDuplicate(p.english));
@@ -2261,7 +2522,7 @@ function importIndividualList(input) {
                 appData.lists.push(data);
                 saveData(appData);
                 renderLists();
-                
+
                 let msg = "Lista importada com sucesso!";
                 if (removed > 0) msg += `\n(${removed} frases duplicadas foram removidas)`;
                 alert(msg);
@@ -2392,7 +2653,7 @@ async function processBulkAdd() {
         // MODO AUTO-TRADUÇÃO: apenas . separa frases, ignora ; completamente
         let lines = rawInput.split('\n').map(l => l.trim()).filter(l => l);
         let phrases = [];
-        
+
         for (let line of lines) {
             let parts = line.split(/\.(?!\d)/).map(s => s.trim()).filter(s => s);
             phrases.push(...parts);
@@ -2434,7 +2695,7 @@ async function processBulkAdd() {
         // MODO MANUAL: ; para tradução manual, . para separar frases
         let lines = rawInput.split('\n').map(l => l.trim()).filter(l => l);
         let entries = [];
-        
+
         for (let line of lines) {
             // Split por . para separar múltiplas frases em uma linha
             let phrases = line.split(/\.(?!\d)/).map(s => s.trim()).filter(s => s);
@@ -2448,7 +2709,7 @@ async function processBulkAdd() {
             // Modo pares manuais: parte1; parte2
             for (let entry of entries) {
                 let [part1, part2] = entry.split(';').map(s => s ? s.trim() : '');
-                
+
                 if (part1 && part2) {
                     if (isPhraseDuplicate(part1)) {
                         duplicateCount++;
@@ -2688,7 +2949,7 @@ function startListening() {
             const status = session.wordStatus[idx];
             const foundMatch = status !== undefined;
             const isImprecise = status === 'imprecise';
-            
+
             const color = status === 'correct' ? 'var(--success)' : (isImprecise ? 'var(--warning)' : 'var(--text-muted)');
             const opacity = foundMatch ? '1' : '0.4';
             const phon = getPhoneticGuide(targetWords[idx]);
@@ -2729,7 +2990,7 @@ function startListening() {
             }
             // Update the UI one last time
             if (hint) hint.innerHTML = `${rawHTML}${displayedHTML || "Perfeito!"}${statusHTML}`;
-            
+
             setTimeout(() => processAnswer(true, session.current.english), 800);
         } else {
             if (hint) hint.innerHTML = `${rawHTML}${displayedHTML || "Ouvindo..."}${statusHTML}`;
@@ -2747,8 +3008,8 @@ function startListening() {
         if (!success && isRecognitionActive && session.active && isCorrectMode && currentRecognition === rec) {
             // Reduced delay for faster restart, aiming for "always on" feel
             setTimeout(() => {
-                try { 
-                    if (!success && isRecognitionActive && session.active) rec.start(); 
+                try {
+                    if (!success && isRecognitionActive && session.active) rec.start();
                 } catch (err) { console.error("Erro ao reiniciar:", err); }
             }, 100);
         } else {
@@ -2889,7 +3150,7 @@ function deletePhrase(id) {
 function deleteList(id) {
     confirm("Tem certeza que deseja apagar esta lista e todas as suas frases?", () => {
         appData.lists = appData.lists.filter(l => l.id !== id);
-        
+
         // Safety check: if deleted list was the active one, reset it
         if (appData.currentListId === id) {
             appData.currentListId = null;
@@ -3069,7 +3330,7 @@ async function generateSmartList() {
     const count = parseInt($('autoListCount').value);
     const topic = $('autoListTopic').value;
     const masteredWords = getMasteredWords();
-    
+
     const btn = $('btnGenerateAuto');
     btn.disabled = true;
     btn.textContent = '🤖 Analisando seu progresso...';
@@ -3089,7 +3350,7 @@ async function generateSmartList() {
         const knownCount = words.filter(w => masteredWords.has(w)).length;
         const totalWords = words.length;
         const knownRatio = knownCount / totalWords;
-        
+
         // Scoring formula:
         // Ideal is 30% to 70% known words (Comprehensible Input)
         let score = 0;
@@ -3101,7 +3362,7 @@ async function generateSmartList() {
     });
 
     scoredPool.sort((a, b) => b.score - a.score);
-    
+
     // FILTRO ANTECIPADO: Remove frases que já existem antes de selecionar a quantidade final
     const filteredPool = scoredPool.filter(s => !isPhraseDuplicate(s.eng));
     const selected = filteredPool.slice(0, count);
@@ -3159,17 +3420,17 @@ function saveGeneratedList(phrases, topic) {
     }
 
     saveData(appData);
-    
+
     // UI Cleanup
     closeModal();
     const btn = $('btnGenerateAuto');
     btn.disabled = false;
     btn.textContent = '✨ Gerar Lista';
-    
+
     renderLists();
     renderPhrases();
     renderStats();
-    
+
     // Success feedback
     confetti({
         particleCount: 100,
@@ -3205,7 +3466,7 @@ function showMovePhraseModal(phraseId) {
 
     // Encontrar lista atual
     let currentList = appData.lists.find(l => l.phrases.some(p => p.id === phraseId));
-    
+
     appData.lists.forEach(l => {
         if (l.id === currentList.id) return; // Não mostrar lista atual
 
@@ -3228,7 +3489,7 @@ function showMovePhraseModal(phraseId) {
 function executeMove(phraseId, fromId, toId) {
     const fromList = appData.lists.find(l => l.id === fromId);
     const toList = appData.lists.find(l => l.id === toId);
-    
+
     if (!fromList || !toList) return;
 
     const phraseIdx = fromList.phrases.findIndex(p => p.id === phraseId);
@@ -3248,7 +3509,13 @@ function updateStorageUsage() {
     const size = raw.length; // Approximate bytes for UTF-16 characters
     const limit = 5 * 1024 * 1024; // 5MB standard limit
     const pct = Math.min(((size / limit) * 100), 100).toFixed(2);
-    
+
     if ($('storageUsageText')) $('storageUsageText').textContent = `${pct}% utilizado (${(size / 1024).toFixed(1)} KB / 5MB)`;
     if ($('storageUsageFill')) $('storageUsageFill').style.width = pct + '%';
+}
+
+// Initial UI and Sync checks
+renderSyncStatus();
+if (appData.auth && appData.auth.isLoggedIn) {
+    syncWithCloud(false);
 }

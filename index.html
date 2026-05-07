@@ -336,6 +336,57 @@
                     </div>
                 </div>
 
+                <div class="card" style="margin-bottom: 24px;">
+                    <h3 style="margin-bottom: 20px;">Sincronização em Nuvem</h3>
+                    <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem;">Sincronize seu
+                        progresso entre dispositivos.</p>
+
+                    <div id="syncLoggedOutView" style="text-align: center; padding: 20px 0;">
+                        <button class="btn btn-primary btn-lg" onclick="showLoginModal()"
+                            style="width: 100%; max-width: 300px;">👤 Fazer Login / Criar Conta</button>
+                        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 12px;">Sincronize seu
+                            progresso para não perder nada!</p>
+                    </div>
+
+                    <div id="syncUserInfo"
+                        style="display: none; padding: 24px; background: var(--primary-soft); border-radius: var(--radius-lg); border: 1px solid var(--border); margin-bottom: 20px;">
+                        <div style="display: flex; flex-direction: column; gap: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div>
+                                    <div style="font-weight: 800; color: var(--primary); font-size: 1.1rem;"
+                                        id="syncUserDisplay">Usuário: -</div>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;"
+                                        id="syncLastTime">Última sincronização: Nunca</div>
+                                </div>
+                                <button class="btn btn-outline btn-sm" onclick="handleLogout()">Sair da Conta</button>
+                            </div>
+
+                            <div
+                                style="padding: 12px; background: var(--surface); border-radius: var(--radius-md); border: 1px solid var(--border);">
+                                <div
+                                    style="font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px;">
+                                    Sua Senha</div>
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                                    <input type="password" id="displayPassword" value="******" readonly
+                                        style="background: transparent; border: none; font-weight: 700; color: var(--text); flex: 1; outline: none; font-size: 1rem;">
+                                    <button class="btn btn-outline btn-sm" onclick="togglePasswordVisibility('displayPassword')"
+                                        style="padding: 4px 8px;">👁️</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="syncActionArea" style="display: none; flex-direction: column; gap: 12px;">
+                        <button class="btn btn-primary" id="btnSyncNow" onclick="manualSync()">🔄 Sincronizar
+                            Agora</button>
+                        <div id="syncStatusIndicator"
+                            style="display: none; align-items: center; justify-content: center; gap: 8px; font-size: 0.85rem; font-weight: 700; color: var(--primary);">
+                            <span class="sync-spinner"></span> Sincronizando com a nuvem...
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card">
                     <h3 style="margin-bottom: 20px;">Backup e Dados</h3>
                     <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem;">Gerencie seus dados do
@@ -488,21 +539,26 @@
                                 style="width: 100%; height: 100%; min-height: 120px; font-size: 1.5rem; padding: 24px; color: transparent; caret-color: var(--text); line-height: 1.2; background: transparent; border: none; outline: none; position: relative; z-index: 2; font-family: inherit; font-weight: 700; text-align: left; resize: none; overflow: hidden; display: block;"
                                 placeholder="Digite em inglês..." autocomplete="off"></textarea>
                         </div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 12px; padding: 0 8px 16px; color: var(--text-muted); font-size: 0.9rem; justify-content: center;">
+                        <div
+                            style="display: flex; flex-wrap: wrap; gap: 12px; padding: 0 8px 16px; color: var(--text-muted); font-size: 0.9rem; justify-content: center;">
                             <div id="writeLegendCorrect" style="display: none; align-items: center; gap: 8px;">
-                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--success);"></span>
+                                <span
+                                    style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--success);"></span>
                                 Correto
                             </div>
                             <div id="writeLegendError" style="display: none; align-items: center; gap: 8px;">
-                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--danger);"></span>
+                                <span
+                                    style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--danger);"></span>
                                 Errado
                             </div>
                             <div id="writeLegendMisplacedChar" style="display: none; align-items: center; gap: 8px;">
-                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--primary);"></span>
+                                <span
+                                    style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--primary);"></span>
                                 Letra na posição errada
                             </div>
                             <div id="writeLegendMisplacedWord" style="display: none; align-items: center; gap: 8px;">
-                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--warning);"></span>
+                                <span
+                                    style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--warning);"></span>
                                 Palavra na posição errada
                             </div>
                         </div>
@@ -530,21 +586,26 @@
                                 placeholder="Digite o que você ouviu em inglês..." autocomplete="off"
                                 oninput="updateListenMirror()"></textarea>
                         </div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 12px; padding: 0 8px 16px; color: var(--text-muted); font-size: 0.9rem; justify-content: center;">
+                        <div
+                            style="display: flex; flex-wrap: wrap; gap: 12px; padding: 0 8px 16px; color: var(--text-muted); font-size: 0.9rem; justify-content: center;">
                             <div id="listenLegendCorrect" style="display: none; align-items: center; gap: 8px;">
-                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--success);"></span>
+                                <span
+                                    style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--success);"></span>
                                 Correto
                             </div>
                             <div id="listenLegendError" style="display: none; align-items: center; gap: 8px;">
-                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--danger);"></span>
+                                <span
+                                    style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--danger);"></span>
                                 Errado
                             </div>
                             <div id="listenLegendMisplacedChar" style="display: none; align-items: center; gap: 8px;">
-                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--primary);"></span>
+                                <span
+                                    style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--primary);"></span>
                                 Letra na posição errada
                             </div>
                             <div id="listenLegendMisplacedWord" style="display: none; align-items: center; gap: 8px;">
-                                <span style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--warning);"></span>
+                                <span
+                                    style="display:inline-block;width:16px;height:16px;border-radius:4px;background:var(--warning);"></span>
                                 Palavra na posição errada
                             </div>
                         </div>
@@ -756,16 +817,19 @@
             <!-- Studied Words Modal -->
             <div id="studiedWordsModal" class="card"
                 style="width: 100%; max-width: 800px; display: none; max-height: 90vh; overflow-y: auto;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 16px; flex-wrap: wrap;">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 16px; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 220px;">
                         <h2 style="font-weight: 800; font-size: 1.5rem; margin: 0;">Palavras Estudadas</h2>
-                        <p style="color: var(--text-muted); font-size: 0.95rem; margin: 6px 0 0 0;">Pesquise por uma palavra e toque nela para ver o significado em inglês e a explicação em português.</p>
+                        <p style="color: var(--text-muted); font-size: 0.95rem; margin: 6px 0 0 0;">Pesquise por uma
+                            palavra e toque nela para ver o significado em inglês e a explicação em português.</p>
                     </div>
                     <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
                 </div>
 
                 <div style="display: grid; gap: 14px;">
-                    <input id="studiedWordsSearch" class="input-box" type="text" placeholder="Buscar palavra..." oninput="filterStudiedWords()" style="width:100%; padding: 14px;" />
+                    <input id="studiedWordsSearch" class="input-box" type="text" placeholder="Buscar palavra..."
+                        oninput="filterStudiedWords()" style="width:100%; padding: 14px;" />
                     <div id="studiedWordsList" style="display: grid; gap: 10px;"></div>
                 </div>
             </div>
@@ -797,7 +861,60 @@
                 </div>
             </div>
 
-            <!-- Move Phrase Modal -->
+            <!-- Login / Signup Modal -->
+            <div id="loginModal" class="card" style="width: 100%; max-width: 420px; display: none; padding: 40px;">
+                <div style="text-align: center; margin-bottom: 32px;">
+                    <div style="font-size: 3rem; margin-bottom: 16px;">🔐</div>
+                    <h2 id="loginModalTitle" style="font-weight: 800; font-size: 1.8rem; margin-bottom: 8px;">Acesso em
+                        Nuvem</h2>
+                    <p style="color: var(--text-muted); font-size: 0.95rem;">Sincronize seu progresso.
+                    </p>
+                </div>
+
+                <div id="loginForm" style="display: flex; flex-direction: column; gap: 16px;">
+                    <div>
+                        <label
+                            style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Usuário</label>
+                        <input type="text" id="loginUser" class="input-box" placeholder="Seu nome de usuário">
+                    </div>
+                    <div>
+                        <label
+                            style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Senha</label>
+                        <div style="position: relative;">
+                            <input type="password" id="loginPass" class="input-box" placeholder="Sua senha secreta" style="padding-right: 50px;">
+                            <button type="button" onclick="togglePasswordVisibility('loginPass')" 
+                                style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem; padding: 4px; display: flex; align-items: center; justify-content: center; z-index: 5;">
+                                👁️
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="loginError"
+                        style="display: none; color: var(--danger); font-size: 0.85rem; font-weight: 700; text-align: center; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: 8px;">
+                        Usuário ou senha incorretos.
+                    </div>
+
+                    <div id="loginLoading" style="display: none; text-align: center; padding: 10px; color: var(--primary); font-weight: 700; font-size: 0.9rem;">
+                        <span class="sync-spinner" style="margin-bottom: 8px;"></span><br>
+                        Aguarde um momento, estamos sincronizando seus dados...
+                    </div>
+
+                    <div id="loginActionButtons"
+                        style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+                        <button class="btn btn-outline" style="padding: 18px;"
+                            onclick="handleLoginSubmit('login')">Entrar</button>
+                        <button class="btn btn-primary" style="padding: 18px;"
+                            onclick="handleLoginSubmit('signup')">Criar Conta</button>
+                    </div>
+
+                    <p id="loginModalHint"
+                        style="font-size: 0.8rem; color: var(--text-muted); text-align: center; line-height: 1.4;">
+                        Se você já tem uma conta, use o botão Entrar. Se for novo, clique em Criar Conta.
+                    </p>
+
+                    <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+                </div>
+            </div>
             <div id="movePhraseModal" class="card" style="width: 100%; max-width: 450px; display: none;">
                 <h3 style="margin-bottom: 8px;">Mover Frase</h3>
                 <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 24px;">Escolha a lista de destino
