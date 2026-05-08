@@ -44,7 +44,6 @@ function getDefaultData() {
         history: [], // { date: timestamp, correct: bool }
         streak: 0,
         lastReviewDate: null,
-        lastModified: 0, // Timestamp da última modificação local
         phoneticCache: {},
         settings: {
             expandContractions: true,
@@ -108,11 +107,9 @@ function loadData() {
 }
 
 function saveData(data) {
-    // Atualiza o timestamp de modificação local em cada salvamento
-    data.lastModified = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    // Trigger background sync if possible, mas NUNCA durante uma sessão de teste ativa
-    if (data.auth && data.auth.isLoggedIn && navigator.onLine && !session.active) {
+    // Trigger background sync if possible
+    if (data.auth && data.auth.isLoggedIn && navigator.onLine) {
         syncWithCloud(false);
     }
 }
@@ -416,7 +413,7 @@ function calculateTotalProgress(data) {
     return totalXP;
 }
 
-async function syncWithCloud(isManual = false, isInitialSync = false) {
+async function syncWithCloud(isManual = false, isInitialSync = false, pullOnly = false) {
     if (!appData.auth.isLoggedIn) {
         if (isManual) alert("Por favor, faça login primeiro.");
         return;
@@ -431,74 +428,39 @@ async function syncWithCloud(isManual = false, isInitialSync = false) {
     if (isInitialSync && loadingStatus) loadingStatus.textContent = "Sincronizando com a nuvem...";
 
     try {
-        const remoteData = await callGas({
-            action: 'load',
-            username: appData.auth.username,
-            password: appData.auth.password
-        });
+        if (pullOnly) {
+            // MODO PULL-ONLY: Apenas baixar dados da nuvem (usado no login)
+            const remoteData = await callGas({
+                action: 'load',
+                username: appData.auth.username,
+                password: appData.auth.password
+            });
 
-        if (remoteData && remoteData.success) {
-            const remotePayload = remoteData.payload;
-
-            if (!remotePayload) {
-                // Cloud is empty, push local
-                if (isInitialSync && loadingStatus) loadingStatus.textContent = "Enviando dados locais...";
-                await pushToCloud();
-            } else {
-                // Critério 1: Número de revisões totais. Quem tem MAIS revisões é o mais recente.
-                // Isso garante que penalidades (que reduzem XP mas incrementam totalReviews) não sejam revertidas.
-                const localReviews = appData.totalReviews || 0;
-                const remoteReviews = remotePayload.totalReviews || 0;
-
-                // Critério 2: Timestamp de última modificação (fallback se revisões forem iguais).
-                const localModified = appData.lastModified || 0;
-                const remoteModified = remotePayload.lastModified || 0;
-
-                // Critério 3: XP total (fallback final, para compatibilidade com dados antigos).
-                const localXP = calculateTotalProgress(appData);
-                const remoteXP = calculateTotalProgress(remotePayload);
-
-                // Determina qual dado é mais recente
-                let remoteIsNewer = false;
-                if (remoteReviews > localReviews) {
-                    remoteIsNewer = true;
-                } else if (remoteReviews === localReviews) {
-                    // Mesmas revisões: usa timestamp de modificação
-                    if (remoteModified > localModified) {
-                        remoteIsNewer = true;
-                    } else if (remoteModified === localModified && remoteXP > localXP) {
-                        // Mesmo timestamp: fallback para XP (dados antigos sem lastModified)
-                        remoteIsNewer = true;
-                    }
-                }
-                // Se localReviews > remoteReviews, o local é definitivamente mais recente (inclui penalidades)
-
-                if (remoteIsNewer) {
-                    // Nuvem tem dado mais recente
-                    if (isInitialSync && loadingStatus) loadingStatus.textContent = "Baixando progresso da nuvem...";
-
-                    const updateLocal = () => {
-                        appData = { ...remotePayload, auth: appData.auth, syncSettings: appData.syncSettings };
-                        appData.auth.lastSync = Date.now();
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-                        if (!isInitialSync) location.reload(); // Only reload if not during initial startup
-                    };
-
-                    if (isManual) {
-                        confirm("Dados na nuvem são mais recentes. Deseja atualizar o local com os dados da nuvem?", updateLocal);
-                    } else {
-                        updateLocal();
-                    }
-                } else if (!remoteIsNewer && (localReviews > remoteReviews || localXP > remoteXP || localModified > remoteModified)) {
-                    // Local tem dado mais recente
-                    if (isInitialSync && loadingStatus) loadingStatus.textContent = "Atualizando nuvem...";
-                    await pushToCloud();
+            if (remoteData && remoteData.success) {
+                const remotePayload = remoteData.payload;
+                if (remotePayload) {
+                    if (isInitialSync && loadingStatus) loadingStatus.textContent = "Baixando dados da nuvem...";
+                    appData = { ...remotePayload, auth: appData.auth, syncSettings: appData.syncSettings };
+                    appData.auth.lastSync = Date.now();
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
                 } else {
-                    // Dados idênticos, apenas atualiza lastSync
+                    // Nuvem vazia - apenas atualizar lastSync
                     appData.auth.lastSync = Date.now();
                 }
             }
             if (isInitialSync && loadingStatus) loadingStatus.textContent = "Sincronização concluída!";
+        } else {
+            // MODO PADRÃO: Apenas enviar dados para a nuvem
+            const res = await callGas({
+                action: 'save',
+                username: appData.auth.username,
+                password: appData.auth.password,
+                payload: appData
+            });
+            if (res && res.success) {
+                appData.auth.lastSync = Date.now();
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+            }
         }
     } catch (e) {
         console.error("Erro na sincronização:", e);
@@ -598,11 +560,10 @@ async function handleLoginSubmit(mode) {
             appData.auth.lastSync = Date.now();
             saveData(appData);
 
-            // IMPORTANTE: Só fecha o modal após a sincronização inicial terminar
-            // syncWithCloud(true) pode disparar um location.reload() se os dados da nuvem forem mais recentes
-            await syncWithCloud(true);
+            // SINCRONIZAÇÃO INICIAL: Apenas puxar dados da nuvem (nunca enviar dados locais)
+            await syncWithCloud(false, true, true); // (isManual=false, isInitialSync=true, pullOnly=true)
 
-            // Se não recarregou a página, fecha o modal normalmente
+            // Fecha o modal após sincronização
             closeModal();
             renderSyncStatus();
         } else {
@@ -691,9 +652,8 @@ function togglePasswordVisibility(inputId) {
     }
 }
 
-window.addEventListener('online', () => {
-    if (appData.auth.isLoggedIn) syncWithCloud(false);
-});
+// Sincronização automática ao ficar online foi removida conforme especificação
+// Os dados são sincronizados APENAS em: login (pull-only) e após testes/edições (push)
 
 // ==================== UI ====================
 function $(id) { return document.getElementById(id); }
