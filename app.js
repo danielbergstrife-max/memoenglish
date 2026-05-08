@@ -49,7 +49,8 @@ function getDefaultData() {
             expandContractions: true,
             slowAudio: false,
             darkMode: false,
-            notifications: true
+            notifications: true,
+            tutorialCompleted: false
         },
         definitionCache: {},
         translationCache: {},
@@ -412,7 +413,7 @@ function calculateTotalProgress(data) {
     return totalXP;
 }
 
-async function syncWithCloud(isManual = false) {
+async function syncWithCloud(isManual = false, isInitialSync = false) {
     if (!appData.auth.isLoggedIn) {
         if (isManual) alert("Por favor, faça login primeiro.");
         return;
@@ -420,8 +421,11 @@ async function syncWithCloud(isManual = false) {
 
     const statusIndicator = $('syncStatusIndicator');
     const actionArea = $('syncActionArea');
+    const loadingStatus = $('loadingStatus');
+
     if (statusIndicator) statusIndicator.style.display = 'flex';
     if (actionArea) actionArea.style.display = 'flex';
+    if (isInitialSync && loadingStatus) loadingStatus.textContent = "Sincronizando com a nuvem...";
 
     try {
         const remoteData = await callGas({
@@ -435,6 +439,7 @@ async function syncWithCloud(isManual = false) {
 
             if (!remotePayload) {
                 // Cloud is empty, push local
+                if (isInitialSync && loadingStatus) loadingStatus.textContent = "Enviando dados locais...";
                 await pushToCloud();
             } else {
                 const localXP = calculateTotalProgress(appData);
@@ -442,33 +447,35 @@ async function syncWithCloud(isManual = false) {
 
                 if (remoteXP > localXP) {
                     // Remote has more progress
+                    if (isInitialSync && loadingStatus) loadingStatus.textContent = "Baixando progresso da nuvem...";
+                    
                     const updateLocal = () => {
                         appData = { ...remotePayload, auth: appData.auth, syncSettings: appData.syncSettings };
                         appData.auth.lastSync = Date.now();
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-                        location.reload(); // Refresh to apply changes
+                        if (!isInitialSync) location.reload(); // Only reload if not during initial startup
                     };
 
                     if (isManual) {
                         confirm("Dados na nuvem têm mais progresso. Deseja atualizar o local com os dados da nuvem?", updateLocal);
                     } else {
-                        // Silent update in background if remote is ahead? 
-                        // User request: "sincronize... levando sempre em consideração qual está com o maior progresso"
-                        // If remote is ahead, we should probably update.
                         updateLocal();
                     }
                 } else if (localXP > remoteXP) {
                     // Local has more progress
+                    if (isInitialSync && loadingStatus) loadingStatus.textContent = "Atualizando nuvem...";
                     await pushToCloud();
                 } else {
                     // Equal progress, just update lastSync
                     appData.auth.lastSync = Date.now();
                 }
             }
+            if (isInitialSync && loadingStatus) loadingStatus.textContent = "Sincronização concluída!";
         }
     } catch (e) {
         console.error("Erro na sincronização:", e);
-        if (isManual) alert("Erro ao sincronizar. Verifique sua conexão e a URL do script.");
+        if (isManual) alert("Erro ao sincronizar. Verifique sua conexão.");
+        if (isInitialSync && loadingStatus) loadingStatus.textContent = "Erro na sincronização (Offline)";
     } finally {
         if (statusIndicator) statusIndicator.style.display = 'none';
         renderSyncStatus();
@@ -735,6 +742,17 @@ function renderStats() {
     // ou seja, o usuário limpou a fila e estamos aguardando a próxima.
     if (due === 0) {
         notificationSent = false;
+    }
+
+    const welcomeTitle = $('homeWelcomeTitle');
+    if (welcomeTitle) {
+        const hour = new Date().getHours();
+        let greeting = "Bom dia";
+        if (hour >= 12 && hour < 18) greeting = "Boa tarde";
+        else if (hour >= 18 || hour < 5) greeting = "Boa noite";
+        
+        const name = (appData.auth && appData.auth.isLoggedIn && appData.auth.username) ? `, ${appData.auth.username}` : "";
+        welcomeTitle.textContent = `${greeting}${name}! 👋`;
     }
 
     $('statTotal').textContent = total;
@@ -3539,8 +3557,178 @@ function updateStorageUsage() {
     if ($('storageUsageFill')) $('storageUsageFill').style.width = pct + '%';
 }
 
-// Initial UI and Sync checks
-renderSyncStatus();
-if (appData.auth && appData.auth.isLoggedIn) {
-    syncWithCloud(false);
+async function initializeApp() {
+    const loadingScreen = $('loadingScreen');
+    const appContainer = $('appContainer');
+    const loadingStatus = $('loadingStatus');
+
+    // 1. Renderizar Status inicial (offline)
+    renderSyncStatus();
+    applyDarkMode();
+    
+    // Se logado, tentar sincronizar
+    if (appData.auth && appData.auth.isLoggedIn) {
+        if (navigator.onLine) {
+            await syncWithCloud(false, true);
+        } else {
+            if (loadingStatus) loadingStatus.textContent = "Modo Offline";
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    } else {
+        if (loadingStatus) loadingStatus.textContent = "Pronto!";
+        await new Promise(r => setTimeout(r, 800));
+    }
+
+    // 2. Preparar UI principal
+    renderStats();
+    startCountdownInterval();
+    
+    // Pequeno delay para garantir que o usuário veja o "Concluído" ou "Pronto"
+    await new Promise(r => setTimeout(r, 500));
+
+    // 3. Transição: Splash -> App
+    if (loadingScreen) loadingScreen.classList.add('fade-out');
+    
+    if (appContainer) {
+        appContainer.style.display = 'flex';
+        setTimeout(() => {
+            appContainer.style.opacity = '1';
+            
+            // 4. Iniciar Tutorial se for a primeira vez
+            if (!appData.settings.tutorialCompleted) {
+                setTimeout(startTutorial, 1200);
+            }
+        }, 50);
+    }
+
+    // Remover o splash do DOM após a animação para economizar recursos
+    setTimeout(() => {
+        if (loadingScreen) loadingScreen.remove();
+    }, 1000);
+}
+
+// Start the application
+initializeApp();
+
+// ==================== TUTORIAL = :D ====================
+let tutorialStep = 0;
+const TUTORIAL_STEPS = [
+    {
+        title: "Bem-vindo ao MemoEnglish! 👋",
+        text: "Vamos te ensinar a dominar o inglês em 4 passos simples. É rápido e vai mudar sua forma de estudar.",
+        view: 'homeView'
+    },
+    {
+        title: "1. Crie sua Primeira Lista 📖",
+        text: "O primeiro passo é ter conteúdo. Vá em 'Minhas Listas' e crie uma nova. Você também pode usar nossa I.A. para gerar listas prontas sobre qualquer assunto!",
+        view: 'listsView'
+    },
+    {
+        title: "2. Adicione Frases e Traduza ✍️",
+        text: "Dentro de uma lista, adicione frases que você quer aprender. Dica: use a **tradução automática** para preencher o português instantaneamente!",
+        view: 'listsView'
+    },
+    {
+        title: "3. Hora de Praticar! ⚡",
+        text: "Com frases na lista, volte à Home e clique em **'Iniciar'**. O sistema usará Ciência (Repetição Espaçada) para te mostrar as frases no momento ideal para você não esquecer.",
+        view: 'homeView'
+    },
+    {
+        title: "4. Evolua suas Habilidades 🎯",
+        text: "Além do modo geral, você pode focar apenas em Escrita, Escuta ou Fala. Acerte as frases para subir de nível até dominá-las completamente!",
+        view: 'homeView'
+    },
+    {
+        title: "Dica Extra: Sincronize! ☁️",
+        text: "Vá em Configurações e crie sua conta. Assim, seu progresso fica salvo na nuvem e você pode estudar em qualquer dispositivo.",
+        view: 'settingsView'
+    },
+    {
+        title: "Tudo Pronto! 🎉",
+        text: "O segredo do inglês é a constância. Pratique um pouco todos os dias e veja a mágica acontecer. Bons estudos!",
+        view: 'homeView'
+    }
+];
+
+function startTutorial() {
+    tutorialStep = 0;
+    $('tutorialOverlay').style.display = 'block';
+    renderTutorialStep();
+}
+
+function renderTutorialStep() {
+    const step = TUTORIAL_STEPS[tutorialStep];
+    if (!step) return finishTutorial();
+
+    // Change view if needed
+    if (step.view && document.getElementById(step.view).style.display === 'none') {
+        showView(step.view);
+    }
+
+    const highlight = $('tutorialHighlight');
+    const tooltip = $('tutorialTooltip');
+    const content = $('tutorialContent');
+    const prevBtn = $('tutorialPrevBtn');
+    const nextBtn = $('tutorialNextBtn');
+    const progress = $('tutorialProgress');
+
+    content.innerHTML = `<h3>${step.title}</h3><p>${step.text}</p>`;
+    prevBtn.style.display = tutorialStep === 0 ? 'none' : 'block';
+    nextBtn.textContent = tutorialStep === TUTORIAL_STEPS.length - 1 ? 'Finalizar' : 'Próximo';
+
+    // Update dots
+    progress.innerHTML = TUTORIAL_STEPS.map((_, i) => 
+        `<div class="tutorial-dot ${i === tutorialStep ? 'active' : ''}"></div>`
+    ).join('');
+
+    // Hide highlight as requested by user
+    if (highlight) highlight.style.display = 'none';
+}
+
+function nextTutorialStep() {
+    tutorialStep++;
+    if (tutorialStep >= TUTORIAL_STEPS.length) {
+        finishTutorial();
+    } else {
+        renderTutorialStep();
+    }
+}
+
+function prevTutorialStep() {
+    if (tutorialStep > 0) {
+        tutorialStep--;
+        renderTutorialStep();
+    }
+}
+
+function skipTutorial() {
+    confirm("Deseja pular o tutorial? Você pode acessá-lo novamente nas configurações.", finishTutorial);
+}
+
+function finishTutorial() {
+    $('tutorialOverlay').style.display = 'none';
+    appData.settings.tutorialCompleted = true;
+    saveData(appData);
+}
+
+// ==================== DONATION ====================
+function showDonationModal() {
+    openModal('donationModal');
+    $('copyBtnText').textContent = "Copiar Chave PIX";
+}
+
+function copyPixKey() {
+    const pixKey = "19c4cf1a-e4e6-4413-a391-52029fed55c3";
+    navigator.clipboard.writeText(pixKey).then(() => {
+        const btnText = $('copyBtnText');
+        if (btnText) {
+            btnText.textContent = "✅ Chave Copiada!";
+            setTimeout(() => {
+                btnText.textContent = "Copiar Chave PIX";
+            }, 3000);
+        }
+    }).catch(err => {
+        console.error('Erro ao copiar:', err);
+        alert("Não foi possível copiar automaticamente. A chave é: " + pixKey);
+    });
 }
