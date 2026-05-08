@@ -575,14 +575,18 @@ async function handleLoginSubmit(mode) {
             appData.auth.username = user;
             appData.auth.password = pass;
             appData.auth.lastSync = Date.now();
-            saveData(appData);
+            
+            // Salva localmente SEM disparar a sincronização automática de fundo ainda
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
 
-            // IMPORTANTE: Só fecha o modal após a sincronização inicial terminar
-            // syncWithCloud(true) pode disparar um location.reload() se os dados da nuvem forem mais recentes
-            await syncWithCloud(true);
+            // Sincronização inicial pós-login: agora automática (decide pelo XP)
+            // Usamos isInitialSync=true para evitar confirmação manual que entraria em conflito com o fechamento do modal
+            await syncWithCloud(false, true);
 
-            // Se não recarregou a página, fecha o modal normalmente
+            // Fecha o modal e atualiza toda a interface
             closeModal();
+            renderStats();
+            renderLists();
             renderSyncStatus();
         } else {
             loadingEl.style.display = 'none';
