@@ -428,6 +428,13 @@ async function syncWithCloud(isManual = false, isInitialSync = false) {
     if (isInitialSync && loadingStatus) loadingStatus.textContent = "Sincronizando com a nuvem...";
 
     try {
+        // Se for sincronização de fundo (não manual e não inicial), SEMPRE exporta.
+        // Isso evita que perdas de XP durante a sessão sejam revertidas por um save antigo na nuvem.
+        if (!isManual && !isInitialSync) {
+            await pushToCloud();
+            return;
+        }
+
         const remoteData = await callGas({
             action: 'load',
             username: appData.auth.username,
