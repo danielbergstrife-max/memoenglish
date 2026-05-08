@@ -44,6 +44,7 @@ function getDefaultData() {
         history: [], // { date: timestamp, correct: bool }
         streak: 0,
         lastReviewDate: null,
+        lastModified: 0, // Timestamp da última modificação local
         phoneticCache: {},
         settings: {
             expandContractions: true,
@@ -107,9 +108,11 @@ function loadData() {
 }
 
 function saveData(data) {
+    // Atualiza o timestamp de modificação local em cada salvamento
+    data.lastModified = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    // Trigger background sync if possible
-    if (data.auth && data.auth.isLoggedIn && navigator.onLine) {
+    // Trigger background sync if possible, mas NUNCA durante uma sessão de teste ativa
+    if (data.auth && data.auth.isLoggedIn && navigator.onLine && !session.active) {
         syncWithCloud(false);
     }
 }
@@ -428,13 +431,6 @@ async function syncWithCloud(isManual = false, isInitialSync = false) {
     if (isInitialSync && loadingStatus) loadingStatus.textContent = "Sincronizando com a nuvem...";
 
     try {
-        // Se for sincronização de fundo (não manual e não inicial), SEMPRE exporta.
-        // Isso evita que perdas de XP durante a sessão sejam revertidas por um save antigo na nuvem.
-        if (!isManual && !isInitialSync) {
-            await pushToCloud();
-            return;
-        }
-
         const remoteData = await callGas({
             action: 'load',
             username: appData.auth.username,
@@ -449,11 +445,36 @@ async function syncWithCloud(isManual = false, isInitialSync = false) {
                 if (isInitialSync && loadingStatus) loadingStatus.textContent = "Enviando dados locais...";
                 await pushToCloud();
             } else {
+                // Critério 1: Número de revisões totais. Quem tem MAIS revisões é o mais recente.
+                // Isso garante que penalidades (que reduzem XP mas incrementam totalReviews) não sejam revertidas.
+                const localReviews = appData.totalReviews || 0;
+                const remoteReviews = remotePayload.totalReviews || 0;
+
+                // Critério 2: Timestamp de última modificação (fallback se revisões forem iguais).
+                const localModified = appData.lastModified || 0;
+                const remoteModified = remotePayload.lastModified || 0;
+
+                // Critério 3: XP total (fallback final, para compatibilidade com dados antigos).
                 const localXP = calculateTotalProgress(appData);
                 const remoteXP = calculateTotalProgress(remotePayload);
 
-                if (remoteXP > localXP) {
-                    // Remote has more progress
+                // Determina qual dado é mais recente
+                let remoteIsNewer = false;
+                if (remoteReviews > localReviews) {
+                    remoteIsNewer = true;
+                } else if (remoteReviews === localReviews) {
+                    // Mesmas revisões: usa timestamp de modificação
+                    if (remoteModified > localModified) {
+                        remoteIsNewer = true;
+                    } else if (remoteModified === localModified && remoteXP > localXP) {
+                        // Mesmo timestamp: fallback para XP (dados antigos sem lastModified)
+                        remoteIsNewer = true;
+                    }
+                }
+                // Se localReviews > remoteReviews, o local é definitivamente mais recente (inclui penalidades)
+
+                if (remoteIsNewer) {
+                    // Nuvem tem dado mais recente
                     if (isInitialSync && loadingStatus) loadingStatus.textContent = "Baixando progresso da nuvem...";
 
                     const updateLocal = () => {
@@ -464,16 +485,16 @@ async function syncWithCloud(isManual = false, isInitialSync = false) {
                     };
 
                     if (isManual) {
-                        confirm("Dados na nuvem têm mais progresso. Deseja atualizar o local com os dados da nuvem?", updateLocal);
+                        confirm("Dados na nuvem são mais recentes. Deseja atualizar o local com os dados da nuvem?", updateLocal);
                     } else {
                         updateLocal();
                     }
-                } else if (localXP > remoteXP) {
-                    // Local has more progress
+                } else if (!remoteIsNewer && (localReviews > remoteReviews || localXP > remoteXP || localModified > remoteModified)) {
+                    // Local tem dado mais recente
                     if (isInitialSync && loadingStatus) loadingStatus.textContent = "Atualizando nuvem...";
                     await pushToCloud();
                 } else {
-                    // Equal progress, just update lastSync
+                    // Dados idênticos, apenas atualiza lastSync
                     appData.auth.lastSync = Date.now();
                 }
             }
@@ -575,18 +596,14 @@ async function handleLoginSubmit(mode) {
             appData.auth.username = user;
             appData.auth.password = pass;
             appData.auth.lastSync = Date.now();
-            
-            // Salva localmente SEM disparar a sincronização automática de fundo ainda
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+            saveData(appData);
 
-            // Sincronização inicial pós-login: agora automática (decide pelo XP)
-            // Usamos isInitialSync=true para evitar confirmação manual que entraria em conflito com o fechamento do modal
-            await syncWithCloud(false, true);
+            // IMPORTANTE: Só fecha o modal após a sincronização inicial terminar
+            // syncWithCloud(true) pode disparar um location.reload() se os dados da nuvem forem mais recentes
+            await syncWithCloud(true);
 
-            // Fecha o modal e atualiza toda a interface
+            // Se não recarregou a página, fecha o modal normalmente
             closeModal();
-            renderStats();
-            renderLists();
             renderSyncStatus();
         } else {
             loadingEl.style.display = 'none';
