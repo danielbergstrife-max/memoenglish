@@ -448,7 +448,7 @@ async function syncWithCloud(isManual = false, isInitialSync = false) {
                 if (remoteXP > localXP) {
                     // Remote has more progress
                     if (isInitialSync && loadingStatus) loadingStatus.textContent = "Baixando progresso da nuvem...";
-                    
+
                     const updateLocal = () => {
                         appData = { ...remotePayload, auth: appData.auth, syncSettings: appData.syncSettings };
                         appData.auth.lastSync = Date.now();
@@ -750,7 +750,7 @@ function renderStats() {
         let greeting = "Bom dia";
         if (hour >= 12 && hour < 18) greeting = "Boa tarde";
         else if (hour >= 18 || hour < 5) greeting = "Boa noite";
-        
+
         const name = (appData.auth && appData.auth.isLoggedIn && appData.auth.username) ? `, ${appData.auth.username}` : "";
         welcomeTitle.textContent = `${greeting}${name}! 👋`;
     }
@@ -3565,7 +3565,7 @@ async function initializeApp() {
     // 1. Renderizar Status inicial (offline)
     renderSyncStatus();
     applyDarkMode();
-    
+
     // Se logado, tentar sincronizar
     if (appData.auth && appData.auth.isLoggedIn) {
         if (navigator.onLine) {
@@ -3582,18 +3582,18 @@ async function initializeApp() {
     // 2. Preparar UI principal
     renderStats();
     startCountdownInterval();
-    
+
     // Pequeno delay para garantir que o usuário veja o "Concluído" ou "Pronto"
     await new Promise(r => setTimeout(r, 500));
 
     // 3. Transição: Splash -> App
     if (loadingScreen) loadingScreen.classList.add('fade-out');
-    
+
     if (appContainer) {
         appContainer.style.display = 'flex';
         setTimeout(() => {
             appContainer.style.opacity = '1';
-            
+
             // 4. Iniciar Tutorial se for a primeira vez
             if (!appData.settings.tutorialCompleted) {
                 setTimeout(startTutorial, 1200);
@@ -3677,7 +3677,7 @@ function renderTutorialStep() {
     nextBtn.textContent = tutorialStep === TUTORIAL_STEPS.length - 1 ? 'Finalizar' : 'Próximo';
 
     // Update dots
-    progress.innerHTML = TUTORIAL_STEPS.map((_, i) => 
+    progress.innerHTML = TUTORIAL_STEPS.map((_, i) =>
         `<div class="tutorial-dot ${i === tutorialStep ? 'active' : ''}"></div>`
     ).join('');
 
@@ -3718,7 +3718,7 @@ function showDonationModal() {
 }
 
 function copyPixKey() {
-    const pixKey = "19c4cf1a-e4e6-4413-a391-52029fed55c3";
+    const pixKey = "systemmemoenglish@gmail.com";
     navigator.clipboard.writeText(pixKey).then(() => {
         const btnText = $('copyBtnText');
         if (btnText) {
