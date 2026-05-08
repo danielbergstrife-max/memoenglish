@@ -1,5 +1,4 @@
-// MemoEnglish Service Worker
-const CACHE_NAME = 'memoenglish-v1';
+const CACHE_NAME = 'memoenglish-v1.2.1';
 
 // Recursos essenciais para funcionarem offline
 const urlsToCache = [
@@ -8,10 +7,14 @@ const urlsToCache = [
   './style.css',
   './app.js',
   './phonetics.js',
-  './manifest.json'
+  './manifest.json',
+  './assets/logo.png',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 self.addEventListener('install', event => {
+  self.skipWaiting(); // Força o SW a se tornar ativo imediatamente
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
@@ -20,29 +23,48 @@ self.addEventListener('install', event => {
   );
 });
 
-self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Retorna do cache se encontrar, senão busca na rede
-        return response || fetch(event.request);
+// Limpa caches antigos quando atualizar o Service Worker
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(), // Toma controle das abas abertas imediatamente
+      caches.keys().then(cacheNames => {
+        return Promise.all(
+          cacheNames.map(cacheName => {
+            if (cacheName !== CACHE_NAME) {
+              return caches.delete(cacheName);
+            }
+          })
+        );
       })
+    ])
   );
 });
 
-// Limpa caches antigos quando atualizar o Service Worker
-self.addEventListener('activate', event => {
-  const cacheWhitelist = [CACHE_NAME];
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
-            return caches.delete(cacheName);
-          }
+self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+  
+  // Estratégia Network-First para o index.html e raiz
+  // Isso garante que se estiver online, sempre pegue o HTML mais novo
+  if (url.origin === self.location.origin && (url.pathname === '/' || url.pathname === '/index.html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          const clonedResponse = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clonedResponse));
+          return response;
         })
-      );
-    })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Estratégia Cache-First para o restante dos recursos
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => {
+        return response || fetch(event.request);
+      })
   );
 });
 
