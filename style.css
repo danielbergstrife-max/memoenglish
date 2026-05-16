@@ -330,7 +330,7 @@ body.dark-mode .card {
     transform: translateY(-8px);
     border-color: var(--primary) !important;
     box-shadow: 0 12px 24px rgba(99, 102, 241, 0.15) !important;
-    background: white !important;
+    background: var(--surface) !important;
 }
 
 .mode-card h4 {
@@ -392,7 +392,7 @@ body.dark-mode .card {
     font-size: 1.1rem;
     border: 2px solid var(--border);
     border-radius: var(--radius-lg);
-    background: var(--surface-glass);
+    background: var(--surface);
     color: var(--text);
     transition: all 0.3s;
     outline: none;
@@ -506,7 +506,7 @@ body.dark-mode .card {
 
 .quiz-btn:hover {
     border-color: var(--primary);
-    background: white;
+    background: var(--surface);
     transform: scale(1.02);
     box-shadow: var(--shadow);
 }
@@ -1127,7 +1127,7 @@ body.dark-mode .legal-content h3 {
     gap: 8px;
     padding: 8px 16px;
     border-radius: 20px;
-    background: white;
+    background: var(--surface-glass);
     border: 1px solid var(--border);
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
