@@ -1,4 +1,4 @@
-const CACHE_NAME = 'memoenglish-v1.2.1';
+const CACHE_NAME = 'memoenglish-v1.2.2';
 
 // Recursos essenciais para funcionarem offline
 const urlsToCache = [
@@ -43,7 +43,7 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
-  
+
   // Estratégia Network-First para o index.html e raiz
   // Isso garante que se estiver online, sempre pegue o HTML mais novo
   if (url.origin === self.location.origin && (url.pathname === '/' || url.pathname === '/index.html')) {
