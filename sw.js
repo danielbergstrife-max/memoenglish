@@ -1,4 +1,4 @@
-const CACHE_NAME = 'memoenglish-v3.0.6';
+const CACHE_NAME = 'memoenglish-v3.0.7';
 
 // Recursos essenciais para funcionarem offline
 const urlsToCache = [

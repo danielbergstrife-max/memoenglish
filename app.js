@@ -1,4 +1,4 @@
-const APP_VERSION = '3.0.6';
+const APP_VERSION = '3.0.7';
 // ==================== PWA INSTALLATION ====================
 let deferredPrompt;
 
@@ -2257,19 +2257,10 @@ function renderExercise() {
         $('pronounceArea').style.display = 'block';
         $('pronounceIntegrated').style.display = 'none';
         renderSpeechInitialState();
-        playAudio(p.english, () => {
-            if (session.active && session.mode === 'pronounce') {
-                startListening();
-            }
-        });
+        playAudio(p.english);
     } else if (session.mode === 'speak') {
         $('speakArea').style.display = 'block';
         renderSpeechInitialState();
-        setTimeout(() => {
-            if (session.active && session.mode === 'speak') {
-                startListening();
-            }
-        }, 150);
     }
 }
 
@@ -3242,11 +3233,9 @@ function playAudio(t, lang = 'en-US', onComplete = null) {
     const finishAudio = () => {
         isAudioPlaying = false;
         if (onComplete) onComplete();
-        // Não reinicia se a barra de resultado estiver visível ou sessão encerrada
+        // Só reinicia se o usuário já havia ligado o microfone intencionalmente antes do áudio
         const isResultVisible = $('feedbackBar')?.classList.contains('active');
-        if (session.active && !isResultVisible && (session.mode === 'speak' || session.mode === 'pronounce')) {
-            startListening();
-        } else if (wasListening && !isResultVisible) {
+        if (wasListening && session.active && !isResultVisible && (session.mode === 'speak' || session.mode === 'pronounce')) {
             startListening();
         }
     };
@@ -4982,8 +4971,14 @@ function stopListening() {
     const { btn, status } = getActiveMicElements();
     if (btn) btn.classList.remove('listening');
     if (status) {
-        status.textContent = "⚪ Microfone Desligado";
-        status.style.color = "var(--text-muted)";
+        const correctCount = Object.values(session.wordStatus || {}).filter(v => v === 'correct' || v === 'imprecise').length;
+        if (correctCount > 0) {
+            status.textContent = "🎙️ Toque para continuar falando...";
+            status.style.color = "var(--primary)";
+        } else {
+            status.textContent = "⚪ Toque para falar";
+            status.style.color = "var(--text-muted)";
+        }
     }
 }
 
@@ -5175,17 +5170,7 @@ function runSpeechSession() {
     };
 
     rec.onend = () => {
-        // Se ainda não acertou o teste e deve continuar ouvindo: mantém sempre ligado!
-        const isCorrectMode = session.mode === 'speak' || session.mode === 'pronounce';
-        if (!success && isRecognitionActive && session.active && isCorrectMode && !isAudioPlaying) {
-            // Reinicia imediatamente com uma nova instância sem desligar a UI
-            clearTimeout(recognitionRestartTimer);
-            recognitionRestartTimer = setTimeout(() => {
-                if (!success && isRecognitionActive && session.active && !isAudioPlaying) {
-                    runSpeechSession();
-                }
-            }, 80);
-        } else if (!isRecognitionActive || success) {
+        if (!success) {
             stopListening();
         }
     };
@@ -5193,13 +5178,8 @@ function runSpeechSession() {
     try {
         rec.start();
     } catch (err) {
-        console.warn("Falha ao iniciar SpeechRecognition, agendando nova tentativa:", err);
-        clearTimeout(recognitionRestartTimer);
-        recognitionRestartTimer = setTimeout(() => {
-            if (!success && isRecognitionActive && session.active && !isAudioPlaying) {
-                runSpeechSession();
-            }
-        }, 150);
+        console.warn("Falha ao iniciar SpeechRecognition:", err);
+        stopListening();
     }
 }
 
@@ -5381,14 +5361,7 @@ function runCorrectionSpeechSession() {
     };
 
     recognition.onend = () => {
-        if (!success && session.active && isCorrectionActive) {
-            clearTimeout(correctionRestartTimer);
-            correctionRestartTimer = setTimeout(() => {
-                if (!success && session.active && isCorrectionActive) {
-                    runCorrectionSpeechSession();
-                }
-            }, 80);
-        } else {
+        if (!success) {
             stopListeningCorrection();
         }
     };
@@ -5396,12 +5369,8 @@ function runCorrectionSpeechSession() {
     try {
         recognition.start();
     } catch (e) {
-        clearTimeout(correctionRestartTimer);
-        correctionRestartTimer = setTimeout(() => {
-            if (!success && session.active && isCorrectionActive) {
-                runCorrectionSpeechSession();
-            }
-        }, 150);
+        console.warn("Falha ao iniciar SpeechRecognition na correção:", e);
+        stopListeningCorrection();
     }
 }
 
