@@ -1,4 +1,4 @@
-const CACHE_NAME = 'memoenglish-v1.2.3';
+const CACHE_NAME = 'memoenglish-v3.0.6';
 
 // Recursos essenciais para funcionarem offline
 const urlsToCache = [
@@ -16,54 +16,94 @@ const urlsToCache = [
 self.addEventListener('install', event => {
   self.skipWaiting(); // Força o SW a se tornar ativo imediatamente
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        return cache.addAll(urlsToCache);
-      })
+    caches.open(CACHE_NAME).then(async cache => {
+      for (const url of urlsToCache) {
+        try {
+          await cache.add(url);
+        } catch (e) {
+          console.warn('Recurso secundário não pôde ser pré-cacheado:', url);
+        }
+      }
+    })
   );
 });
 
-// Limpa caches antigos quando atualizar o Service Worker
+// Limpa caches antigos quando atualizar o Service Worker e notifica o app
 self.addEventListener('activate', event => {
   event.waitUntil(
-    Promise.all([
-      self.clients.claim(), // Toma controle das abas abertas imediatamente
-      caches.keys().then(cacheNames => {
-        return Promise.all(
-          cacheNames.map(cacheName => {
-            if (cacheName !== CACHE_NAME) {
-              return caches.delete(cacheName);
-            }
-          })
-        );
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
+      .then(() => {
+        // Notifica todas as janelas e o app instalado para recarregar automaticamente
+        return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+          clients.forEach(client => {
+            client.postMessage({ action: 'RELOAD_NEW_VERSION', version: CACHE_NAME });
+          });
+        });
       })
-    ])
   );
 });
 
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Estratégia Network-First para o index.html e raiz
-  // Isso garante que se estiver online, sempre pegue o HTML mais novo
-  if (url.origin === self.location.origin && (url.pathname === '/' || url.pathname === '/index.html')) {
+  // Não intercepta chamadas para APIs externas ou CDNs
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // 1. Navegação e páginas HTML: Network-First
+  // Garante que o aplicativo instalado sempre carregue o HTML mais novo quando online
+  if (event.request.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('.html')) {
     event.respondWith(
       fetch(event.request)
         .then(response => {
-          const clonedResponse = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clonedResponse));
+          if (response && response.status === 200) {
+            const cloned = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, cloned));
+          }
           return response;
         })
-        .catch(() => caches.match(event.request))
+        .catch(() => caches.match(event.request, { ignoreSearch: true }) || caches.match('./index.html') || caches.match('./'))
     );
     return;
   }
 
-  // Estratégia Cache-First para o restante dos recursos
+  // 2. Scripts e Estilos (JS/CSS): Network-First
+  // Faz com que novas versões (v3.0.0) sejam baixadas imediatamente pelo app instalado
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          if (response && response.status === 200) {
+            const cloned = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, cloned));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request, { ignoreSearch: true }))
+    );
+    return;
+  }
+
+  // 3. Imagens e recursos estáticos: Cache-First
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        return response || fetch(event.request);
+    caches.match(event.request, { ignoreSearch: true })
+      .then(cached => {
+        return cached || fetch(event.request).then(response => {
+          if (response && response.status === 200) {
+            const cloned = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, cloned));
+          }
+          return response;
+        });
       })
   );
 });
