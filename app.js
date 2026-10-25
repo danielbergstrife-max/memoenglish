@@ -1,4 +1,4 @@
-const APP_VERSION = '3.0.7';
+const APP_VERSION = '4.0.0';
 // ==================== PWA INSTALLATION ====================
 let deferredPrompt;
 
@@ -116,6 +116,7 @@ function getDefaultData() {
         settings: {
             expandContractions: true,
             slowAudio: false,
+            autoAdvanceSpeech: false,
             darkMode: false,
             notifications: true,
             dailyGoal: 20,
@@ -327,7 +328,51 @@ let session = {
     trainingMode: 'standard' // 'standard', 'quiz', 'write', 'listen', 'pronounce', 'speak'
 };
 
+function getLowestSkillInfo(phrase) {
+    const lv = phrase?.levels || {};
+    const skills = isSpeechRecognitionSupported()
+        ? ['quiz', 'write', 'listen', 'pronounce', 'speak']
+        : ['quiz', 'write', 'listen'];
+
+    let lowestSkill = skills[0];
+    let minLvl = lv[lowestSkill] || 0;
+    let maxLvl = Math.max(
+        lv.quiz || 0,
+        lv.write || 0,
+        lv.listen || 0,
+        lv.pronounce || 0,
+        lv.speak || 0
+    );
+
+    for (let i = 1; i < skills.length; i++) {
+        const s = skills[i];
+        const val = lv[s] || 0;
+        if (val < minLvl) {
+            minLvl = val;
+            lowestSkill = s;
+        }
+    }
+
+    return { lowestSkill, minLvl, maxLvl };
+}
+
 function getModeForLevel(phrase, trainingMode) {
+    if (trainingMode === 'troublesome') {
+        return getLowestSkillInfo(phrase).lowestSkill;
+    }
+    if (trainingMode === 'multi' && Array.isArray(session.selectedModes) && session.selectedModes.length > 0) {
+        const lv = phrase?.levels || {};
+        const modes = session.selectedModes;
+        let minLvl = Infinity;
+        modes.forEach(m => {
+            const val = lv[m] || 0;
+            if (val < minLvl) minLvl = val;
+        });
+        const lowestModes = modes.filter(m => (lv[m] || 0) === minLvl);
+        const idx = (session.multiModeIndex || 0) % lowestModes.length;
+        session.multiModeIndex = (session.multiModeIndex || 0) + 1;
+        return lowestModes[idx];
+    }
     if (trainingMode !== 'standard') return trainingMode;
 
     // Standard mode follows the sequence based on the standard level
@@ -1144,9 +1189,11 @@ function togglePasswordVisibility(inputId) {
 function $(id) { return document.getElementById(id); }
 
 function showView(viewId) {
-    // Stop any active recognition when switching views
+    // Stop any active recognition, audio, and timer when switching views
     stopListening();
-    if (typeof stopListeningCorrection === 'function') stopListeningCorrection();
+    if (typeof stopAllAudio === 'function') stopAllAudio();
+    if (typeof clearExerciseTimer === 'function') clearExerciseTimer();
+    if (typeof clearAutoAdvanceTimer === 'function') clearAutoAdvanceTimer();
 
     document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
     $(viewId).style.display = 'block';
@@ -1173,9 +1220,18 @@ function showView(viewId) {
     }
 }
 
+function syncAutoAdvanceToggles() {
+    const enabled = !!(appData.settings && appData.settings.autoAdvanceSpeech);
+    if ($('settingAutoAdvanceSpeech')) $('settingAutoAdvanceSpeech').checked = enabled;
+    document.querySelectorAll('.autoAdvanceSpeechToggle').forEach(el => {
+        el.checked = enabled;
+    });
+}
+
 function populateSettings() {
     $('settingExpandContractions').checked = appData.settings.expandContractions;
     $('settingSlowAudio').checked = appData.settings.slowAudio;
+    syncAutoAdvanceToggles();
     $('settingDarkMode').checked = appData.settings.darkMode;
     $('settingNotifications').checked = appData.settings.notifications !== false;
 }
@@ -1185,6 +1241,7 @@ function updateSetting(key, val) {
     appData.settings[key] = val;
     saveData(appData);
     if (key === 'darkMode') applyDarkMode();
+    if (key === 'autoAdvanceSpeech') syncAutoAdvanceToggles();
     if (key === 'notifications' && val && 'Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
     }
@@ -1320,12 +1377,11 @@ function getTroublesomePhrases() {
     appData.lists.forEach(l => {
         if (!l.phrases) return;
         l.phrases.forEach(p => {
-            const lv = p.levels || {};
-            const isStudied = (lv.quiz > 0 || lv.write > 0 || lv.listen > 0 || lv.pronounce > 0 || lv.speak > 0);
-            const hasZeroLevel = (lv.quiz === 0 || lv.write === 0 || lv.listen === 0);
-            const lowStandard = (lv.standard || 0) <= 1;
+            const { minLvl, maxLvl } = getLowestSkillInfo(p);
+            const isStudied = maxLvl > 0;
 
-            if (isStudied && (hasZeroLevel || lowStandard)) {
+            // Frase já iniciada onde o menor nível ainda não foi dominado (< 5) e está baixo (<= 1) ou atrás dos demais (< maxLvl)
+            if (isStudied && minLvl < 5 && (minLvl <= 1 || minLvl < maxLvl)) {
                 troublesome.push(p);
             }
         });
@@ -1352,8 +1408,16 @@ function startTroublesomeReview() {
     session.mode = null;
 
     session.active = true;
-    session.trainingMode = 'standard';
-    session.queue = [...phrases].sort(() => Math.random() - 0.5);
+    session.trainingMode = 'troublesome';
+    session.queue = [...phrases].sort((a, b) => {
+        const infoA = getLowestSkillInfo(a);
+        const infoB = getLowestSkillInfo(b);
+        if (infoA.minLvl !== infoB.minLvl) return infoA.minLvl - infoB.minLvl;
+        const gapA = infoA.maxLvl - infoA.minLvl;
+        const gapB = infoB.maxLvl - infoB.minLvl;
+        if (gapB !== gapA) return gapB - gapA;
+        return Math.random() - 0.5;
+    });
     session.originalCount = session.queue.length;
 
     showView('reviewView');
@@ -2101,6 +2165,151 @@ function isSpeechRecognitionSupported() {
     return ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
 }
 
+// ==================== MULTI-MODE SELECTION ====================
+let isMultiModeSelectActive = false;
+let selectedMultiModes = [];
+
+const MODE_LABELS_PT = {
+    quiz: '🧩 Quiz',
+    write: '✍️ Escrita',
+    listen: '👂 Escuta',
+    pronounce: '🗣️ Pronúncia',
+    speak: '🎙️ Fala'
+};
+
+function handleModeCardClick(mode) {
+    if (isMultiModeSelectActive || selectedMultiModes.length > 0) {
+        toggleModeInMulti(mode);
+    } else {
+        startReview(mode);
+    }
+}
+
+function toggleMultiModeSelect() {
+    isMultiModeSelectActive = !isMultiModeSelectActive;
+    if (!isMultiModeSelectActive) {
+        selectedMultiModes = [];
+    }
+    updateMultiModeUI();
+}
+
+function toggleModeInMulti(mode) {
+    const idx = selectedMultiModes.indexOf(mode);
+    if (idx >= 0) {
+        selectedMultiModes.splice(idx, 1);
+    } else {
+        selectedMultiModes.push(mode);
+    }
+    isMultiModeSelectActive = selectedMultiModes.length > 0 || isMultiModeSelectActive;
+    updateMultiModeUI();
+}
+
+function clearMultiModeSelection() {
+    isMultiModeSelectActive = false;
+    selectedMultiModes = [];
+    updateMultiModeUI();
+}
+
+function updateMultiModeUI() {
+    const bar = $('multiModeBar');
+    const toggleBtn = $('btnToggleMultiMode');
+    const statusText = $('multiModeStatusText');
+    const startBtn = $('btnStartMultiMode');
+
+    document.querySelectorAll('.mode-card[data-mode]').forEach(card => {
+        const m = card.getAttribute('data-mode');
+        card.classList.toggle('selected-mode', selectedMultiModes.includes(m));
+    });
+
+    const showBar = isMultiModeSelectActive || selectedMultiModes.length > 0;
+    if (bar) bar.style.display = showBar ? 'flex' : 'none';
+    if (toggleBtn) {
+        toggleBtn.innerHTML = showBar ? '✕ Fechar Seleção' : '☑️ Combinar Modos';
+        toggleBtn.style.borderColor = showBar ? 'var(--primary)' : '';
+        toggleBtn.style.color = showBar ? 'var(--primary)' : '';
+    }
+
+    if (statusText) {
+        if (selectedMultiModes.length === 0) {
+            statusText.textContent = 'Toque nos modos abaixo para combiná-los na mesma sessão';
+        } else {
+            const names = selectedMultiModes.map(m => MODE_LABELS_PT[m] || m).join(' + ');
+            statusText.innerHTML = `Combinando: <span style="color: var(--primary);">${names}</span>`;
+        }
+    }
+
+    if (startBtn) {
+        startBtn.disabled = selectedMultiModes.length === 0;
+        startBtn.textContent = `🚀 Iniciar Combinado (${selectedMultiModes.length})`;
+    }
+}
+
+function startMultiModeReview() {
+    if (selectedMultiModes.length === 0) return;
+    if (selectedMultiModes.length === 1) {
+        startReview(selectedMultiModes[0]);
+        return;
+    }
+
+    const needsSpeech = selectedMultiModes.includes('pronounce') || selectedMultiModes.includes('speak');
+    if (needsSpeech && !isSpeechRecognitionSupported()) {
+        alert("⚠️ Reconhecimento de voz não suportado pelo seu navegador atual (comum no Safari do iOS).\n\nPara incluir Fala ou Pronúncia no treino combinado, utilize o Google Chrome no Android, Windows ou Mac.");
+        return;
+    }
+
+    session.active = false;
+    session.queue = [];
+    session.current = null;
+    session.mode = null;
+
+    let allDue = [];
+    appData.lists.forEach(l => {
+        if (!l.phrases) return;
+        allDue = allDue.concat(l.phrases.filter(p => isPhraseDue(p)));
+    });
+
+    if (allDue.length === 0) {
+        window.confirm(
+            "Você não tem frases para revisar no momento. Deseja que eu crie 10 frases gerais automaticamente para você praticar nos modos selecionados?",
+            () => {
+                generateAutomaticPhrases(10, 'multi');
+            },
+            "Nenhuma frase para revisar"
+        );
+        return;
+    }
+
+    session.active = true;
+    session.trainingMode = 'multi';
+    session.selectedModes = [...selectedMultiModes];
+    session.multiModeIndex = 0;
+
+    allDue.forEach(p => {
+        if (!p.levels) {
+            const lvl = p.level || 0;
+            p.levels = { standard: lvl, quiz: lvl, write: lvl, listen: lvl, pronounce: lvl, speak: lvl };
+        }
+    });
+
+    const getMinSelectedLvl = (p) => {
+        return Math.min(...session.selectedModes.map(m => (p.levels && p.levels[m] !== undefined) ? p.levels[m] : 0));
+    };
+
+    const reviewPhrases = allDue.filter(p => getMinSelectedLvl(p) > 0).sort(() => Math.random() - 0.5);
+    const newPhrases = allDue.filter(p => getMinSelectedLvl(p) === 0).sort(() => Math.random() - 0.5);
+
+    session.queue = [...reviewPhrases, ...newPhrases];
+    session.originalCount = session.queue.length;
+
+    if (session.queue.length > 0) {
+        showView('reviewView');
+        nextPhrase();
+    } else {
+        session.active = false;
+        alert("Ocorreu um erro ao preparar a sessão.");
+    }
+}
+
 // ==================== ACTIONS ====================
 function startReview(mode = 'standard') {
     if (mode === 'handsfree') {
@@ -2171,10 +2380,123 @@ function startReview(mode = 'standard') {
 }
 
 
+let exerciseTimerInterval = null;
+let exerciseTimeRemaining = 0;
+let exerciseTotalTime = 0;
+let autoAdvanceTimeout = null;
+
+function clearAutoAdvanceTimer() {
+    if (autoAdvanceTimeout) {
+        clearTimeout(autoAdvanceTimeout);
+        autoAdvanceTimeout = null;
+    }
+}
+
+function scheduleAutoAdvance(delayMs = 1500) {
+    clearAutoAdvanceTimer();
+    if (!appData.settings || !appData.settings.autoAdvanceSpeech) return;
+    if (session.mode !== 'speak' && session.mode !== 'pronounce') return;
+
+    if ($('btnContinue')) {
+        $('btnContinue').textContent = 'Continuar → (Avançando...)';
+    }
+
+    autoAdvanceTimeout = setTimeout(() => {
+        autoAdvanceTimeout = null;
+        if (session.active && $('feedbackBar')?.classList.contains('active') && (session.mode === 'speak' || session.mode === 'pronounce')) {
+            continueSession();
+        }
+    }, delayMs);
+}
+
+function clearExerciseTimer() {
+    if (exerciseTimerInterval) {
+        clearInterval(exerciseTimerInterval);
+        exerciseTimerInterval = null;
+    }
+}
+
+function updateExerciseTimerUI() {
+    const container = $('exerciseTimerContainer');
+    const textEl = $('exerciseTimerText');
+    const fillEl = $('exerciseTimerFill');
+    if (!container || !textEl || !fillEl) return;
+
+    textEl.textContent = `⏱️ ${exerciseTimeRemaining}s`;
+    const pct = exerciseTotalTime > 0 ? Math.max(0, (exerciseTimeRemaining / exerciseTotalTime) * 100) : 0;
+    fillEl.style.width = `${pct}%`;
+
+    const isUrgent = exerciseTimeRemaining <= 4;
+    const isWarning = exerciseTimeRemaining <= Math.ceil(exerciseTotalTime * 0.35);
+
+    fillEl.classList.remove('warning', 'urgent');
+    textEl.classList.remove('warning', 'urgent');
+
+    if (isUrgent) {
+        fillEl.classList.add('urgent');
+        textEl.classList.add('urgent');
+    } else if (isWarning) {
+        fillEl.classList.add('warning');
+        textEl.classList.add('warning');
+    }
+}
+
+function startExerciseTimer(seconds) {
+    clearExerciseTimer();
+    exerciseTotalTime = seconds;
+    exerciseTimeRemaining = seconds;
+
+    const container = $('exerciseTimerContainer');
+    const fillEl = $('exerciseTimerFill');
+    if (container) container.style.display = 'block';
+    if (fillEl) {
+        fillEl.style.transition = 'none';
+        fillEl.style.width = '100%';
+        void fillEl.offsetWidth;
+        fillEl.style.transition = 'width 1s linear, background-color 0.3s ease';
+    }
+    updateExerciseTimerUI();
+
+    exerciseTimerInterval = setInterval(() => {
+        if (!session.active || $('feedbackBar')?.classList.contains('active')) {
+            clearExerciseTimer();
+            return;
+        }
+
+        exerciseTimeRemaining--;
+        updateExerciseTimerUI();
+
+        if (exerciseTimeRemaining <= 0) {
+            clearExerciseTimer();
+            handleExerciseTimeout();
+        }
+    }, 1000);
+}
+
+function handleExerciseTimeout() {
+    if (!session.active || $('feedbackBar')?.classList.contains('active')) return;
+
+    if (session.mode === 'write') {
+        const val = $('writeInput')?.value.trim() || '';
+        const isCorrect = val.length > 0 && normalizeText(val) === normalizeText(session.current.english);
+        processAnswer(isCorrect, val || `⏰ Tempo esgotado (${exerciseTotalTime}s)`);
+    } else if (session.mode === 'listen') {
+        const val = $('listenInput')?.value.trim() || '';
+        const isCorrect = val.length > 0 && normalizeText(val) === normalizeText(session.current.english);
+        processAnswer(isCorrect, val || `⏰ Tempo esgotado (${exerciseTotalTime}s)`);
+    } else if (session.mode === 'pronounce' || session.mode === 'speak') {
+        stopListening();
+        processAnswer(false, session.lastTranscript || `⏰ Tempo esgotado (${exerciseTotalTime}s)`);
+    }
+}
+
 function nextPhrase() {
+    // Reset mic state, audio, and timers for the new phrase
     isRecognitionActive = false;
     stopListening();
-    if (typeof stopListeningCorrection === 'function') stopListeningCorrection();
+    stopAllAudio();
+    clearExerciseTimer();
+    clearAutoAdvanceTimer();
 
     if (session.queue.length === 0) {
         endSession();
@@ -2191,6 +2513,16 @@ function nextPhrase() {
 function renderExercise() {
     const p = session.current;
     const modeLvl = p.levels?.[session.mode] || 0;
+
+    clearExerciseTimer();
+    clearAutoAdvanceTimer();
+    syncAutoAdvanceToggles();
+    if ($('btnContinue')) {
+        $('btnContinue').textContent = 'Continuar →';
+    }
+    if ($('exerciseTimerContainer')) {
+        $('exerciseTimerContainer').style.display = 'none';
+    }
 
     if (session.mode === 'listen') {
         $('phrasePt').textContent = '🎧 Ouça com atenção e digite em inglês...';
@@ -2240,6 +2572,7 @@ function renderExercise() {
         $('writeArea').style.display = 'block';
         $('writeInput').value = '';
         $('writeInputMirror').innerHTML = '';
+        startExerciseTimer(30);
         setTimeout(() => {
             $('writeInput').value = '';
             $('writeInput').focus();
@@ -2248,6 +2581,7 @@ function renderExercise() {
         $('listenArea').style.display = 'block';
         $('listenInput').value = '';
         $('listenInputMirror').innerHTML = '';
+        startExerciseTimer(30);
         setTimeout(() => playAudio(p.english), 500); // Play audio automatically
         setTimeout(() => {
             $('listenInput').value = '';
@@ -2257,10 +2591,23 @@ function renderExercise() {
         $('pronounceArea').style.display = 'block';
         $('pronounceIntegrated').style.display = 'none';
         renderSpeechInitialState();
-        playAudio(p.english);
+        if ($('micStatusPronounce')) {
+            $('micStatusPronounce').textContent = "🔊 Ouvindo pronúncia...";
+            $('micStatusPronounce').style.color = "var(--primary)";
+        }
+        const currentPhrase = p;
+        playAudio(p.english, 'en-US', () => {
+            const isResultVisible = $('feedbackBar')?.classList.contains('active');
+            if (session.active && session.current === currentPhrase && session.mode === 'pronounce' && !isResultVisible) {
+                if (!exerciseTimerInterval) startExerciseTimer(20);
+                if (!isRecognitionActive) startListening();
+            }
+        });
     } else if (session.mode === 'speak') {
         $('speakArea').style.display = 'block';
         renderSpeechInitialState();
+        startExerciseTimer(20);
+        startListening();
     }
 }
 
@@ -2711,6 +3058,9 @@ function processAnswer(isCorrect, userVal) {
     // SECURITY LOCK: Prevent double processing
     if ($('feedbackBar').classList.contains('active')) return;
 
+    clearExerciseTimer();
+    stopListening();
+
     const bar = $('feedbackBar');
     const info = $('feedbackInfo');
     const title = $('feedbackTitle');
@@ -2731,32 +3081,50 @@ function processAnswer(isCorrect, userVal) {
     const mode = session.trainingMode;
 
     if (isCorrect) {
-        title.textContent = "Excelente! 🎉";
+        title.textContent = "🎉 Excelente!";
 
         // Handle yellow/imprecise words feedback for voice modes
         const impreciseWords = (session.mode === 'speak' || session.mode === 'pronounce') ?
             session.current.english.split(' ').filter((_, idx) => session.wordStatus[idx] === 'imprecise') : [];
 
         if (impreciseWords.length > 0) {
-            title.innerHTML = "Quase lá! ⚠️";
-            text.innerHTML = `<span style="color: var(--warning); font-weight: 800; font-size: 0.9rem;">Você acertou, mas tente melhorar a pronúncia de:</span><br>
-                              <b style="color: var(--text);">${impreciseWords.join(', ')}</b><br><br>
-                              Resposta: <b>${makeWordsClickable(session.current.english)}</b>`;
+            title.innerHTML = "⚠️ Quase perfeito!";
+            text.innerHTML = `
+                <div class="feedback-answer-card">
+                    <div class="feedback-answer-label">Resposta correta</div>
+                    <div class="feedback-answer-main">${makeWordsClickable(session.current.english)}</div>
+                    <div style="margin-top: 8px; font-size: 0.85rem; color: var(--warning); font-weight: 700;">
+                        Melhore a pronúncia de: <strong style="color: var(--text);">${impreciseWords.join(', ')}</strong>
+                    </div>
+                </div>
+            `;
         } else {
-            text.innerHTML = `Resposta correta: <b>${makeWordsClickable(session.current.english)}</b>`;
+            text.innerHTML = `
+                <div class="feedback-answer-card">
+                    <div class="feedback-answer-label">Resposta correta</div>
+                    <div class="feedback-answer-main">${makeWordsClickable(session.current.english)}</div>
+                </div>
+            `;
         }
 
-        // Update level for the specific mode
-        session.current.levels[mode]++;
-
-        // If in standard mode, also update the specific sub-mode performed to ensure XP is gained
-        if (mode === 'standard') {
-            const subMode = session.mode; // e.g., 'quiz', 'write', 'speak'
+        if (mode === 'troublesome' || mode === 'multi') {
+            const subMode = session.mode;
             if (session.current.levels[subMode] !== undefined) {
                 session.current.levels[subMode]++;
             }
-            // Cap standard level at 4 so it possa ir de 0 a 4
-            session.current.levels.standard = Math.min(4, session.current.levels.standard);
+        } else {
+            // Update level for the specific mode
+            session.current.levels[mode]++;
+
+            // If in standard mode, also update the specific sub-mode performed to ensure XP is gained
+            if (mode === 'standard') {
+                const subMode = session.mode; // e.g., 'quiz', 'write', 'speak'
+                if (session.current.levels[subMode] !== undefined) {
+                    session.current.levels[subMode]++;
+                }
+                // Cap standard level at 4 so it possa ir de 0 a 4
+                session.current.levels.standard = Math.min(4, session.current.levels.standard);
+            }
         }
 
         // Hide any correction UI leftover from previous wrong answers
@@ -2767,48 +3135,94 @@ function processAnswer(isCorrect, userVal) {
         // Play correct sound
         $('soundCorrect').play().catch(() => { });
     } else {
-        let accuracy;
-        if (session.mode === 'speak' || session.mode === 'pronounce') {
+        const isTimeout = typeof userVal === 'string' && userVal.startsWith('⏰');
+        const isSkipped = userVal === 'Não lembro' || userVal === 'Não consigo pronunciar';
+        const isVoiceMode = session.mode === 'speak' || session.mode === 'pronounce';
+
+        let accuracy = 0;
+        if (isVoiceMode) {
             const targetWords = session.current.english.split(' ');
             const correctCount = Object.values(session.wordStatus || {}).filter(v => v === 'correct' || v === 'imprecise').length;
             accuracy = Math.round((correctCount / targetWords.length) * 100);
-        } else {
+        } else if (!isTimeout && !isSkipped) {
             accuracy = calculateAccuracy(userVal, session.current.english);
         }
 
-        title.textContent = `${accuracy}% de acerto`;
-
-        // HIGHLIGHT DIFFERENCES
-        if (session.mode === 'speak' || session.mode === 'pronounce') {
-            const targetWords = session.current.english.split(' ');
-            let highlightHTML = 'Resultado: ';
-
-            targetWords.forEach((w, idx) => {
-                const status = session.wordStatus[idx];
-                const color = status === 'correct' ? 'var(--success)' : (status === 'imprecise' ? 'var(--warning)' : 'var(--text-muted)');
-                const weight = status ? '800' : '400';
-                const opacity = status ? '1' : '0.5';
-                highlightHTML += `<span style="color: ${color}; font-weight: ${weight}; opacity: ${opacity}">${w}</span> `;
-            });
-
-            highlightHTML += `<br><br><span style="font-size: 0.9rem; color: var(--text-muted);">Frase esperada: <b>${session.current.english}</b></span>`;
-            highlightHTML += `<br><span style="font-size: 0.9rem; color: var(--primary); font-weight: 700;">Dica de pronúncia: <span style="font-family: monospace;">[ ${getPhoneticGuide(session.current.english)} ]</span></span>`;
-
-            text.innerHTML = `Você disse: <del>${escapeHTML(userVal || '...')}</del><br>${highlightHTML}`;
+        if (isTimeout) {
+            title.textContent = "⏰ Tempo Esgotado";
+        } else if (isSkipped) {
+            title.textContent = "💡 Veja a Resposta";
+        } else if (isVoiceMode) {
+            title.textContent = `❌ Quase lá (${accuracy}% capturado)`;
         } else {
-            const highlight = highlightDifferences(userVal, session.current.english);
-            text.innerHTML = `Você disse: <del>${escapeHTML(userVal)}</del><br>${highlight}`;
+            title.textContent = "❌ Resposta Incorreta";
         }
 
-        // Penalties are handled further down in the specialized penalty section (line 971+)
-        // This avoids double decrement.
+        let attemptHTML = '';
+        if (isVoiceMode) {
+            const targetWords = session.current.english.split(' ');
+            const hasAnySpoken = Object.keys(session.wordStatus || {}).length > 0;
+            if (hasAnySpoken) {
+                const wordsColored = targetWords.map((w, idx) => {
+                    const status = session.wordStatus[idx];
+                    const color = status === 'correct' ? 'var(--success)' : (status === 'imprecise' ? 'var(--warning)' : 'var(--text-muted)');
+                    const weight = status ? '800' : '500';
+                    const opacity = status ? '1' : '0.45';
+                    return `<span style="color: ${color}; font-weight: ${weight}; opacity: ${opacity}">${escapeHTML(w)}</span>`;
+                }).join(' ');
+                attemptHTML = `
+                    <div class="feedback-attempt-row">
+                        <span class="feedback-attempt-label">Palavras captadas:</span>
+                        <span>${wordsColored}</span>
+                    </div>
+                `;
+            }
+        } else if (!isTimeout && !isSkipped && userVal && userVal.trim().length > 0) {
+            if (session.mode === 'quiz') {
+                attemptHTML = `
+                    <div class="feedback-attempt-row">
+                        <span class="feedback-attempt-label">Sua escolha:</span>
+                        <del style="color: var(--danger); font-weight: 600;">${escapeHTML(userVal)}</del>
+                    </div>
+                `;
+            } else {
+                const diffWords = highlightDifferences(userVal, session.current.english);
+                attemptHTML = `
+                    <div class="feedback-attempt-row">
+                        <span class="feedback-attempt-label">Você digitou:</span>
+                        <span>${diffWords}</span>
+                    </div>
+                `;
+            }
+        }
+
+        const phoneticHTML = isVoiceMode
+            ? `<div class="feedback-phonetic-pill">🗣️ [ ${getPhoneticGuide(session.current.english)} ]</div>`
+            : '';
+
+        text.innerHTML = `
+            <div class="feedback-answer-card">
+                <div class="feedback-answer-label">Resposta Correta</div>
+                <div class="feedback-answer-main">${makeWordsClickable(session.current.english)}</div>
+                ${phoneticHTML}
+            </div>
+            ${attemptHTML}
+        `;
 
         // Always speak the correct answer on error
-        playAudio(session.current.english);
+        const shouldAutoAdvance = isVoiceMode && appData.settings && appData.settings.autoAdvanceSpeech;
+        if (shouldAutoAdvance) {
+            scheduleAutoAdvance(3200);
+            playAudio(session.current.english, 'en-US', () => {
+                scheduleAutoAdvance(900);
+            });
+        } else {
+            playAudio(session.current.english);
+        }
 
         // Optional Correction - Hide mic and instructions as requested
-        if (session.mode === 'speak' || session.mode === 'pronounce') {
-            $('voiceCorrectionArea').style.display = 'none'; // Hide correction mic area
+        if (isVoiceMode) {
+            $('voiceCorrectionArea').style.display = 'none';
             $('correctionArea').style.display = 'none';
             $('btnContinue').style.display = 'block';
         } else {
@@ -2817,8 +3231,8 @@ function processAnswer(isCorrect, userVal) {
             $('btnContinue').style.display = 'none';
             $('correctionInput').value = '';
             $('correctionInput').style.color = 'var(--text)';
-            $('correctionInput').style.borderColor = 'var(--border)';
-            $('correctionHint').textContent = "REESCREVA PARA CONTINUAR:";
+            $('correctionInput').style.borderColor = 'rgba(239, 68, 68, 0.5)';
+            $('correctionHint').textContent = "✍️ Digite a resposta correta para fixar:";
             $('correctionHint').style.color = 'var(--danger)';
             $('correctionInput').focus();
 
@@ -2827,13 +3241,13 @@ function processAnswer(isCorrect, userVal) {
                     $('btnContinue').style.display = 'block';
                     $('correctionInput').style.color = 'var(--success)';
                     $('correctionInput').style.borderColor = 'var(--success)';
-                    $('correctionHint').textContent = "PERFEITO! AGORA PODE CONTINUAR:";
+                    $('correctionHint').textContent = "✅ Perfeito! Pode avançar:";
                     $('correctionHint').style.color = 'var(--success)';
                 } else {
                     $('btnContinue').style.display = 'none';
                     $('correctionInput').style.color = 'var(--text)';
-                    $('correctionInput').style.borderColor = 'var(--border)';
-                    $('correctionHint').textContent = "REESCREVA PARA CONTINUAR:";
+                    $('correctionInput').style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                    $('correctionHint').textContent = "✍️ Digite a resposta correta para fixar:";
                     $('correctionHint').style.color = 'var(--danger)';
                 }
             };
@@ -2841,7 +3255,23 @@ function processAnswer(isCorrect, userVal) {
     }
 
     // Play Audio only if correct AND not already played in pronounce mode
-    if (isCorrect && session.mode !== 'pronounce') playAudio(session.current.english);
+    if (isCorrect) {
+        const isVoiceMode = session.mode === 'speak' || session.mode === 'pronounce';
+        const shouldAutoAdvance = isVoiceMode && appData.settings && appData.settings.autoAdvanceSpeech;
+
+        if (session.mode !== 'pronounce') {
+            if (shouldAutoAdvance) {
+                scheduleAutoAdvance(3000);
+                playAudio(session.current.english, 'en-US', () => {
+                    scheduleAutoAdvance(800);
+                });
+            } else {
+                playAudio(session.current.english);
+            }
+        } else if (shouldAutoAdvance) {
+            scheduleAutoAdvance(1300);
+        }
+    }
 
     // Update Stats
     appData.history.push({ date: Date.now(), correct: isCorrect });
@@ -2854,7 +3284,8 @@ function processAnswer(isCorrect, userVal) {
     if (isCorrect) {
         // Acerto: Puxa o standard para cima no modo focado
         if (mode !== 'standard') {
-            session.current.levels.standard = Math.min(4, Math.max(session.current.levels.standard || 0, session.current.levels[mode]));
+            const targetSkill = (mode === 'troublesome' || mode === 'multi') ? subMode : mode;
+            session.current.levels.standard = Math.min(4, Math.max(session.current.levels.standard || 0, session.current.levels[targetSkill] || 0));
         }
 
         // Checar se teve palavras amarelas no Speak
@@ -2869,7 +3300,7 @@ function processAnswer(isCorrect, userVal) {
         const trainingMode = session.trainingMode;
 
         // 1. Reduzir nível da HABILIDADE ESPECÍFICA (Quiz, Escrita, etc.)
-        const specificSkill = (trainingMode === 'standard') ? subMode : trainingMode;
+        const specificSkill = (trainingMode === 'standard' || trainingMode === 'troublesome' || trainingMode === 'multi') ? subMode : trainingMode;
         if (session.current.levels && session.current.levels[specificSkill] !== undefined) {
             session.current.levels[specificSkill] = Math.max(0, session.current.levels[specificSkill] - 1);
         }
@@ -2901,7 +3332,7 @@ function processAnswer(isCorrect, userVal) {
         speak: 2.5
     };
     const multiplier = multipliers[session.mode] || 1.0;
-    const modeForLevel = session.trainingMode === 'standard' ? session.mode : session.trainingMode;
+    const modeForLevel = (session.trainingMode === 'standard' || session.trainingMode === 'troublesome' || session.trainingMode === 'multi') ? session.mode : session.trainingMode;
     const currentLvl = session.current.levels[modeForLevel] || 0;
 
     let interval = SRS_INTERVALS[Math.min(currentLvl, 9)] * 60 * 1000 * multiplier;
@@ -2920,6 +3351,7 @@ function processAnswer(isCorrect, userVal) {
 
     saveData(appData);
     updateGlobalLevel();
+    updateTroublesomeCount();
 }
 
 function handleSpeakDontRemember() {
@@ -2967,6 +3399,7 @@ function updateStreak() {
 }
 
 function continueSession() {
+    clearAutoAdvanceTimer();
     $('feedbackBar').classList.remove('active');
     nextPhrase();
 }
@@ -3201,49 +3634,61 @@ function editDistance(s1, s2) {
 function escapeHTML(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function escapeJS(s) { return s.replace(/'/g, "\\'"); }
 
-function playAudio(t, lang = 'en-US', onComplete = null) {
-    if (typeof lang === 'function') {
-        onComplete = lang;
-        lang = 'en-US';
-    }
+let currentUtterance = null;
+let playAudioTimer = null;
 
+function stopAllAudio() {
+    if (playAudioTimer) {
+        clearTimeout(playAudioTimer);
+        playAudioTimer = null;
+    }
+    if (currentUtterance) {
+        currentUtterance.onend = null;
+        currentUtterance.onerror = null;
+        currentUtterance = null;
+    }
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = null;
+        window.speechSynthesis.cancel();
+    }
+}
+
+function playAudio(t, lang = 'en-US', onComplete = null) {
     if (!t || !('speechSynthesis' in window)) {
         if (onComplete) onComplete();
         return;
     }
 
-    unlockAudio(); // Ensure unlocked
-    window.speechSynthesis.cancel();
-
-    // Pausa temporariamente o reconhecimento para não captar o próprio áudio
+    // Sync mic: Check if active before stopping
     const wasListening = isRecognitionActive;
-    isAudioPlaying = true;
-    if (currentRecognition) {
-        try {
-            currentRecognition.onresult = null;
-            currentRecognition.onerror = null;
-            currentRecognition.onend = null;
-            currentRecognition.abort();
-        } catch (e) {}
-        currentRecognition = null;
-    }
+    if (wasListening) stopListening();
+
+    // Stop any previous audio and clear its callbacks before starting new audio
+    stopAllAudio();
+    unlockAudio(); // Ensure unlocked
 
     const u = new SpeechSynthesisUtterance(t);
+    currentUtterance = u;
 
-    const finishAudio = () => {
-        isAudioPlaying = false;
+    // Sync mic / callback: Restart after audio ends
+    u.onend = () => {
+        if (currentUtterance === u) currentUtterance = null;
         if (onComplete) onComplete();
-        // Só reinicia se o usuário já havia ligado o microfone intencionalmente antes do áudio
+        // Don't restart if we are showing results or if session ended
         const isResultVisible = $('feedbackBar')?.classList.contains('active');
-        if (wasListening && session.active && !isResultVisible && (session.mode === 'speak' || session.mode === 'pronounce')) {
-            startListening();
+        if (session.active && !isResultVisible && (wasListening || session.mode === 'pronounce') && (session.mode === 'speak' || session.mode === 'pronounce')) {
+            if (!exerciseTimerInterval) startExerciseTimer(20);
+            if (!isRecognitionActive) startListening();
         }
     };
 
-    u.onend = finishAudio;
-    u.onerror = finishAudio;
+    u.onerror = () => {
+        if (currentUtterance === u) currentUtterance = null;
+        if (onComplete) onComplete();
+    };
 
     const speak = () => {
+        if (currentUtterance !== u) return;
         const voices = window.speechSynthesis.getVoices();
         let preferredVoice = null;
 
@@ -3275,7 +3720,10 @@ function playAudio(t, lang = 'en-US', onComplete = null) {
             speak();
         };
     } else {
-        setTimeout(speak, 50);
+        playAudioTimer = setTimeout(() => {
+            playAudioTimer = null;
+            speak();
+        }, 50);
     }
 }
 
@@ -4291,29 +4739,24 @@ function addPhrase() {
 
 function highlightDifferences(user, correct) {
     const userWords = normalizeText(user).split(' ');
-    const correctWords = correct.split(' '); // Original words for display
+    const correctWords = correct.split(' ');
     const normCorrectWords = correctWords.map(w => normalizeText(w));
 
-    let html = 'Resultado: ';
+    let html = '';
 
     userWords.forEach((uWord, i) => {
         if (!uWord) return;
 
         if (uWord === normCorrectWords[i]) {
-            // Correct word, correct position
-            html += `<span style="color: var(--success); font-weight: 700;">${uWord}</span> `;
+            html += `<span style="color: var(--success); font-weight: 700;">${escapeHTML(uWord)}</span> `;
         } else if (normCorrectWords.includes(uWord)) {
-            // Correct word, WRONG position
-            html += `<span style="color: var(--warning); font-weight: 700; text-decoration: underline;">${uWord}</span> `;
+            html += `<span style="color: var(--warning); font-weight: 700; text-decoration: underline;">${escapeHTML(uWord)}</span> `;
         } else {
-            // Incorrect word
-            html += `<span style="color: var(--danger); font-weight: 800;">${uWord}</span> `;
+            html += `<span style="color: var(--danger); font-weight: 800; text-decoration: line-through;">${escapeHTML(uWord)}</span> `;
         }
     });
 
-    html += `<br><br><span style="font-size: 0.9rem; color: var(--text-muted);">Frase esperada: <b>${correct}</b></span>`;
-    html += `<br><span style="font-size: 0.9rem; color: var(--primary); font-weight: 700;">Dica de pronúncia: <span style="font-family: monospace;">[ ${getPhoneticGuide(correct)} ]</span></span>`;
-    return html;
+    return html.trim();
 }
 
 // Centralized Modal Management
@@ -4828,10 +5271,11 @@ window.onload = () => {
             }
         }
 
-        // Atalho Global para Ouvir Áudio: Ctrl+Espaço ou Alt+Espaço
+        // Atalho Global para Ouvir Áudio: Ctrl+Espaço ou Alt+Espaço (exceto no treino de escrita antes de responder)
         if ((e.ctrlKey || e.altKey) && (e.code === 'Space' || e.key === ' ')) {
             e.preventDefault();
-            if (session.active && session.current) {
+            const isAnsweringWrite = session.active && session.mode === 'write' && !$('feedbackBar')?.classList.contains('active');
+            if (!isAnsweringWrite && session.active && session.current) {
                 playAudio(session.current.english);
             } else if (typeof handsFreeSession !== 'undefined' && handsFreeSession.active && handsFreeSession.current) {
                 playAudio(handsFreeSession.current.english);
@@ -4911,29 +5355,7 @@ window.onload = () => {
 
 let currentRecognition = null;
 let isRecognitionActive = false;
-let recognitionRestartTimer = null;
-let isAudioPlaying = false;
-let screenWakeLock = null;
-
-async function requestWakeLock() {
-    if ('wakeLock' in navigator && !screenWakeLock) {
-        try {
-            screenWakeLock = await navigator.wakeLock.request('screen');
-            screenWakeLock.addEventListener('release', () => {
-                screenWakeLock = null;
-            });
-        } catch (e) {}
-    }
-}
-
-function releaseWakeLock() {
-    if (screenWakeLock) {
-        try {
-            screenWakeLock.release();
-        } catch (e) {}
-        screenWakeLock = null;
-    }
-}
+let micStartTimer = null;
 
 function getActiveMicElements() {
     const isPronounce = session.mode === 'pronounce';
@@ -4953,32 +5375,26 @@ function toggleListening() {
 }
 
 function stopListening() {
-    isRecognitionActive = false;
-    releaseWakeLock();
-    if (recognitionRestartTimer) {
-        clearTimeout(recognitionRestartTimer);
-        recognitionRestartTimer = null;
+    if (micStartTimer) {
+        clearTimeout(micStartTimer);
+        micStartTimer = null;
     }
     if (currentRecognition) {
         try {
             currentRecognition.onresult = null;
             currentRecognition.onerror = null;
             currentRecognition.onend = null;
+            currentRecognition.onstart = null;
             currentRecognition.abort();
-        } catch (e) {}
+        } catch (e) { }
         currentRecognition = null;
     }
+    isRecognitionActive = false;
     const { btn, status } = getActiveMicElements();
     if (btn) btn.classList.remove('listening');
     if (status) {
-        const correctCount = Object.values(session.wordStatus || {}).filter(v => v === 'correct' || v === 'imprecise').length;
-        if (correctCount > 0) {
-            status.textContent = "🎙️ Toque para continuar falando...";
-            status.style.color = "var(--primary)";
-        } else {
-            status.textContent = "⚪ Toque para falar";
-            status.style.color = "var(--text-muted)";
-        }
+        status.textContent = "⚪ Microfone Desligado";
+        status.style.color = "var(--text-muted)";
     }
 }
 
@@ -4986,43 +5402,29 @@ function startListening() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
 
-    isRecognitionActive = true;
-    requestWakeLock();
+    // Se o áudio da pronúncia estiver tocando, interrompe na mesma hora para o microfone não captar
+    stopAllAudio();
 
-    // Atualiza imediatamente o botão e status visual para 'Ativo'
-    const { btn, status } = getActiveMicElements();
-    if (btn) btn.classList.add('listening');
-    if (status) {
-        status.textContent = "🎙️ Microfone Ligado (Ouvindo...)";
-        status.style.color = "var(--danger)";
+    if (micStartTimer) {
+        clearTimeout(micStartTimer);
+        micStartTimer = null;
     }
 
-    if (!isAudioPlaying) {
-        runSpeechSession();
-    }
-}
-
-function runSpeechSession() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return;
-    if (!isRecognitionActive || !session.active) return;
-    if (session.mode !== 'speak' && session.mode !== 'pronounce') return;
-    if (isAudioPlaying) return;
-
-    if (recognitionRestartTimer) {
-        clearTimeout(recognitionRestartTimer);
-        recognitionRestartTimer = null;
-    }
-
-    // Fecha qualquer sessão anterior antes de instanciar nova
     if (currentRecognition) {
         try {
             currentRecognition.onresult = null;
             currentRecognition.onerror = null;
             currentRecognition.onend = null;
+            currentRecognition.onstart = null;
             currentRecognition.abort();
-        } catch (e) {}
+        } catch (e) { }
         currentRecognition = null;
+    }
+
+    // Garante que o cronômetro de 20s inicie caso o usuário tenha ativado o microfone antes do áudio terminar
+    const isResultVisible = $('feedbackBar')?.classList.contains('active');
+    if (session.active && !isResultVisible && (session.mode === 'pronounce' || session.mode === 'speak') && !exerciseTimerInterval) {
+        startExerciseTimer(20);
     }
 
     const rec = new SR();
@@ -5030,27 +5432,25 @@ function runSpeechSession() {
     rec.lang = 'en-US';
     rec.interimResults = true;
     rec.continuous = true;
-    try { rec.maxAlternatives = 3; } catch (e) {}
 
     const { btn, status, hint } = getActiveMicElements();
+
+    isRecognitionActive = true;
     if (btn) btn.classList.add('listening');
     if (status) {
-        status.textContent = "🎙️ Microfone Ligado (Ouvindo...)";
+        status.textContent = "🎙️ Microfone Ativo (Gravando...)";
         status.style.color = "var(--danger)";
     }
 
     let success = false;
 
     rec.onstart = () => {
-        if (!isRecognitionActive) {
-            try { rec.abort(); } catch (e) {}
-            return;
-        }
-        const els = getActiveMicElements();
-        if (els.btn) els.btn.classList.add('listening');
-        if (els.status) {
-            els.status.textContent = "🎙️ Microfone Ligado (Ouvindo...)";
-            els.status.style.color = "var(--danger)";
+        if (currentRecognition === rec && isRecognitionActive) {
+            if (btn) btn.classList.add('listening');
+            if (status) {
+                status.textContent = "🎙️ Microfone Ativo (Gravando...)";
+                status.style.color = "var(--danger)";
+            }
         }
     };
 
@@ -5075,10 +5475,10 @@ function runSpeechSession() {
         if (!session.wordStatus) session.wordStatus = {};
 
         normTargetWords.forEach((ntw, targetIdx) => {
-            // Se já foi correspondido perfeitamente, mantém
+            // If already perfectly matched, skip
             if (session.wordStatus[targetIdx] === 'correct') return;
 
-            // 1. Direct Regex Match
+            // 1. Check for Perfect Match (Direct Regex)
             const regex = new RegExp(`\\b${ntw}\\b`, 'i');
             if (regex.test(heard)) {
                 session.wordStatus[targetIdx] = 'correct';
@@ -5093,6 +5493,7 @@ function runSpeechSession() {
                     session.matchedIndices.add(targetIdx);
                     break;
                 } else if (sim > 0.45) {
+                    // Imprecise match (Yellow) - counts for completion but marked for improvement
                     session.wordStatus[targetIdx] = 'imprecise';
                 }
             }
@@ -5106,11 +5507,11 @@ function runSpeechSession() {
         const isSpeakMode = session.mode === 'speak';
 
         normTargetWords.forEach((ntw, idx) => {
-            const wordStatus = session.wordStatus[idx];
-            const foundMatch = wordStatus !== undefined;
-            const isImprecise = wordStatus === 'imprecise';
+            const status = session.wordStatus[idx];
+            const foundMatch = status !== undefined;
+            const isImprecise = status === 'imprecise';
 
-            const color = wordStatus === 'correct' ? 'var(--success)' : (isImprecise ? 'var(--warning)' : 'var(--text-muted)');
+            const color = status === 'correct' ? 'var(--success)' : (isImprecise ? 'var(--warning)' : 'var(--text-muted)');
             const opacity = foundMatch ? '1' : '0.4';
             const phon = getPhoneticGuide(targetWords[idx]);
 
@@ -5138,20 +5539,21 @@ function runSpeechSession() {
 
         if (isFullMatch) {
             success = true;
-            isRecognitionActive = false; // Parar o microfone pois acertou o teste!
-            rec.onresult = null;
-            rec.onerror = null;
-            rec.onend = null;
-            try { rec.stop(); } catch (e) {}
+            isRecognitionActive = false;
             currentRecognition = null;
+            // Security: Nullify onresult and onend to prevent multiple triggers
+            rec.onresult = null;
+            rec.onend = null;
+            rec.onerror = null;
+            try { rec.stop(); } catch (err) { }
 
-            const els = getActiveMicElements();
-            if (els.btn) els.btn.classList.remove('listening');
-            if (els.status) {
-                els.status.textContent = "✅ Concluído!";
-                els.status.style.color = "var(--success)";
+            if (btn) btn.classList.remove('listening');
+            if (status) {
+                status.textContent = "✅ Concluído!";
+                status.style.color = "var(--success)";
             }
-            if (els.hint) els.hint.innerHTML = `${rawHTML}${displayedHTML || "Perfeito!"}${statusHTML}`;
+            // Update the UI one last time
+            if (hint) hint.innerHTML = `${rawHTML}${displayedHTML || "Perfeito!"}${statusHTML}`;
 
             setTimeout(() => processAnswer(true, session.current.english), 800);
         } else {
@@ -5160,106 +5562,65 @@ function runSpeechSession() {
     };
 
     rec.onerror = (e) => {
-        if (e.error === 'no-speech') return; // Normal no celular quando há pausa ou silêncio
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-            console.error('Permissão de microfone negada:', e.error);
-            stopListening();
-            return;
-        }
-        console.warn('Speech recognition warning:', e.error);
+        if (e.error === 'no-speech' || e.error === 'aborted') return;
+        console.error('Speech error:', e.error);
     };
 
     rec.onend = () => {
-        if (!success) {
-            stopListening();
+        // Only restart if not successful AND still intended to be listening AND session is active
+        const isCorrectMode = session.mode === 'speak' || session.mode === 'pronounce';
+        const isFeedbackOpen = $('feedbackBar')?.classList.contains('active');
+        if (!success && isRecognitionActive && session.active && isCorrectMode && !isFeedbackOpen && currentRecognition === rec) {
+            if (micStartTimer) clearTimeout(micStartTimer);
+            micStartTimer = setTimeout(() => {
+                micStartTimer = null;
+                try {
+                    if (!success && isRecognitionActive && session.active && currentRecognition === rec) {
+                        rec.start();
+                    }
+                } catch (err) {
+                    console.error("Erro ao reiniciar:", err);
+                }
+            }, 120);
+        } else {
+            // Ensure visual state is updated if we stop
+            if (currentRecognition === rec) stopListening();
         }
     };
 
     try {
         rec.start();
     } catch (err) {
-        console.warn("Falha ao iniciar SpeechRecognition:", err);
-        stopListening();
+        if (micStartTimer) clearTimeout(micStartTimer);
+        micStartTimer = setTimeout(() => {
+            micStartTimer = null;
+            try {
+                if (isRecognitionActive && session.active && currentRecognition === rec) {
+                    rec.start();
+                }
+            } catch (e) { }
+        }, 150);
     }
 }
-
-let correctionRecognition = null;
-let isCorrectionActive = false;
-let correctionRestartTimer = null;
 
 function startListeningCorrection() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return alert("Navegador sem suporte a voz.");
 
-    isCorrectionActive = true;
-    requestWakeLock();
-    const btn = $('micBtnCorrection');
-    const hint = $('correctionVoiceHint');
-    if (btn) btn.classList.add('listening');
-    if (hint) hint.textContent = "Ouvindo...";
-
-    runCorrectionSpeechSession();
-}
-
-function stopListeningCorrection() {
-    isCorrectionActive = false;
-    releaseWakeLock();
-    if (correctionRestartTimer) {
-        clearTimeout(correctionRestartTimer);
-        correctionRestartTimer = null;
-    }
-    if (correctionRecognition) {
-        try {
-            correctionRecognition.onresult = null;
-            correctionRecognition.onerror = null;
-            correctionRecognition.onend = null;
-            correctionRecognition.abort();
-        } catch (e) {}
-        correctionRecognition = null;
-    }
-    const btn = $('micBtnCorrection');
-    const hint = $('correctionVoiceHint');
-    if (btn) btn.classList.remove('listening');
-    if (hint) hint.textContent = "⚪ Microfone Desligado";
-}
-
-function runCorrectionSpeechSession() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR || !isCorrectionActive || !session.active) return;
-
-    if (correctionRestartTimer) {
-        clearTimeout(correctionRestartTimer);
-        correctionRestartTimer = null;
-    }
-
-    if (correctionRecognition) {
-        try {
-            correctionRecognition.onresult = null;
-            correctionRecognition.onerror = null;
-            correctionRecognition.onend = null;
-            correctionRecognition.abort();
-        } catch (e) {}
-        correctionRecognition = null;
-    }
+    if (currentRecognition) currentRecognition.stop();
 
     const recognition = new SR();
-    correctionRecognition = recognition;
+    currentRecognition = recognition;
     recognition.lang = 'en-US';
     recognition.interimResults = true;
     recognition.continuous = true;
-    try { recognition.maxAlternatives = 3; } catch (e) {}
 
     let success = false;
+    let finalTranscript = '';
 
     recognition.onstart = () => {
-        if (!isCorrectionActive) {
-            try { recognition.abort(); } catch (e) {}
-            return;
-        }
-        const btn = $('micBtnCorrection');
-        const hint = $('correctionVoiceHint');
-        if (btn) btn.classList.add('listening');
-        if (hint) hint.textContent = "Ouvindo...";
+        $('micBtnCorrection').classList.add('listening');
+        $('correctionVoiceHint').textContent = "Ouvindo...";
     };
 
     recognition.onresult = (event) => {
@@ -5277,19 +5638,10 @@ function runCorrectionSpeechSession() {
         const t = (fullTranscript + interimTranscript).trim();
         session.lastTranscript = t;
         const heard = normalizeText(t);
-        const heardWords = heard.split(' ').filter(w => w.length > 0);
+        const heardWords = heard.split(' ');
         const target = normalizeText(session.current.english);
         const targetWords = session.current.english.split(' ');
         const normTargetWords = targetWords.map(w => normalizeText(w));
-
-        let lastFirstWordIdx = -1;
-        for (let i = heardWords.length - 1; i >= 0; i--) {
-            if (heardWords[i] === normTargetWords[0]) {
-                lastFirstWordIdx = i;
-                break;
-            }
-        }
-        const recentAttempt = lastFirstWordIdx !== -1 ? heardWords.slice(lastFirstWordIdx) : [];
 
         let anyImpreciseMatch = false;
         for (let i = 0; i < event.results.length; i++) {
@@ -5311,6 +5663,16 @@ function runCorrectionSpeechSession() {
             heard.includes(" " + target + " ");
 
         let displayedHTML = "";
+        let lastFirstWordIdx = -1;
+        for (let i = heardWords.length - 1; i >= 0; i--) {
+            if (heardWords[i] === normTargetWords[0]) {
+                lastFirstWordIdx = i;
+                break;
+            }
+        }
+
+        const recentAttempt = lastFirstWordIdx !== -1 ? heardWords.slice(lastFirstWordIdx) : [];
+
         normTargetWords.forEach((ntw, idx) => {
             if (isFullMatch) {
                 displayedHTML += `<span style="color: var(--success); font-weight: 700;">${targetWords[idx]}</span> `;
@@ -5324,15 +5686,8 @@ function runCorrectionSpeechSession() {
         if (isFullMatch) {
             if (!anyImpreciseMatch && latestConfidence >= 0.88) {
                 success = true;
-                isCorrectionActive = false;
-                recognition.onresult = null;
-                recognition.onerror = null;
-                recognition.onend = null;
-                try { recognition.stop(); } catch (e) {}
-                correctionRecognition = null;
-
-                const hint = $('correctionVoiceHint');
-                if (hint) hint.innerHTML = `<span style="color: var(--success); font-weight: 800;">Pronúncia correta! 🎉</span>`;
+                recognition.stop();
+                $('correctionVoiceHint').innerHTML = `<span style="color: var(--success); font-weight: 800;">Pronúncia correta! 🎉</span>`;
                 setTimeout(() => {
                     $('btnContinue').style.display = 'block';
                     $('voiceCorrectionArea').style.display = 'none';
@@ -5340,38 +5695,27 @@ function runCorrectionSpeechSession() {
                     playAudio(session.current.english);
                 }, 800);
             } else {
-                const hint = $('correctionVoiceHint');
-                if (hint) hint.innerHTML = `<span style="color: var(--warning); font-weight: 800;">Pronúncia imprecisa! Repita a frase.</span>`;
+                $('correctionVoiceHint').innerHTML = `<span style="color: var(--warning); font-weight: 800;">Pronúncia imprecisa! Repita a frase.</span>`;
             }
         } else if (displayedHTML !== "") {
-            const hint = $('correctionVoiceHint');
-            if (hint) hint.innerHTML = `Ouvi: "${displayedHTML}"`;
+            $('correctionVoiceHint').innerHTML = `Ouvi: "${displayedHTML}"`;
         } else {
-            const hint = $('correctionVoiceHint');
-            if (hint) hint.textContent = "Ouvindo...";
-        }
-    };
-
-    recognition.onerror = (e) => {
-        if (e.error === 'no-speech') return;
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-            stopListeningCorrection();
-            return;
+            $('correctionVoiceHint').textContent = "Ouvindo...";
         }
     };
 
     recognition.onend = () => {
-        if (!success) {
-            stopListeningCorrection();
+        if (!success && session.active && currentRecognition === recognition) {
+            setTimeout(() => {
+                try { recognition.start(); } catch (e) { }
+            }, 300);
+        } else {
+            $('micBtnCorrection').classList.remove('listening');
+            $('correctionVoiceHint').textContent = "⚪ Microfone Desligado";
         }
     };
 
-    try {
-        recognition.start();
-    } catch (e) {
-        console.warn("Falha ao iniciar SpeechRecognition na correção:", e);
-        stopListeningCorrection();
-    }
+    recognition.start();
 }
 
 function deletePhrase(id) {
@@ -5599,6 +5943,8 @@ async function generateAutomaticPhrases(count = 10, originalMode = 'standard') {
         setTimeout(() => {
             if (originalMode === 'speedrun') {
                 startSpeedRun();
+            } else if (originalMode === 'multi') {
+                startMultiModeReview();
             } else {
                 startReview(originalMode);
             }

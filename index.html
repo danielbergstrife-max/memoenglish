@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MemoEnglish - Premium</title>
-    <link rel="stylesheet" href="style.css?v=3.0.7">
+    <link rel="stylesheet" href="style.css?v=4.0.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -160,10 +160,6 @@
                         <button id="btnMainStart" class="btn btn-primary btn-lg"
                             style="padding: 18px 40px; font-size: 1.1rem;" onclick="startReview('standard')">⚡
                             Iniciar</button>
-                        <button id="btnTroublesome" class="btn-troublesome" onclick="startTroublesomeReview()" title="Praticar frases que você mais errou ou com menor nível">
-                            <span>⚠️ Treinar Dificuldades</span>
-                            <span id="troublesomeCount" class="btn-troublesome-badge">0</span>
-                        </button>
                     </div>
                 </div>
 
@@ -220,31 +216,55 @@
 
             <!-- TRAINING MODES SECTION -->
             <div style="margin-bottom: 40px;">
-                <h3 style="margin-bottom: 24px; font-weight: 800; display: flex; align-items: center; gap: 10px;">
-                    🎯 Modos de Treino
-                </h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+                    <h3 style="margin: 0; font-weight: 800; display: flex; align-items: center; gap: 10px;">
+                        🎯 Modos de Treino
+                    </h3>
+                    <button id="btnToggleMultiMode" class="btn btn-outline btn-sm" onclick="toggleMultiModeSelect()" style="border-radius: 20px; padding: 8px 16px; font-weight: 700;">
+                        ☑️ Combinar Modos
+                    </button>
+                </div>
+
+                <!-- BARRA DE TREINO COMBINADO -->
+                <div id="multiModeBar" class="multi-mode-bar" style="display: none;">
+                    <div class="multi-mode-info">
+                        <span id="multiModeStatusText">Selecione 2 ou mais modos abaixo para combinar na mesma sessão</span>
+                    </div>
+                    <div class="multi-mode-actions">
+                        <button class="btn btn-outline btn-sm" onclick="clearMultiModeSelection()">Cancelar</button>
+                        <button id="btnStartMultiMode" class="btn btn-primary btn-sm" onclick="startMultiModeReview()" disabled>
+                            🚀 Iniciar Combinado (0)
+                        </button>
+                    </div>
+                </div>
+
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
-                    <div class="card mode-card" onclick="startReview('quiz')">
+                    <div class="card mode-card" data-mode="quiz" onclick="handleModeCardClick('quiz')">
+                        <span class="mode-select-check" onclick="event.stopPropagation(); toggleModeInMulti('quiz')" title="Selecionar para combinar">✓</span>
                         <div style="font-size: 2rem; margin-bottom: 12px;">🧩</div>
                         <h4 style="margin-bottom: 4px;">Foco: Quiz</h4>
                         <p style="font-size: 0.85rem; color: var(--text-muted);">Reconhecimento visual</p>
                     </div>
-                    <div class="card mode-card" onclick="startReview('write')">
+                    <div class="card mode-card" data-mode="write" onclick="handleModeCardClick('write')">
+                        <span class="mode-select-check" onclick="event.stopPropagation(); toggleModeInMulti('write')" title="Selecionar para combinar">✓</span>
                         <div style="font-size: 2rem; margin-bottom: 12px;">✍️</div>
                         <h4 style="margin-bottom: 4px;">Foco: Escrita</h4>
                         <p style="font-size: 0.85rem; color: var(--text-muted);">Prática de digitação</p>
                     </div>
-                    <div class="card mode-card" onclick="startReview('listen')">
+                    <div class="card mode-card" data-mode="listen" onclick="handleModeCardClick('listen')">
+                        <span class="mode-select-check" onclick="event.stopPropagation(); toggleModeInMulti('listen')" title="Selecionar para combinar">✓</span>
                         <div style="font-size: 2rem; margin-bottom: 12px;">👂</div>
                         <h4 style="margin-bottom: 4px;">Foco: Escuta</h4>
                         <p style="font-size: 0.85rem; color: var(--text-muted);">Entender áudio em inglês</p>
                     </div>
-                    <div class="card mode-card" onclick="startReview('pronounce')">
+                    <div class="card mode-card" data-mode="pronounce" onclick="handleModeCardClick('pronounce')">
+                        <span class="mode-select-check" onclick="event.stopPropagation(); toggleModeInMulti('pronounce')" title="Selecionar para combinar">✓</span>
                         <div style="font-size: 2rem; margin-bottom: 12px;">🗣️</div>
                         <h4 style="margin-bottom: 4px;">Foco: Pronúncia</h4>
                         <p style="font-size: 0.85rem; color: var(--text-muted);">Treino com guia fonético</p>
                     </div>
-                    <div class="card mode-card" onclick="startReview('speak')">
+                    <div class="card mode-card" data-mode="speak" onclick="handleModeCardClick('speak')">
+                        <span class="mode-select-check" onclick="event.stopPropagation(); toggleModeInMulti('speak')" title="Selecionar para combinar">✓</span>
                         <div style="font-size: 2rem; margin-bottom: 12px;">🎙️</div>
                         <h4 style="margin-bottom: 4px;">Foco: Fala</h4>
                         <p style="font-size: 0.85rem; color: var(--text-muted);">Prática de voz pura</p>
@@ -261,6 +281,14 @@
                         </div>
                         <h4 style="margin-bottom: 4px;">Speed Run (5 min)</h4>
                         <p style="font-size: 0.85rem; color: var(--text-muted);">Escreva com blocos de letras em 5 minutos</p>
+                    </div>
+                    <div id="btnTroublesome" class="card mode-card" onclick="startTroublesomeReview()" style="border-top: 3px solid #f59e0b; cursor: pointer;" title="Praticar cada frase no treino em que ela está com o menor nível">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                            <span style="font-size: 2rem;">⚠️</span>
+                            <span id="troublesomeCount" class="btn-troublesome-badge">0</span>
+                        </div>
+                        <h4 style="margin-bottom: 4px;">Treinar Dificuldades</h4>
+                        <p style="font-size: 0.85rem; color: var(--text-muted);">Testes no menor nível de cada frase</p>
                     </div>
                 </div>
             </div>
@@ -361,6 +389,18 @@
                     <label class="switch">
                         <input type="checkbox" id="settingSlowAudio"
                             onchange="updateSetting('slowAudio', this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="settings-item">
+                    <div>
+                        <div style="font-weight: 700;">Avanço Automático na Fala e Pronúncia</div>
+                        <div style="color: var(--text-muted); font-size: 0.9rem;">Prosseguir automaticamente para a próxima frase nos testes de voz</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="settingAutoAdvanceSpeech"
+                            onchange="updateSetting('autoAdvanceSpeech', this.checked)">
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -551,7 +591,7 @@
                     style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); text-align: center;">
                     <p style="font-size: 0.9rem; font-weight: 700; color: var(--primary); margin-bottom: 8px;">📧
                         Contato: systemmemoenglish@gmail.com</p>
-                    <p style="font-size: 0.8rem; color: var(--text-muted);">MemoEnglish Premium v3.0.0<br>© 2026 Todos
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">MemoEnglish Premium v4.0.0<br>© 2026 Todos
                         os direitos reservados.</p>
                 </div>
             </div>
@@ -670,16 +710,20 @@
                     <div id="modeLabel"
                         style="color: var(--text-muted); font-weight: 600; font-size: 0.9rem; text-transform: uppercase;">
                         Modo: Tradução</div>
+                    <div id="exerciseTimerContainer" class="exercise-timer-container" style="display: none;">
+                        <div class="exercise-timer-info">
+                            <span id="exerciseTimerText" class="exercise-timer-badge">⏱️ 30s</span>
+                        </div>
+                        <div class="exercise-timer-bar">
+                            <div id="exerciseTimerFill" class="exercise-timer-fill"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- QUIZ AREA -->
                 <div id="quizArea" class="quiz-options"></div>
 
                 <div id="writeArea" style="display: none; animation: fadeIn 0.5s ease; position: relative;">
-                    <div style="text-align: center; margin-bottom: 24px;">
-                        <button class="btn btn-outline" onclick="playAudio(session.current.english)"
-                            style="padding: 16px 32px; font-size: 1rem; font-weight: 700;">🔊 Ouvir Áudio <span class="desktop-shortcut">(Ctrl+Espaço)</span></button>
-                    </div>
                     <div id="writeInputWrapper" class="input-box"
                         style="position: relative; margin-bottom: 20px; padding: 0; min-height: 120px; background: var(--surface-glass); overflow: hidden; border: 2px solid var(--border);">
                         <div id="writeInputMirror"
@@ -782,12 +826,18 @@
                             Toque e repita a frase</p>
                     </div>
 
-                    <div style="margin-top: 32px; display: flex; justify-content: center; gap: 16px;">
+                    <div style="margin-top: 24px; display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
                         <button class="btn btn-outline" onclick="playAudio(session.current.english)"
                             style="padding: 12px 24px; font-size: 0.9rem;">🔊 Ouvir Áudio</button>
                         <button class="btn btn-outline btn-sm" onclick="handlePronounceCantPronounce()"
                             style="color: var(--danger); border-color: transparent;">🔇 Não consigo
                             pronunciar</button>
+                    </div>
+                    <div style="margin-top: 18px; display: flex; justify-content: center;">
+                        <label class="voice-auto-advance-toggle">
+                            <input type="checkbox" class="autoAdvanceSpeechToggle" onchange="updateSetting('autoAdvanceSpeech', this.checked)">
+                            <span>⚡ Prosseguir automaticamente</span>
+                        </label>
                     </div>
                 </div>
 
@@ -800,9 +850,13 @@
                     <p id="micHint"
                         style="margin-top: 32px; color: var(--text-muted); font-weight: 600; font-size: 1.1rem;">
                         Toque para falar</p>
-                    <div style="margin-top: 40px;">
+                    <div style="margin-top: 32px; display: flex; flex-direction: column; align-items: center; gap: 16px;">
                         <button class="btn btn-outline btn-sm" onclick="handleSpeakDontRemember()">❌ Não
                             lembro</button>
+                        <label class="voice-auto-advance-toggle">
+                            <input type="checkbox" class="autoAdvanceSpeechToggle" onchange="updateSetting('autoAdvanceSpeech', this.checked)">
+                            <span>⚡ Prosseguir automaticamente</span>
+                        </label>
                     </div>
                 </div>
             </div>
@@ -929,21 +983,23 @@
     <div id="feedbackBar" class="feedback-bar">
         <div class="feedback-content">
             <div class="feedback-info" id="feedbackInfo">
-                <h4 id="feedbackTitle">Correto!</h4>
-                <div id="feedbackText" style="color: var(--text-muted);"></div>
+                <div class="feedback-header-row">
+                    <h4 id="feedbackTitle">Correto!</h4>
+                    <button type="button" class="btn btn-outline btn-sm feedback-audio-btn" onclick="if(session.current) playAudio(session.current.english)" title="Ouvir pronúncia correta">
+                        🔊 Ouvir
+                    </button>
+                </div>
+                <div id="feedbackText" class="feedback-body"></div>
             </div>
 
-            <div id="correctionArea" style="display: none; flex: 1; margin: 0 20px;">
-                <p id="correctionHint"
-                    style="font-size: 0.9rem; color: var(--danger); margin-bottom: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">
-                    ⚠️ Reescreva a frase corretamente:</p>
-                <input type="text" id="correctionInput" class="input-box"
-                    style="padding: 20px; font-size: 1.4rem; font-weight: 700; border-color: var(--danger); box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);"
-                    placeholder="Digite aqui..." autocomplete="off">
+            <div id="correctionArea" class="feedback-correction-box" style="display: none;">
+                <p id="correctionHint" class="feedback-correction-hint">
+                    ✍️ Digite a frase correta para fixar:</p>
+                <input type="text" id="correctionInput" class="input-box feedback-correction-input"
+                    placeholder="Digite a resposta correta em inglês..." autocomplete="off">
             </div>
 
-
-            <div id="voiceCorrectionArea" style="display: none; flex: 1; margin: 0 40px; text-align: center;">
+            <div id="voiceCorrectionArea" style="display: none; text-align: center;">
                 <p style="font-size: 0.8rem; color: var(--danger); margin-bottom: 8px; font-weight: 800;">FALE
                     CORRETAMENTE PARA CONTINUAR:</p>
                 <button id="micBtnCorrection" class="mic-btn" style="width: 50px; height: 50px; font-size: 1.2rem;"
@@ -952,7 +1008,7 @@
                     Aguardando...</p>
             </div>
 
-            <button class="btn btn-primary" id="btnContinue" onclick="continueSession()">Continuar</button>
+            <button class="btn btn-primary feedback-continue-btn" id="btnContinue" onclick="continueSession()">Continuar →</button>
         </div>
     </div>
 
@@ -1468,8 +1524,8 @@
 <audio id="soundCorrect" src="https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3"></audio>
 <audio id="soundFinish" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"></audio>
 
-<script src="phonetics.js?v=3.0.7"></script>
-<script src="app.js?v=3.0.7"></script>
+<script src="phonetics.js?v=4.0.0"></script>
+<script src="app.js?v=4.0.0"></script>
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
@@ -1494,7 +1550,7 @@
                     installingWorker.onstatechange = () => {
                         if (installingWorker.state === 'installed') {
                             if (navigator.serviceWorker.controller) {
-                                // Novo conteúdo disponível! Recarrega automaticamente para aplicar v3.0.0
+                                // Novo conteúdo disponível! Recarrega automaticamente para aplicar v4.0.0
                                 console.log('Nova versão baixada. Aplicando atualização...');
                                 window.location.reload();
                             }

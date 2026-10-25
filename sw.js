@@ -1,4 +1,4 @@
-const CACHE_NAME = 'memoenglish-v3.0.7';
+const CACHE_NAME = 'memoenglish-v4.0.0';
 
 // Recursos essenciais para funcionarem offline
 const urlsToCache = [
@@ -77,7 +77,7 @@ self.addEventListener('fetch', event => {
   }
 
   // 2. Scripts e Estilos (JS/CSS): Network-First
-  // Faz com que novas versões (v3.0.0) sejam baixadas imediatamente pelo app instalado
+  // Faz com que novas versões (v4.0.0) sejam baixadas imediatamente pelo app instalado
   if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
     event.respondWith(
       fetch(event.request)

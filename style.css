@@ -580,31 +580,165 @@ body.dark-mode .card {
     bottom: 0;
     left: 0;
     width: 100%;
-    padding: 40px;
-    background: var(--surface-glass);
-    backdrop-filter: blur(20px);
-    border-top: 1px solid var(--border);
-    transform: translateY(100%);
-    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 20px 24px 28px;
+    background: transparent;
+    pointer-events: none;
+    transform: translateY(110%);
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
     z-index: 9999;
     display: flex;
     justify-content: center;
-    box-shadow: 0 -20px 40px rgba(0,0,0,0.1);
 }
 
-.feedback-bar.active { transform: translateY(0); }
+.feedback-bar.active {
+    transform: translateY(0);
+}
 
 .feedback-content {
-    max-width: 800px;
+    pointer-events: auto;
+    max-width: 680px;
     width: 100%;
+    background: var(--surface);
+    backdrop-filter: blur(24px);
+    border: 1.5px solid var(--border);
+    border-radius: 24px;
+    padding: 24px 28px;
+    box-shadow: 0 -10px 40px rgba(15, 23, 42, 0.14), 0 12px 32px rgba(15, 23, 42, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.feedback-info {
+    width: 100%;
+    text-align: left;
+}
+
+.feedback-header-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
 }
 
-.feedback-info h4 { font-size: 1.8rem; font-weight: 900; margin-bottom: 8px; }
+.feedback-info h4 {
+    font-size: 1.35rem;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.3px;
+}
+
 .feedback-info.correct h4 { color: var(--success); }
 .feedback-info.incorrect h4 { color: var(--danger); }
+
+.feedback-audio-btn {
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-weight: 700;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+}
+
+.feedback-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.feedback-answer-card {
+    background: var(--surface-glass);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--primary);
+    border-radius: 14px;
+    padding: 14px 18px;
+    text-align: left;
+}
+
+.feedback-info.correct .feedback-answer-card {
+    border-left-color: var(--success);
+    background: rgba(16, 185, 129, 0.06);
+}
+
+.feedback-info.incorrect .feedback-answer-card {
+    border-left-color: var(--danger);
+}
+
+.feedback-answer-label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.feedback-answer-main {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.35;
+}
+
+.feedback-phonetic-pill {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 3px 10px;
+    border-radius: 8px;
+    background: var(--primary-soft);
+    color: var(--primary);
+    font-family: monospace;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.feedback-attempt-row {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.92rem;
+    color: var(--text-muted);
+    padding: 4px 2px 0;
+}
+
+.feedback-attempt-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+}
+
+.feedback-correction-box {
+    width: 100%;
+    padding-top: 4px;
+    text-align: left;
+}
+
+.feedback-correction-hint {
+    font-size: 0.8rem;
+    color: var(--danger);
+    margin-bottom: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+
+.feedback-correction-input {
+    padding: 14px 18px !important;
+    font-size: 1.15rem !important;
+    font-weight: 700;
+    border-color: rgba(239, 68, 68, 0.5);
+    border-radius: 14px !important;
+}
+
+.feedback-continue-btn {
+    width: 100%;
+    padding: 15px 24px;
+    border-radius: 14px;
+    font-size: 1.05rem;
+}
 
 /* ========== SETTINGS ELEMENTS ========== */
 .settings-item {
@@ -841,11 +975,11 @@ input:checked + .slider:before { transform: translateX(22px); }
         color: var(--primary);
     }
 
-    .feedback-content { flex-direction: column; gap: 24px; text-align: center; }
+    .feedback-content { padding: 20px; gap: 14px; border-radius: 20px; }
     
     .feedback-bar {
-        padding: 24px;
-        padding-bottom: 110px; /* Space to not be behind bottom-nav if it rises */
+        padding: 12px;
+        padding-bottom: 100px; /* Space to not be behind bottom-nav if it rises */
     }
 
     .add-phrase-container {
@@ -1755,4 +1889,164 @@ body.dark-mode .legal-content h3 {
     padding: 2px 8px;
     border-radius: 12px;
     display: inline-block;
+}
+
+/* ==================== EXERCISE RESPONSE TIMER ==================== */
+.exercise-timer-container {
+    margin-top: 18px;
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.exercise-timer-info {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 6px;
+}
+
+.exercise-timer-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    background: rgba(16, 185, 129, 0.14);
+    color: var(--success);
+    transition: all 0.25s ease;
+}
+
+.exercise-timer-badge.warning {
+    background: rgba(245, 158, 11, 0.16);
+    color: var(--warning);
+}
+
+.exercise-timer-badge.urgent {
+    background: rgba(239, 68, 68, 0.18);
+    color: var(--danger);
+    animation: pulseTimer 0.5s infinite alternate;
+}
+
+.exercise-timer-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.exercise-timer-fill {
+    height: 100%;
+    width: 100%;
+    background: var(--success);
+    border-radius: 4px;
+    transition: width 1s linear, background-color 0.3s ease;
+}
+
+.exercise-timer-fill.warning {
+    background: var(--warning);
+}
+
+.exercise-timer-fill.urgent {
+    background: var(--danger);
+    animation: pulseTimer 0.5s infinite alternate;
+}
+
+/* ==================== MULTI-MODE SELECTION & AUTO-ADVANCE ==================== */
+.mode-card {
+    position: relative;
+}
+
+.mode-select-check {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    color: transparent;
+    font-size: 0.8rem;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    z-index: 3;
+}
+
+.mode-select-check:hover {
+    border-color: var(--primary);
+    transform: scale(1.1);
+}
+
+.mode-card.selected-mode {
+    border-color: var(--primary) !important;
+    background: var(--primary-soft) !important;
+    box-shadow: 0 10px 24px rgba(99, 102, 241, 0.2) !important;
+}
+
+.mode-card.selected-mode .mode-select-check {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+}
+
+.multi-mode-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 16px 20px;
+    margin-bottom: 18px;
+    background: var(--surface);
+    border: 1.5px solid var(--primary);
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    animation: fadeIn 0.25s ease;
+}
+
+.multi-mode-info {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.multi-mode-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.voice-auto-advance-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    background: var(--surface-glass);
+    border: 1px solid var(--border);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+}
+
+.voice-auto-advance-toggle:hover {
+    border-color: var(--primary);
+    color: var(--text);
+}
+
+.voice-auto-advance-toggle input {
+    accent-color: var(--primary);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
 }
