@@ -1,4 +1,4 @@
-const APP_VERSION = '4.0.0';
+const APP_VERSION = '5.0.0';
 // ==================== PWA INSTALLATION ====================
 let deferredPrompt;
 
@@ -3282,9 +3282,9 @@ function processAnswer(isCorrect, userVal) {
     const subMode = session.mode;
 
     if (isCorrect) {
-        // Acerto: Puxa o standard para cima no modo focado
-        if (mode !== 'standard') {
-            const targetSkill = (mode === 'troublesome' || mode === 'multi') ? subMode : mode;
+        // Acerto: Puxa o standard para cima no modo focado (exceto no Treinar Dificuldades)
+        if (mode !== 'standard' && mode !== 'troublesome') {
+            const targetSkill = mode === 'multi' ? subMode : mode;
             session.current.levels.standard = Math.min(4, Math.max(session.current.levels.standard || 0, session.current.levels[targetSkill] || 0));
         }
 
@@ -3292,7 +3292,7 @@ function processAnswer(isCorrect, userVal) {
         const impreciseWords = (session.mode === 'speak' || session.mode === 'pronounce') ?
             session.current.english.split(' ').filter((_, idx) => session.wordStatus[idx] === 'imprecise') : [];
 
-        if (session.mode === 'speak' && impreciseWords.length > 0) {
+        if (session.mode === 'speak' && impreciseWords.length > 0 && mode !== 'troublesome') {
             session.current.levels.standard = 3; // Volta para Pronúncia
             forceImmediateReview = true;
         }
@@ -3305,43 +3305,47 @@ function processAnswer(isCorrect, userVal) {
             session.current.levels[specificSkill] = Math.max(0, session.current.levels[specificSkill] - 1);
         }
 
-        // 2. Reduzir nível STANDARD (Sequência do Modo Geral) e forçar revisão
-        if (subMode === 'write') {
-            session.current.levels.standard = 0; // Volta para o Quiz
-            forceImmediateReview = true;
-        }
-        else if (subMode === 'listen') {
-            session.current.levels.standard = 1; // Volta para a Escrita no modo geral
-            forceImmediateReview = true;
-        }
-        else if (subMode === 'speak' || subMode === 'pronounce') {
-            session.current.levels.standard = 1; // Volta para a Escrita
-            forceImmediateReview = true;
-        }
-        else {
-            session.current.levels.standard = Math.max(0, (session.current.levels.standard || 0) - 1);
+        // 2. Reduzir nível STANDARD (Sequência do Modo Geral) e forçar revisão (exceto no Treinar Dificuldades)
+        if (trainingMode !== 'troublesome') {
+            if (subMode === 'write') {
+                session.current.levels.standard = 0; // Volta para o Quiz
+                forceImmediateReview = true;
+            }
+            else if (subMode === 'listen') {
+                session.current.levels.standard = 1; // Volta para a Escrita no modo geral
+                forceImmediateReview = true;
+            }
+            else if (subMode === 'speak' || subMode === 'pronounce') {
+                session.current.levels.standard = 1; // Volta para a Escrita
+                forceImmediateReview = true;
+            }
+            else {
+                session.current.levels.standard = Math.max(0, (session.current.levels.standard || 0) - 1);
+            }
         }
     }
 
-    // Calcular SRS baseado no nível ATUALIZADO da habilidade
-    const multipliers = {
-        quiz: 1.0,
-        write: 1.5,
-        listen: 1.5,
-        pronounce: 2.0,
-        speak: 2.5
-    };
-    const multiplier = multipliers[session.mode] || 1.0;
-    const modeForLevel = (session.trainingMode === 'standard' || session.trainingMode === 'troublesome' || session.trainingMode === 'multi') ? session.mode : session.trainingMode;
-    const currentLvl = session.current.levels[modeForLevel] || 0;
+    // Calcular SRS baseado no nível ATUALIZADO da habilidade (não agenda próximo teste no modo Treinar Dificuldades)
+    if (session.trainingMode !== 'troublesome') {
+        const multipliers = {
+            quiz: 1.0,
+            write: 1.5,
+            listen: 1.5,
+            pronounce: 2.0,
+            speak: 2.5
+        };
+        const multiplier = multipliers[session.mode] || 1.0;
+        const modeForLevel = (session.trainingMode === 'standard' || session.trainingMode === 'multi') ? session.mode : session.trainingMode;
+        const currentLvl = session.current.levels[modeForLevel] || 0;
 
-    let interval = SRS_INTERVALS[Math.min(currentLvl, 9)] * 60 * 1000 * multiplier;
+        let interval = SRS_INTERVALS[Math.min(currentLvl, 9)] * 60 * 1000 * multiplier;
 
-    if (forceImmediateReview) {
-        interval = 0; // Disponível imediatamente
+        if (forceImmediateReview) {
+            interval = 0; // Disponível imediatamente
+        }
+
+        session.current.nextReview = Date.now() + interval;
     }
-
-    session.current.nextReview = Date.now() + interval;
 
     appData.totalReviews++;
 
