@@ -184,6 +184,41 @@
                 </div>
             </div>
 
+            <!-- CARD DE MARCOS DE SEQUÊNCIA & TROFÉUS -->
+            <div id="trophyCardHome" class="card" style="margin-bottom: 24px; padding: 18px 20px; background: var(--surface-glass); border: 1px solid var(--border); border-radius: var(--radius-lg); animation: fadeIn 0.4s ease;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.4rem;">🏆</span>
+                        <span style="font-weight: 800; font-size: 1.05rem;">Marcos de Sequência</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span class="badge" style="background: rgba(205, 127, 50, 0.12); color: #b45309; border: 1px solid rgba(205, 127, 50, 0.3); font-weight: 800; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem;" title="Troféus de Bronze">
+                            🥉 <span id="trophyBronzeCount">0</span>
+                        </span>
+                        <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #64748b; border: 1px solid rgba(148, 163, 184, 0.3); font-weight: 800; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem;" title="Troféus de Prata">
+                            🥈 <span id="trophySilverCount">0</span>
+                        </span>
+                        <span class="badge" style="background: rgba(234, 179, 8, 0.15); color: #d97706; border: 1px solid rgba(234, 179, 8, 0.3); font-weight: 800; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem;" title="Troféus de Ouro">
+                            🥇 <span id="trophyGoldCount">0</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 700; margin-bottom: 6px;">
+                        <span id="nextTrophyTitle">Próximo: 🥉 Troféu de Bronze</span>
+                        <span id="nextTrophyProgressText" style="color: var(--primary);">0/7 dias</span>
+                    </div>
+                    <div style="width: 100%; height: 10px; background: var(--surface); border-radius: 6px; overflow: hidden; border: 1px solid var(--border);">
+                        <div id="nextTrophyProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #d97706, #b45309); transition: width 0.4s ease; border-radius: 6px;"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; flex-wrap: wrap; gap: 6px;">
+                        <span id="trophyGoalHint" style="font-size: 0.75rem; color: var(--text-muted);">Só avança ao bater a meta diária (0/20 frases hoje).</span>
+                        <span id="trophyBonusActiveText" style="font-size: 0.75rem; font-weight: 700; color: var(--success);">⚡ Bônus Ativo: +0 XP/meta diária</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- MAPA DE CALOR DE ESTUDOS (HEATMAP) -->
             <div id="studyHeatmapCard" class="heatmap-container">
                 <div class="heatmap-header">
@@ -314,6 +349,35 @@
                 <div class="stat-card">
                     <span class="stat-value" id="statTotalPoints">0</span>
                     <span class="stat-label">Pontos de Mestre</span>
+                </div>
+            </div>
+
+            <!-- TROPHY SHOWCASE IN METRICS -->
+            <div id="trophyCardMetrics" class="card" style="margin-bottom: 32px; padding: 22px 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+                    <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                        <span>🏆</span> Galeria de Troféus por Sequência
+                    </h3>
+                    <div style="font-size: 0.9rem; font-weight: 800; color: var(--primary); background: var(--primary-soft); padding: 6px 14px; border-radius: 20px;">
+                        ⚡ <span id="metricsTrophyTotalXP">0</span> XP acumulados por marcos
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 16px; text-align: center;">
+                    <div style="background: rgba(205, 127, 50, 0.08); border: 1px solid rgba(205, 127, 50, 0.25); border-radius: var(--radius-md); padding: 18px 12px;">
+                        <div style="font-size: 2.4rem; margin-bottom: 6px;">🥉</div>
+                        <div style="font-weight: 800; font-size: 1.6rem; color: #b45309;" id="metricsTrophyBronze">0</div>
+                        <div style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-top: 2px;">Bronze (7 dias) • +0,2%</div>
+                    </div>
+                    <div style="background: rgba(148, 163, 184, 0.08); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: var(--radius-md); padding: 18px 12px;">
+                        <div style="font-size: 2.4rem; margin-bottom: 6px;">🥈</div>
+                        <div style="font-weight: 800; font-size: 1.6rem; color: #64748b;" id="metricsTrophySilver">0</div>
+                        <div style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-top: 2px;">Prata (14 dias) • +0,3%</div>
+                    </div>
+                    <div style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: var(--radius-md); padding: 18px 12px;">
+                        <div style="font-size: 2.4rem; margin-bottom: 6px;">🥇</div>
+                        <div style="font-weight: 800; font-size: 1.6rem; color: #d97706;" id="metricsTrophyGold">0</div>
+                        <div style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-top: 2px;">Ouro (30 dias) • +0,5%</div>
+                    </div>
                 </div>
             </div>
 
@@ -506,13 +570,17 @@
                             <div
                                 style="font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px;">
                                 Sua Senha</div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
-                                <input type="password" id="displayPassword" value="******" readonly
-                                    style="background: transparent; border: none; font-weight: 700; color: var(--text); flex: 1; outline: none; font-size: 1rem;">
-                                <button class="btn btn-outline btn-sm"
-                                    onclick="togglePasswordVisibility('displayPassword')"
-                                    style="padding: 4px 8px;">👁️</button>
-                            </div>
+                            <form autocomplete="off" onsubmit="return false;" style="margin: 0; padding: 0;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                                    <input type="password" id="displayPassword" value="******" readonly
+                                        autocomplete="new-password"
+                                        name="masked_settings_password"
+                                        style="background: transparent; border: none; font-weight: 700; color: var(--text); flex: 1; outline: none; font-size: 1rem;">
+                                    <button type="button" class="btn btn-outline btn-sm"
+                                        onclick="togglePasswordVisibility('displayPassword')"
+                                        style="padding: 4px 8px;">👁️</button>
+                                </div>
+                            </form>
                         </div>
 
                         <!-- Delete Account Button (LGPD) -->
@@ -718,6 +786,10 @@
                             <div id="exerciseTimerFill" class="exercise-timer-fill"></div>
                         </div>
                     </div>
+                    <div id="timeUpNotice" class="time-up-notice" style="display: none;">
+                        <div class="time-up-message">⏰ O tempo acabou! Você ainda pode tentar responder.</div>
+                        <button type="button" class="btn btn-outline btn-sm time-up-btn" onclick="handleTimeUpDontRemember()">❌ Não lembro</button>
+                    </div>
                 </div>
 
                 <!-- QUIZ AREA -->
@@ -829,9 +901,6 @@
                     <div style="margin-top: 24px; display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
                         <button class="btn btn-outline" onclick="playAudio(session.current.english)"
                             style="padding: 12px 24px; font-size: 0.9rem;">🔊 Ouvir Áudio</button>
-                        <button class="btn btn-outline btn-sm" onclick="handlePronounceCantPronounce()"
-                            style="color: var(--danger); border-color: transparent;">🔇 Não consigo
-                            pronunciar</button>
                     </div>
                     <div style="margin-top: 18px; display: flex; justify-content: center;">
                         <label class="voice-auto-advance-toggle">
@@ -851,8 +920,6 @@
                         style="margin-top: 32px; color: var(--text-muted); font-weight: 600; font-size: 1.1rem;">
                         Toque para falar</p>
                     <div style="margin-top: 32px; display: flex; flex-direction: column; align-items: center; gap: 16px;">
-                        <button class="btn btn-outline btn-sm" onclick="handleSpeakDontRemember()">❌ Não
-                            lembro</button>
                         <label class="voice-auto-advance-toggle">
                             <input type="checkbox" class="autoAdvanceSpeechToggle" onchange="updateSetting('autoAdvanceSpeech', this.checked)">
                             <span>⚡ Prosseguir automaticamente</span>
@@ -995,8 +1062,12 @@
             <div id="correctionArea" class="feedback-correction-box" style="display: none;">
                 <p id="correctionHint" class="feedback-correction-hint">
                     ✍️ Digite a frase correta para fixar:</p>
-                <input type="text" id="correctionInput" class="input-box feedback-correction-input"
-                    placeholder="Digite a resposta correta em inglês..." autocomplete="off">
+                <form autocomplete="off" onsubmit="return false;" style="margin: 0; padding: 0; width: 100%;">
+                    <input type="text" id="correctionInput" name="practice_correction_phrase" class="input-box feedback-correction-input"
+                        placeholder="Digite a resposta correta em inglês..." autocomplete="off"
+                        data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"
+                        autocorrect="off" autocapitalize="off" spellcheck="false">
+                </form>
             </div>
 
             <div id="voiceCorrectionArea" style="display: none; text-align: center;">
@@ -1238,18 +1309,18 @@
                 </p>
             </div>
 
-            <div id="loginForm" style="display: flex; flex-direction: column; gap: 16px;">
+            <form id="loginForm" autocomplete="on" onsubmit="return false;" style="display: flex; flex-direction: column; gap: 16px;">
                 <div>
                     <label
                         style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Usuário</label>
-                    <input type="text" id="loginUser" class="input-box" placeholder="Seu nome de usuário"
+                    <input type="text" id="loginUser" name="username" autocomplete="username" class="input-box" placeholder="Seu nome de usuário"
                         onkeydown="if(event.key==='Enter') $('loginPass').focus();">
                 </div>
                 <div>
                     <label
                         style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Senha</label>
                     <div style="position: relative;">
-                        <input type="password" id="loginPass" class="input-box" placeholder="Sua senha secreta"
+                        <input type="password" id="loginPass" name="password" autocomplete="current-password" class="input-box" placeholder="Sua senha secreta"
                             style="padding-right: 50px;"
                             onkeydown="if(event.key==='Enter') $('loginCaptcha').focus();">
                         <button type="button" onclick="togglePasswordVisibility('loginPass')"
@@ -1305,9 +1376,9 @@
 
                 <div id="loginActionButtons"
                     style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
-                    <button class="btn btn-outline" style="padding: 18px;"
+                    <button type="button" class="btn btn-outline" style="padding: 18px;"
                         onclick="handleLoginSubmit('login')">Entrar</button>
-                    <button class="btn btn-primary" style="padding: 18px;" onclick="handleLoginSubmit('signup')">Criar
+                    <button type="button" class="btn btn-primary" style="padding: 18px;" onclick="handleLoginSubmit('signup')">Criar
                         Conta</button>
                 </div>
 
@@ -1316,9 +1387,62 @@
                     Se você já tem uma conta, use o botão Entrar. Se for novo, clique em Criar Conta.
                 </p>
 
-                <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+            </form>
+        </div>
+
+        <!-- Edit Phrase Modal -->
+        <div id="editPhraseModal" class="card" style="width: 100%; max-width: 480px; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0;">Editar Frase</h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+            </div>
+            
+            <input type="hidden" id="editPhraseId">
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Frase em Inglês</label>
+                <div class="input-wrapper" style="margin-bottom: 0;">
+                    <input type="text" id="editPhraseEng" class="input-box" placeholder="Frase em Inglês" style="text-align: left;"
+                        onkeydown="if(event.key==='Enter') $('editPhrasePt').focus();">
+                    <button class="translate-btn"
+                        onclick="translateField('editPhraseEng', 'editPhrasePt', 'en', 'pt')"
+                        title="Traduzir para Português">✨</button>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 24px;">
+                <label style="display: block; font-weight: 700; margin-bottom: 6px; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;">Tradução em Português</label>
+                <div class="input-wrapper" style="margin-bottom: 0;">
+                    <input type="text" id="editPhrasePt" class="input-box" placeholder="Tradução em Português" style="text-align: left;"
+                        onkeydown="if(event.key==='Enter') saveEditedPhrase();">
+                    <button class="translate-btn"
+                        onclick="translateField('editPhrasePt', 'editPhraseEng', 'pt', 'en')"
+                        title="Traduzir para Inglês">✨</button>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancelar</button>
+                <button class="btn btn-primary" style="flex:1" onclick="saveEditedPhrase()">Salvar Alterações</button>
             </div>
         </div>
+
+        <!-- Trophy Celebration Modal -->
+        <div id="trophyCelebrationModal" class="card" style="width: 100%; max-width: 440px; display: none; text-align: center; padding: 32px 24px;">
+            <div id="trophyModalIcon" style="font-size: 4.5rem; margin-bottom: 12px; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.15));">🏆</div>
+            <h2 id="trophyModalTitle" style="font-size: 1.6rem; font-weight: 800; margin-bottom: 8px;">Novo Troféu Conquistado!</h2>
+            <p id="trophyModalSubtitle" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.4;">Você completou o marco com meta diária batida!</p>
+            
+            <div style="background: var(--primary-soft); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border); margin-bottom: 24px;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px;">Recompensa por Marco</div>
+                <div id="trophyModalXPText" style="font-size: 1.5rem; font-weight: 800; color: var(--text); margin-top: 4px;">+30 XP Bônus ⚡</div>
+                <div id="trophyModalCollectionText" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px;">Total na estante: 1 🥉</div>
+            </div>
+
+            <button type="button" class="btn btn-primary" style="width: 100%; padding: 16px; font-weight: 800; font-size: 1rem;" onclick="closeModal()">Continuar Aprendendo 🚀</button>
+        </div>
+
         <div id="movePhraseModal" class="card" style="width: 100%; max-width: 450px; display: none;">
             <h3 style="margin-bottom: 8px;">Mover Frase</h3>
             <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 24px;">Escolha a lista de destino

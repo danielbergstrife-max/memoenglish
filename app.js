@@ -112,6 +112,10 @@ function getDefaultData() {
         streakFreezes: 1, // Proteção contra perda de sequência
         lastStreakFreezeRewardDate: null,
         lastReviewDate: null,
+        trophies: { bronze: 0, silver: 0, gold: 0 },
+        streakMilestoneProgress: 0,
+        streakBonusXP: 0,
+        lastMilestoneGoalDate: null,
         phoneticCache: {},
         settings: {
             expandContractions: true,
@@ -171,6 +175,29 @@ function migrateData(data) {
         data.streakFreezes = 1;
         modified = true;
     }
+    if (!data.trophies) {
+        data.trophies = { bronze: 0, silver: 0, gold: 0 };
+        modified = true;
+    } else {
+        ['bronze', 'silver', 'gold'].forEach(k => {
+            if (data.trophies[k] === undefined) {
+                data.trophies[k] = 0;
+                modified = true;
+            }
+        });
+    }
+    if (data.streakMilestoneProgress === undefined) {
+        data.streakMilestoneProgress = 0;
+        modified = true;
+    }
+    if (data.streakBonusXP === undefined) {
+        data.streakBonusXP = 0;
+        modified = true;
+    }
+    if (data.lastMilestoneGoalDate === undefined) {
+        data.lastMilestoneGoalDate = null;
+        modified = true;
+    }
     if (data.settings && data.settings.dailyGoal === undefined) {
         data.settings.dailyGoal = 20;
         modified = true;
@@ -193,7 +220,7 @@ function migrateData(data) {
             }
         }
     }
-    if (modified) saveData(data);
+    if (modified) saveData(data, { touch: false });
     return data;
 }
 
@@ -212,11 +239,15 @@ function loadData() {
     return getDefaultData();
 }
 
-function saveData(data) {
-    data.lastUpdated = Date.now();
+function saveData(data, options = {}) {
+    // touch=false: salvamento de fundo (caches de fonética/tradução/definição, migrações).
+    // Não altera a data de modificação (lastUpdated) nem dispara envio para a nuvem,
+    // para que a data represente apenas alterações reais feitas pelo usuário.
+    const touch = options.touch !== false;
+    if (touch) data.lastUpdated = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     // Trigger background sync if possible
-    if (data.auth && data.auth.isLoggedIn && navigator.onLine) {
+    if (touch && data.auth && data.auth.isLoggedIn && navigator.onLine) {
         syncWithCloud(false);
     }
 }
@@ -537,7 +568,7 @@ async function prefetchMissingPhonetics() {
     }
 
     if (modified) {
-        saveData(appData);
+        saveData(appData, { touch: false });
         // If user is currently studying, refresh UI implicitly by next word rendering.
     }
 }
@@ -547,7 +578,7 @@ async function prefetchMissingPhonetics() {
 
 function calculateTotalProgress(data) {
     if (!data || !data.lists) return 0;
-    let totalXP = 0;
+    let totalXP = (data.speedRunXP || 0) + (data.streakBonusXP || 0);
     data.lists.forEach(l => {
         (l.phrases || []).forEach(p => {
             if (p.levels) {
@@ -573,7 +604,7 @@ function calculateDataScore(data) {
     const phrasesCount = (data.lists || []).reduce((acc, l) => acc + (l.phrases ? l.phrases.length : 0), 0);
     const reviewsCount = data.totalReviews || 0;
     const historyCount = (data.history || []).length;
-    const xp = calculateTotalProgress(data) + (data.speedRunXP || 0);
+    const xp = calculateTotalProgress(data);
     return (phrasesCount * 100) + (reviewsCount * 10) + (historyCount * 5) + xp;
 }
 
@@ -651,6 +682,13 @@ function mergeAppData(local, remote) {
     merged.speedRunHighScore = Math.max(remote.speedRunHighScore || 0, local.speedRunHighScore || 0);
     merged.speedRunXP = Math.max(remote.speedRunXP || 0, local.speedRunXP || 0);
     merged.streakFreezes = Math.max(remote.streakFreezes || 0, local.streakFreezes || 0);
+    merged.streakBonusXP = Math.max(remote.streakBonusXP || 0, local.streakBonusXP || 0);
+    merged.streakMilestoneProgress = Math.max(remote.streakMilestoneProgress || 0, local.streakMilestoneProgress || 0);
+    merged.trophies = {
+        bronze: Math.max((remote.trophies && remote.trophies.bronze) || 0, (local.trophies && local.trophies.bronze) || 0),
+        silver: Math.max((remote.trophies && remote.trophies.silver) || 0, (local.trophies && local.trophies.silver) || 0),
+        gold: Math.max((remote.trophies && remote.trophies.gold) || 0, (local.trophies && local.trophies.gold) || 0)
+    };
 
     // Mesclagem de histórico de revisões sem duplicatas
     const historyMap = new Map();
@@ -676,6 +714,131 @@ function refreshMainUI() {
 }
 
 let isSyncInProgress = false;
+// Indica se, nesta sessão, já comparamos a data dos dados locais com a da nuvem.
+// Enquanto for false, nenhum envio automático pode sobrescrever a nuvem sem antes checar a data.
+let cloudCheckedThisSession = false;
+const CLOUD_BACKUP_KEY = 'memoenglish_backup_before_cloud_load';
+
+function getDataTimestamp(data) {
+    const t = Number(data && data.lastUpdated);
+    return Number.isFinite(t) && t > 0 ? t : 0;
+}
+
+function countPhrasesInData(data) {
+    return ((data && data.lists) || []).reduce((acc, l) => acc + (l.phrases ? l.phrases.length : 0), 0);
+}
+
+// Compara a data da última modificação (lastUpdated) dos dados locais com a da nuvem.
+// Retorna: 'cloud' (nuvem mais recente -> carregar), 'local' (local mais recente -> enviar) ou 'equal'.
+function compareCloudFreshness(local, remote) {
+    const localPhrases = countPhrasesInData(local);
+    const remotePhrases = countPhrasesInData(remote);
+
+    // Proteção: dispositivo sem frases nunca sobrescreve uma nuvem que tem frases
+    if (localPhrases === 0 && remotePhrases > 0) return 'cloud';
+    if (remotePhrases === 0 && localPhrases > 0) return 'local';
+
+    const localTime = getDataTimestamp(local);
+    const remoteTime = getDataTimestamp(remote);
+
+    if (localTime && remoteTime) {
+        if (remoteTime > localTime) return 'cloud';
+        if (localTime > remoteTime) return 'local';
+        return 'equal';
+    }
+
+    // Sem data em um dos lados (dados antigos): usa o progresso como critério de desempate
+    const cloudScore = calculateDataScore(remote);
+    const localScore = calculateDataScore(local);
+    if (cloudScore > localScore) return 'cloud';
+    if (localScore > cloudScore) return 'local';
+    return 'equal';
+}
+
+// Substitui os dados locais pelos da nuvem (mantendo login e configurações de sync deste aparelho).
+// Mantém a data da nuvem como data local e guarda um backup dos dados locais antes de sobrescrever.
+function adoptCloudData(remotePayload) {
+    try {
+        localStorage.setItem(CLOUD_BACKUP_KEY, JSON.stringify(appData));
+    } catch (e) {
+        console.warn('Não foi possível criar o backup local antes de carregar a nuvem:', e);
+    }
+
+    const def = getDefaultData();
+    const savedAuth = { ...appData.auth, lastSync: Date.now() };
+    const savedSyncSettings = appData.syncSettings;
+
+    const next = { ...def, ...remotePayload };
+    next.settings = { ...def.settings, ...(remotePayload.settings || {}) };
+    next.auth = savedAuth;
+    next.syncSettings = savedSyncSettings;
+    next.lastUpdated = getDataTimestamp(remotePayload);
+
+    appData = migrateData(next);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+    applyDarkMode();
+    refreshMainUI();
+}
+
+async function pushLocalToCloud() {
+    const res = await callGas({
+        action: 'save',
+        username: appData.auth.username,
+        password: appData.auth.password,
+        payload: appData
+    });
+    if (res && res.success) {
+        appData.auth.lastSync = Date.now();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+        return true;
+    }
+    return false;
+}
+
+// Baixa os dados da nuvem e decide pela DATA o que fazer: carregar (nuvem mais nova),
+// enviar (local mais novo) ou nada (iguais).
+async function reconcileWithCloud(isManual, loadingStatus) {
+    const remoteData = await callGas({
+        action: 'load',
+        username: appData.auth.username,
+        password: appData.auth.password
+    });
+
+    if (!remoteData || !remoteData.success) {
+        if (isManual) alert("Não foi possível acessar a nuvem agora. Tente novamente mais tarde.");
+        return false;
+    }
+
+    const remotePayload = parseRemotePayload(remoteData.payload);
+
+    if (!remotePayload || !remotePayload.lists || remotePayload.lists.length === 0) {
+        // Nuvem ainda vazia: envia dados locais (se houver algo para enviar)
+        cloudCheckedThisSession = true;
+        if (countPhrasesInData(appData) > 0 || (appData.history && appData.history.length > 0)) {
+            const ok = await pushLocalToCloud();
+            if (ok && isManual) alert("Dados enviados para a nuvem com sucesso!");
+        }
+        return true;
+    }
+
+    const verdict = compareCloudFreshness(appData, remotePayload);
+    cloudCheckedThisSession = true;
+
+    if (verdict === 'cloud') {
+        if (loadingStatus) loadingStatus.textContent = "Baixando dados mais recentes da nuvem...";
+        adoptCloudData(remotePayload);
+        if (isManual) alert("Os dados da nuvem eram mais recentes e foram carregados com sucesso!");
+    } else if (verdict === 'local') {
+        if (loadingStatus) loadingStatus.textContent = "Enviando dados mais recentes para a nuvem...";
+        const ok = await pushLocalToCloud();
+        if (ok && isManual) alert("Seus dados locais eram mais recentes e foram enviados para a nuvem!");
+    } else {
+        appData.auth.lastSync = Date.now();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+        if (isManual) alert("Seus dados já estão sincronizados!");
+    }
+    return true;
+}
 
 async function syncWithCloud(isManual = false, isInitialSync = false, pullOnly = false) {
     if (!appData.auth || !appData.auth.isLoggedIn) {
@@ -698,7 +861,7 @@ async function syncWithCloud(isManual = false, isInitialSync = false, pullOnly =
 
     try {
         if (pullOnly) {
-            // MODO PULL-ONLY: Baixar exclusivamente os dados da nuvem
+            // MODO PULL-ONLY: Carrega da nuvem somente se ela for mais recente (pela data)
             const remoteData = await callGas({
                 action: 'load',
                 username: appData.auth.username,
@@ -708,105 +871,29 @@ async function syncWithCloud(isManual = false, isInitialSync = false, pullOnly =
             if (remoteData && remoteData.success) {
                 const remotePayload = parseRemotePayload(remoteData.payload);
                 if (remotePayload && remotePayload.lists && remotePayload.lists.length > 0) {
-                    if (isInitialSync && loadingStatus) loadingStatus.textContent = "Baixando dados da nuvem...";
-                    const savedAuth = { ...appData.auth, lastSync: Date.now() };
-                    const savedSyncSettings = appData.syncSettings;
-
-                    // Proteção de mesclagem se o dispositivo local tiver frases
-                    const localPhrasesCount = (appData.lists || []).reduce((acc, l) => acc + (l.phrases ? l.phrases.length : 0), 0);
-                    if (localPhrasesCount > 0) {
-                        appData = mergeAppData(appData, remotePayload);
+                    if (compareCloudFreshness(appData, remotePayload) === 'cloud') {
+                        if (isInitialSync && loadingStatus) loadingStatus.textContent = "Baixando dados da nuvem...";
+                        adoptCloudData(remotePayload);
                     } else {
-                        appData = { ...remotePayload };
+                        appData.auth.lastSync = Date.now();
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
                     }
-
-                    appData.auth = savedAuth;
-                    appData.syncSettings = savedSyncSettings;
-                    appData = migrateData(appData);
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-                    refreshMainUI();
+                    cloudCheckedThisSession = true;
                 } else {
                     appData.auth.lastSync = Date.now();
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
                 }
             }
             if (isInitialSync && loadingStatus) loadingStatus.textContent = "Sincronização concluída!";
-        } else if (isInitialSync || isManual) {
-            // SINCRONIZAÇÃO INTELIGENTE COM PROTEÇÃO DE PROGRESSO:
-            const remoteData = await callGas({
-                action: 'load',
-                username: appData.auth.username,
-                password: appData.auth.password
-            });
-
-            if (remoteData && remoteData.success) {
-                const remotePayload = parseRemotePayload(remoteData.payload);
-
-                if (remotePayload && remotePayload.lists && remotePayload.lists.length > 0) {
-                    const cloudScore = calculateDataScore(remotePayload);
-                    const localScore = calculateDataScore(appData);
-
-                    // SE A NUVEM TEM MAIS PROGRESSO: Nunca sobrescreve! Sempre adota/mescla da nuvem!
-                    if (cloudScore > localScore) {
-                        const savedAuth = { ...appData.auth, lastSync: Date.now() };
-                        appData = mergeAppData(appData, remotePayload);
-                        appData.auth = savedAuth;
-                        appData = migrateData(appData);
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-                        refreshMainUI();
-                        if (isManual) alert("Seu progresso da nuvem foi carregado com sucesso!");
-                    } else if (localScore > cloudScore) {
-                        // Dispositivo local tem progresso novo: mescla e envia para a nuvem
-                        const savedAuth = { ...appData.auth, lastSync: Date.now() };
-                        appData = mergeAppData(appData, remotePayload);
-                        appData.auth = savedAuth;
-                        appData = migrateData(appData);
-
-                        const res = await callGas({
-                            action: 'save',
-                            username: appData.auth.username,
-                            password: appData.auth.password,
-                            payload: appData
-                        });
-                        if (res && res.success) {
-                            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-                            if (isManual) alert("Novo progresso enviado para a nuvem com sucesso!");
-                        }
-                    } else {
-                        // Empate: apenas sincroniza timestamp
-                        appData.auth.lastSync = Date.now();
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-                        if (isManual) alert("Seus dados já estão sincronizados!");
-                    }
-                } else {
-                    // Nuvem ainda vazia: envia dados locais
-                    const res = await callGas({
-                        action: 'save',
-                        username: appData.auth.username,
-                        password: appData.auth.password,
-                        payload: appData
-                    });
-                    if (res && res.success) {
-                        appData.auth.lastSync = Date.now();
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-                        if (isManual) alert("Dados enviados para a nuvem com sucesso!");
-                    }
-                }
-            }
+        } else if (isInitialSync || isManual || !cloudCheckedThisSession) {
+            // Ao abrir o app, em sincronização manual ou antes do primeiro envio da sessão:
+            // compara as datas e decide se carrega da nuvem ou envia para ela.
+            await reconcileWithCloud(isManual, isInitialSync ? loadingStatus : null);
+            if (isInitialSync && loadingStatus) loadingStatus.textContent = "Sincronização concluída!";
         } else {
-            // MODO SEGURO: Apenas envia alterações se o dispositivo tiver progresso válido
-            const localPhrasesCount = (appData.lists || []).reduce((acc, l) => acc + (l.phrases ? l.phrases.length : 0), 0);
-            if (localPhrasesCount > 0 || (appData.history && appData.history.length > 0)) {
-                const res = await callGas({
-                    action: 'save',
-                    username: appData.auth.username,
-                    password: appData.auth.password,
-                    payload: appData
-                });
-                if (res && res.success) {
-                    appData.auth.lastSync = Date.now();
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-                }
+            // MODO SEGURO: a data já foi conferida nesta sessão; apenas envia as alterações locais
+            if (countPhrasesInData(appData) > 0 || (appData.history && appData.history.length > 0)) {
+                await pushLocalToCloud();
             }
         }
     } catch (e) {
@@ -1030,14 +1117,19 @@ async function handleLoginSubmit(mode) {
 
                 if (remotePayload && remotePayload.lists && remotePayload.lists.length > 0) {
                     phrasesRestored = remotePayload.lists.reduce((acc, l) => acc + (l.phrases ? l.phrases.length : 0), 0);
-                    const localPhrasesCount = (appData.lists || []).reduce((acc, l) => acc + (l.phrases ? l.phrases.length : 0), 0);
 
-                    if (localPhrasesCount > 0) {
-                        // Dispositivo local tinha algumas frases criadas antes do login: mescla com segurança
-                        appData = mergeAppData(appData, remotePayload);
-                    } else {
-                        // Dispositivo novo sem frases: adota 100% o progresso da nuvem
-                        appData = { ...remotePayload };
+                    // Decide pela DATA: nuvem mais recente -> carrega da nuvem; local mais recente -> mantém o local
+                    const verdict = compareCloudFreshness(appData, remotePayload);
+                    if (verdict === 'cloud') {
+                        try {
+                            localStorage.setItem(CLOUD_BACKUP_KEY, JSON.stringify(appData));
+                        } catch (e) { }
+                        const def = getDefaultData();
+                        const localSyncSettings = appData.syncSettings;
+                        appData = { ...def, ...remotePayload };
+                        appData.settings = { ...def.settings, ...(remotePayload.settings || {}) };
+                        appData.syncSettings = localSyncSettings || def.syncSettings;
+                        appData.lastUpdated = getDataTimestamp(remotePayload);
                     }
                 } else if (remotePayload) {
                     appData = { ...remotePayload, ...(appData.lists?.length ? { lists: appData.lists } : {}) };
@@ -1046,15 +1138,18 @@ async function handleLoginSubmit(mode) {
                 appData.auth = authInfo;
                 appData = migrateData(appData);
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+                cloudCheckedThisSession = true;
                 refreshMainUI();
 
-                // Atualiza a nuvem com a versão consolidada
-                await callGas({
-                    action: 'save',
-                    username: user,
-                    password: pass,
-                    payload: appData
-                });
+                // Atualiza a nuvem somente se os dados locais forem os mais recentes (ou a nuvem estiver vazia)
+                if (!remotePayload || !remotePayload.lists || remotePayload.lists.length === 0 || compareCloudFreshness(appData, remotePayload) === 'local') {
+                    await callGas({
+                        action: 'save',
+                        username: user,
+                        password: pass,
+                        payload: appData
+                    });
+                }
 
                 closeModal();
                 renderSyncStatus();
@@ -1353,6 +1448,10 @@ function renderStats() {
         if ($('freezeCountSpanSettings')) $('freezeCountSpanSettings').textContent = appData.streakFreezes;
     }
 
+    // Marcos de Sequência & Troféus (Bronze, Prata, Ouro)
+    checkStreakMilestones(reviewsToday, goal, today);
+    renderTrophiesUI();
+
     // Troublesome phrases count
     updateTroublesomeCount();
 
@@ -1370,6 +1469,190 @@ function updateDailyGoalSetting(val) {
     appData.settings.dailyGoal = parseInt(val) || 20;
     saveData(appData);
     updateUI();
+}
+
+// ==================== MARCOS DE SEQUÊNCIA & TROFÉUS ====================
+
+function checkStreakMilestones(reviewsToday, goal, today) {
+    if (!appData.trophies) {
+        appData.trophies = { bronze: 0, silver: 0, gold: 0 };
+    }
+    if (appData.streakMilestoneProgress === undefined) {
+        appData.streakMilestoneProgress = 0;
+    }
+    if (appData.streakBonusXP === undefined) {
+        appData.streakBonusXP = 0;
+    }
+
+    // O marco só conta se conquistar a meta diária
+    if (reviewsToday < goal) return;
+
+    // Se já foi registrado o marco para a meta de hoje, não incrementa novamente hoje
+    if (appData.lastMilestoneGoalDate === today) return;
+
+    appData.lastMilestoneGoalDate = today;
+    appData.streakMilestoneProgress = (appData.streakMilestoneProgress || 0) + 1;
+
+    // Bônus diário percentual permanente por troféus acumulados na estante:
+    // 🥉 Bronze: +0,2% (0.002) | 🥈 Prata: +0,3% (0.003) | 🥇 Ouro: +0,5% (0.005)
+    const bronzeCount = appData.trophies.bronze || 0;
+    const silverCount = appData.trophies.silver || 0;
+    const goldCount = appData.trophies.gold || 0;
+
+    const totalPct = (bronzeCount * 0.002) + (silverCount * 0.003) + (goldCount * 0.005);
+    if (totalPct > 0) {
+        const currentXP = calculateTotalProgress(appData);
+        const minBonus = bronzeCount + silverCount + goldCount;
+        let dailyBooster = Math.round(currentXP * totalPct);
+        if (dailyBooster < minBonus) dailyBooster = minBonus;
+        appData.streakBonusXP += dailyBooster;
+    }
+
+    const progress = appData.streakMilestoneProgress;
+    let earnedTrophy = null;
+    let milestoneXP = 0;
+
+    // Ciclo de marcos em sequência com meta batida:
+    // 1. Bronze: 7 dias
+    // 2. Prata: 14 dias
+    // 3. Ouro: 30 dias (completa o ciclo e recomeça a partir do bronze)
+    if (progress === 7) {
+        earnedTrophy = 'bronze';
+        appData.trophies.bronze = (appData.trophies.bronze || 0) + 1;
+        // Bônus moderado: 30 XP base + 5 XP por troféu de bronze acumulado
+        milestoneXP = 30 + (5 * (appData.trophies.bronze - 1));
+        appData.streakBonusXP += milestoneXP;
+    } else if (progress === 14) {
+        earnedTrophy = 'silver';
+        appData.trophies.silver = (appData.trophies.silver || 0) + 1;
+        // Bônus moderado: 60 XP base + 10 XP por troféu de prata acumulado
+        milestoneXP = 60 + (10 * (appData.trophies.silver - 1));
+        appData.streakBonusXP += milestoneXP;
+    } else if (progress >= 30) {
+        earnedTrophy = 'gold';
+        appData.trophies.gold = (appData.trophies.gold || 0) + 1;
+        // Bônus moderado: 120 XP base + 20 XP por troféu de ouro acumulado
+        milestoneXP = 120 + (20 * (appData.trophies.gold - 1));
+        appData.streakBonusXP += milestoneXP;
+        // Ao ganhar o troféu de ouro, recomeça o caminho a partir do de bronze!
+        appData.streakMilestoneProgress = 0;
+    }
+
+    saveData(appData);
+    updateGlobalLevel();
+
+    if (earnedTrophy) {
+        showTrophyCelebrationModal(earnedTrophy, milestoneXP);
+    }
+}
+
+function renderTrophiesUI() {
+    if (!appData.trophies) {
+        appData.trophies = { bronze: 0, silver: 0, gold: 0 };
+    }
+    const b = appData.trophies.bronze || 0;
+    const s = appData.trophies.silver || 0;
+    const g = appData.trophies.gold || 0;
+    const progress = appData.streakMilestoneProgress || 0;
+
+    // Atualiza contadores na Home
+    if ($('trophyBronzeCount')) $('trophyBronzeCount').textContent = b;
+    if ($('trophySilverCount')) $('trophySilverCount').textContent = s;
+    if ($('trophyGoldCount')) $('trophyGoldCount').textContent = g;
+
+    // Determina o próximo troféu do ciclo
+    let nextTitle = "Próximo: 🥉 Troféu de Bronze";
+    let targetDays = 7;
+    let barColor = "linear-gradient(90deg, #d97706, #b45309)";
+
+    if (progress < 7) {
+        nextTitle = "Próximo: 🥉 Troféu de Bronze";
+        targetDays = 7;
+        barColor = "linear-gradient(90deg, #d97706, #b45309)";
+    } else if (progress < 14) {
+        nextTitle = "Próximo: 🥈 Troféu de Prata";
+        targetDays = 14;
+        barColor = "linear-gradient(90deg, #94a3b8, #64748b)";
+    } else {
+        nextTitle = "Próximo: 🥇 Troféu de Ouro";
+        targetDays = 30;
+        barColor = "linear-gradient(90deg, #f59e0b, #eab308)";
+    }
+
+    const pct = Math.min(Math.round((progress / targetDays) * 100), 100);
+
+    if ($('nextTrophyTitle')) $('nextTrophyTitle').textContent = nextTitle;
+    if ($('nextTrophyProgressText')) $('nextTrophyProgressText').textContent = `${progress}/${targetDays} dias`;
+    if ($('nextTrophyProgressBar')) {
+        $('nextTrophyProgressBar').style.width = `${pct}%`;
+        $('nextTrophyProgressBar').style.background = barColor;
+    }
+
+    // Status da meta diária hoje
+    const today = new Date().toDateString();
+    const reviewsToday = appData.history.filter(h => new Date(h.date).toDateString() === today).length;
+    const goal = (appData.settings && appData.settings.dailyGoal) ? parseInt(appData.settings.dailyGoal) : 20;
+
+    if ($('trophyGoalHint')) {
+        if (reviewsToday >= goal) {
+            $('trophyGoalHint').innerHTML = "✅ <span style='color: var(--success); font-weight: 700;'>Meta diária de hoje conquistada! (+1 dia na sequência)</span>";
+        } else {
+            const remaining = goal - reviewsToday;
+            $('trophyGoalHint').textContent = `Faltam ${remaining} frase${remaining > 1 ? 's' : ''} hoje para validar o dia (${reviewsToday}/${goal}).`;
+        }
+    }
+
+    const totalPctNum = (b * 0.2) + (s * 0.3) + (g * 0.5);
+    const totalPctFormatted = (Math.round(totalPctNum * 10) / 10).toFixed(1).replace(/\.0$/, '');
+
+    if ($('trophyBonusActiveText')) {
+        if (totalPctNum > 0) {
+            const currentXP = calculateTotalProgress(appData);
+            const minBonus = b + s + g;
+            let estBonus = Math.round(currentXP * (totalPctNum / 100));
+            if (estBonus < minBonus) estBonus = minBonus;
+            $('trophyBonusActiveText').textContent = `⚡ Bônus Ativo: +${totalPctFormatted}% (+${estBonus} XP na meta)`;
+        } else {
+            $('trophyBonusActiveText').textContent = `⚡ Bônus Ativo: +0% XP/meta diária`;
+        }
+    }
+
+    // Elementos da tela de Métricas
+    if ($('metricsTrophyBronze')) $('metricsTrophyBronze').textContent = b;
+    if ($('metricsTrophySilver')) $('metricsTrophySilver').textContent = s;
+    if ($('metricsTrophyGold')) $('metricsTrophyGold').textContent = g;
+    if ($('metricsTrophyTotalXP')) $('metricsTrophyTotalXP').textContent = appData.streakBonusXP || 0;
+}
+
+function showTrophyCelebrationModal(type, xpEarned) {
+    const iconMap = { bronze: '🥉', silver: '🥈', gold: '🥇' };
+    const titleMap = {
+        bronze: 'Novo Troféu de Bronze! 🥉',
+        silver: 'Novo Troféu de Prata! 🥈',
+        gold: 'Novo Troféu de Ouro! 🥇'
+    };
+    const subMap = {
+        bronze: 'Incrível! Você completou 7 dias seguidos batendo sua meta diária!',
+        silver: 'Sensacional! Você atingiu 14 dias seguidos batendo sua meta diária!',
+        gold: 'Extraordinário! 30 dias seguidos com meta batida! Você completou o ciclo e agora recomeça a jornada a partir do Bronze!'
+    };
+
+    if ($('trophyModalIcon')) $('trophyModalIcon').textContent = iconMap[type] || '🏆';
+    if ($('trophyModalTitle')) $('trophyModalTitle').textContent = titleMap[type] || 'Novo Troféu Conquistado!';
+    if ($('trophyModalSubtitle')) $('trophyModalSubtitle').textContent = subMap[type] || '';
+    if ($('trophyModalXPText')) $('trophyModalXPText').textContent = `+${xpEarned} XP Bônus ⚡`;
+    if ($('trophyModalCollectionText')) {
+        const b = appData.trophies?.bronze || 0;
+        const s = appData.trophies?.silver || 0;
+        const g = appData.trophies?.gold || 0;
+        $('trophyModalCollectionText').textContent = `Sua coleção: ${b} 🥉 Bronze | ${s} 🥈 Prata | ${g} 🥇 Ouro`;
+    }
+
+    try {
+        confetti({ particleCount: 160, spread: 80, origin: { y: 0.5 } });
+    } catch (e) { }
+
+    openModal('trophyCelebrationModal');
 }
 
 function getTroublesomePhrases() {
@@ -1425,8 +1708,8 @@ function startTroublesomeReview() {
 }
 
 function updateGlobalLevel() {
-    // New XP Weights: Quiz=5, Write=10, Listen=12, Pronounce=15, Speak=20 + Speed Run XP
-    let totalXP = (appData.speedRunXP || 0);
+    // New XP Weights: Quiz=5, Write=10, Listen=12, Pronounce=15, Speak=20 + Speed Run XP + Streak Bonus XP
+    let totalXP = (appData.speedRunXP || 0) + (appData.streakBonusXP || 0);
     appData.lists.forEach(l => {
         l.phrases.forEach(p => {
             if (p.levels) {
@@ -1559,7 +1842,7 @@ async function lookupWord(rawWord) {
             if ($('lookupWordTranslation')) $('lookupWordTranslation').textContent = res.translated;
             if (!appData.translationCache) appData.translationCache = {};
             appData.translationCache[cleanWord.toLowerCase()] = res.translated;
-            saveData(appData);
+            saveData(appData, { touch: false });
         } else {
             if ($('lookupWordTranslation')) $('lookupWordTranslation').textContent = 'Tradução indisponível';
         }
@@ -1648,6 +1931,7 @@ function renderPhrases(filter = "") {
                     
                     <div class="phrase-actions">
                         <button class="btn btn-outline btn-sm" onclick="playAudio('${escapeJS(p.english)}')" title="Ouvir">🔊</button>
+                        <button class="btn btn-outline btn-sm" onclick="showEditPhraseModal('${p.id}')" title="Editar Frase">✏️</button>
                         <button class="btn btn-outline btn-sm" onclick="showMovePhraseModal('${p.id}')" title="Mover">📁</button>
                         <button class="btn btn-outline btn-sm" style="color: var(--danger); border-color: transparent;" onclick="deletePhrase('${p.id}')">🗑️</button>
                     </div>
@@ -1780,6 +2064,9 @@ function renderMetrics() {
     });
     $('statTotalPoints').textContent = totalPoints;
 
+    // Atualiza estatísticas da Galeria de Troféus
+    renderTrophiesUI();
+
     // 2. SKILL BREAKDOWN
     const skillData = [
         { id: 'quiz', name: 'Quiz', icon: '🧩', color: 'var(--primary)' },
@@ -1886,7 +2173,7 @@ async function getWordDefinition(word) {
                 const definition = posLabel ? `(${posLabel}) ${defText}` : defText;
                 
                 appData.definitionCache[normalized] = { definition };
-                saveData(appData);
+                saveData(appData, { touch: false });
                 return appData.definitionCache[normalized];
             }
         }
@@ -1910,7 +2197,7 @@ async function getWordDefinition(word) {
                 const definition = definitionText ? `${label}${definitionText}` : '';
                 if (definition) {
                     appData.definitionCache[normalized] = { definition };
-                    saveData(appData);
+                    saveData(appData, { touch: false });
                     return appData.definitionCache[normalized];
                 }
             }
@@ -1937,7 +2224,7 @@ async function translateTextToPortuguese(text) {
         if (res && res.translated && res.translated.trim()) {
             const tr = res.translated.trim();
             appData.translationCache[cleanText] = tr;
-            saveData(appData);
+            saveData(appData, { touch: false });
             return tr;
         }
     } catch (e) {
@@ -1957,7 +2244,7 @@ async function translateTextToPortuguese(text) {
             if (translated && !translated.startsWith('MYMEMORY WARNING') && translated.trim()) {
                 const tr = translated.trim();
                 appData.translationCache[cleanText] = tr;
-                saveData(appData);
+                saveData(appData, { touch: false });
                 return tr;
             }
         }
@@ -1971,7 +2258,7 @@ async function translateTextToPortuguese(text) {
         for (const p of list.phrases || []) {
             if (normalizeText(p.english) === wordNorm && p.portuguese) {
                 appData.translationCache[cleanText] = p.portuguese;
-                saveData(appData);
+                saveData(appData, { touch: false });
                 return p.portuguese;
             }
         }
@@ -1993,7 +2280,7 @@ async function getStudiedWordInfo(word) {
         if (directPt && (!appData.translationCache || !appData.translationCache[cleanWord.toLowerCase()])) {
             appData.translationCache = appData.translationCache || {};
             appData.translationCache[cleanWord.toLowerCase()] = directPt;
-            saveData(appData);
+            saveData(appData, { touch: false });
         }
     }
 
@@ -2441,10 +2728,33 @@ function updateExerciseTimerUI() {
     }
 }
 
+function getExerciseTimeForPhrase(phrase, mode) {
+    const isWriteOrListen = mode === 'write' || mode === 'listen';
+    const minSeconds = isWriteOrListen ? 30 : 20;
+
+    const text = (phrase && phrase.english ? phrase.english : '').trim();
+    if (!text) return minSeconds;
+
+    const words = text.split(/\s+/).filter(Boolean).length;
+    const chars = text.length;
+
+    // Acrescenta em degraus de +5s (sempre múltiplo de 5)
+    const extraByWords = Math.max(0, words - 5) * 5;
+    const extraByChars = Math.max(0, Math.ceil((chars - 25) / 5)) * 5;
+    const extraSeconds = Math.max(extraByWords, extraByChars);
+
+    const total = Math.max(minSeconds, minSeconds + extraSeconds);
+    return Math.ceil(total / 5) * 5;
+}
+
 function startExerciseTimer(seconds) {
     clearExerciseTimer();
-    exerciseTotalTime = seconds;
-    exerciseTimeRemaining = seconds;
+    const minAllowed = (session.mode === 'write' || session.mode === 'listen') ? 30 : 20;
+    const computedSeconds = typeof seconds === 'number' && seconds > 0
+        ? Math.max(minAllowed, seconds)
+        : getExerciseTimeForPhrase(session.current, session.mode);
+    exerciseTotalTime = computedSeconds;
+    exerciseTimeRemaining = computedSeconds;
 
     const container = $('exerciseTimerContainer');
     const fillEl = $('exerciseTimerFill');
@@ -2473,21 +2783,30 @@ function startExerciseTimer(seconds) {
     }, 1000);
 }
 
+function hideTimeUpNotice() {
+    session.timedOut = false;
+    const notice = $('timeUpNotice');
+    if (notice) notice.style.display = 'none';
+}
+
 function handleExerciseTimeout() {
     if (!session.active || $('feedbackBar')?.classList.contains('active')) return;
+    if (session.mode !== 'write' && session.mode !== 'listen' && session.mode !== 'pronounce' && session.mode !== 'speak') return;
 
-    if (session.mode === 'write') {
-        const val = $('writeInput')?.value.trim() || '';
-        const isCorrect = val.length > 0 && normalizeText(val) === normalizeText(session.current.english);
-        processAnswer(isCorrect, val || `⏰ Tempo esgotado (${exerciseTotalTime}s)`);
-    } else if (session.mode === 'listen') {
-        const val = $('listenInput')?.value.trim() || '';
-        const isCorrect = val.length > 0 && normalizeText(val) === normalizeText(session.current.english);
-        processAnswer(isCorrect, val || `⏰ Tempo esgotado (${exerciseTotalTime}s)`);
-    } else if (session.mode === 'pronounce' || session.mode === 'speak') {
-        stopListening();
-        processAnswer(false, session.lastTranscript || `⏰ Tempo esgotado (${exerciseTotalTime}s)`);
-    }
+    // O teste continua: apenas avisa que o tempo acabou e libera o botão "Não lembro".
+    // Qualquer resposta dada daqui em diante conta como falha (perde XP e desce um nível).
+    session.timedOut = true;
+    const textEl = $('exerciseTimerText');
+    if (textEl) textEl.textContent = '⏰ Tempo esgotado';
+    const notice = $('timeUpNotice');
+    if (notice) notice.style.display = 'flex';
+}
+
+function handleTimeUpDontRemember() {
+    if (!session.current || !session.active) return;
+    if ($('feedbackBar')?.classList.contains('active')) return;
+    stopListening();
+    processAnswer(false, 'Não lembro');
 }
 
 function nextPhrase() {
@@ -2516,6 +2835,7 @@ function renderExercise() {
 
     clearExerciseTimer();
     clearAutoAdvanceTimer();
+    hideTimeUpNotice();
     syncAutoAdvanceToggles();
     if ($('btnContinue')) {
         $('btnContinue').textContent = 'Continuar →';
@@ -2572,7 +2892,7 @@ function renderExercise() {
         $('writeArea').style.display = 'block';
         $('writeInput').value = '';
         $('writeInputMirror').innerHTML = '';
-        startExerciseTimer(30);
+        startExerciseTimer(getExerciseTimeForPhrase(p, 'write'));
         setTimeout(() => {
             $('writeInput').value = '';
             $('writeInput').focus();
@@ -2581,7 +2901,7 @@ function renderExercise() {
         $('listenArea').style.display = 'block';
         $('listenInput').value = '';
         $('listenInputMirror').innerHTML = '';
-        startExerciseTimer(30);
+        startExerciseTimer(getExerciseTimeForPhrase(p, 'listen'));
         setTimeout(() => playAudio(p.english), 500); // Play audio automatically
         setTimeout(() => {
             $('listenInput').value = '';
@@ -2599,14 +2919,14 @@ function renderExercise() {
         playAudio(p.english, 'en-US', () => {
             const isResultVisible = $('feedbackBar')?.classList.contains('active');
             if (session.active && session.current === currentPhrase && session.mode === 'pronounce' && !isResultVisible) {
-                if (!exerciseTimerInterval) startExerciseTimer(20);
+                if (!exerciseTimerInterval && !session.timedOut) startExerciseTimer(getExerciseTimeForPhrase(p, 'pronounce'));
                 if (!isRecognitionActive) startListening();
             }
         });
     } else if (session.mode === 'speak') {
         $('speakArea').style.display = 'block';
         renderSpeechInitialState();
-        startExerciseTimer(20);
+        startExerciseTimer(getExerciseTimeForPhrase(p, 'speak'));
         startListening();
     }
 }
@@ -2746,7 +3066,7 @@ function updateWriteMirror() {
             }
         }
 
-        // Special handling for contractions being typed (like "o'clock" -> "of the clock")
+        // Special handling for contractions being typed (like "don't" -> "do not")
         if (!isSequenceMatch && isBeingTyped && token.includes("'")) {
             const expandedWords = getContractionExpansionPrefix(token);
             if (expandedWords && expandedWords.length > 0) {
@@ -2939,7 +3259,7 @@ function updateListenMirror() {
             }
         }
 
-        // Special handling for contractions being typed (like "o'clock" -> "of the clock")
+        // Special handling for contractions being typed (like "don't" -> "do not")
         if (!isSequenceMatch && isBeingTyped && token.includes("'")) {
             const expandedWords = getContractionExpansionPrefix(token);
             if (expandedWords && expandedWords.length > 0) {
@@ -3058,6 +3378,14 @@ function processAnswer(isCorrect, userVal) {
     // SECURITY LOCK: Prevent double processing
     if ($('feedbackBar').classList.contains('active')) return;
 
+    // Se o tempo já acabou, qualquer resposta (mesmo correta) conta como falha
+    const wasTimedOut = !!session.timedOut;
+    if (wasTimedOut && isCorrect) {
+        isCorrect = false;
+        userVal = '⏰ Tempo esgotado';
+    }
+    hideTimeUpNotice();
+
     clearExerciseTimer();
     stopListening();
 
@@ -3135,16 +3463,17 @@ function processAnswer(isCorrect, userVal) {
         // Play correct sound
         $('soundCorrect').play().catch(() => { });
     } else {
-        const isTimeout = typeof userVal === 'string' && userVal.startsWith('⏰');
+        const isTimeout = wasTimedOut || (typeof userVal === 'string' && userVal.startsWith('⏰'));
         const isSkipped = userVal === 'Não lembro' || userVal === 'Não consigo pronunciar';
         const isVoiceMode = session.mode === 'speak' || session.mode === 'pronounce';
+        const hasTypedAnswer = typeof userVal === 'string' && userVal.trim().length > 0 && !userVal.startsWith('⏰') && !isSkipped;
 
         let accuracy = 0;
         if (isVoiceMode) {
             const targetWords = session.current.english.split(' ');
             const correctCount = Object.values(session.wordStatus || {}).filter(v => v === 'correct' || v === 'imprecise').length;
             accuracy = Math.round((correctCount / targetWords.length) * 100);
-        } else if (!isTimeout && !isSkipped) {
+        } else if (hasTypedAnswer) {
             accuracy = calculateAccuracy(userVal, session.current.english);
         }
 
@@ -3177,7 +3506,7 @@ function processAnswer(isCorrect, userVal) {
                     </div>
                 `;
             }
-        } else if (!isTimeout && !isSkipped && userVal && userVal.trim().length > 0) {
+        } else if (hasTypedAnswer) {
             if (session.mode === 'quiz') {
                 attemptHTML = `
                     <div class="feedback-attempt-row">
@@ -3383,20 +3712,29 @@ function updateStreak() {
     if (appData.lastReviewDate === yesterdayStr) {
         appData.streak++;
     } else if (appData.lastReviewDate && appData.lastReviewDate !== today) {
-        // Pulou pelo menos 1 dia
-        if (appData.streakFreezes && appData.streakFreezes > 0) {
-            appData.streakFreezes--;
+        const lastDate = new Date(appData.lastReviewDate);
+        const currDate = new Date(today);
+        const diffDays = Math.round((currDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+        const daysMissed = diffDays - 1; // Quantidade de dias consecutivos sem estudar
+
+        if (daysMissed > 0 && appData.streakFreezes && appData.streakFreezes >= daysMissed) {
+            // Possui gelos suficientes para cobrir todos os dias em que não praticou
+            appData.streakFreezes -= daysMissed;
             saveData(appData);
             if ($('freezeCountSpan')) $('freezeCountSpan').textContent = appData.streakFreezes;
             if ($('freezeCountSpanSettings')) $('freezeCountSpanSettings').textContent = appData.streakFreezes;
+            const freezeText = daysMissed === 1 ? "1 Gelo Protetor foi utilizado" : `${daysMissed} Gelos Protetores foram utilizados`;
             setTimeout(() => {
-                alert("🧊 Ufa! Seu Gelo Protetor (Streak Freeze) foi utilizado para proteger sua sequência de dias de estudo!");
+                alert(`🧊 Ufa! Seu ${freezeText} para proteger sua sequência de ${appData.streak} dias de estudo!`);
             }, 600);
         } else {
+            // Dias perdidos excederam os gelos disponíveis (reinicia sequência e ciclo de troféu atual)
             appData.streak = 1;
+            appData.streakMilestoneProgress = 0;
         }
     } else {
         appData.streak = 1;
+        appData.streakMilestoneProgress = 0;
     }
 
     appData.lastReviewDate = today;
@@ -3475,7 +3813,7 @@ const CONTRACTIONS = {
     "won't": "will not", "would've": "would have", "wouldn't": "would not", "you'd": "you would",
     "you'll": "you will", "you're": "you are", "you've": "you have",
     "daren't": "dare not", "needn't": "need not", "oughtn't": "ought not",
-    "y'all": "you all", "ma'am": "madam", "o'clock": "of the clock", "ne'er": "never", "o'er": "over",
+    "y'all": "you all", "ma'am": "madam", "ne'er": "never", "o'er": "over",
     "let's": "let us", "someone's": "someone is", "somebody's": "somebody is", "everyone's": "everyone is",
     "everybody's": "everybody is", "everything's": "everything is", "nothing's": "nothing is",
     "anyone's": "anyone is", "anybody's": "anybody is", "here's": "here is", "there's": "there is",
@@ -3521,6 +3859,16 @@ function normalizeText(t) {
     if (!t) return '';
     let text = t.toLowerCase().trim();
 
+    // Standardize quotes and apostrophes first
+    text = text.replace(/[’‘`]/g, "'");
+
+    // Separate numbers from attached am/pm (e.g., "9am" -> "9 am", "9:00pm" -> "9:00 pm")
+    text = text.replace(/(\d+)\s*(am|pm|a\.m\.|p\.m\.)\b/gi, '$1 $2');
+
+    // Standardize all forms of o'clock attached to numbers or free-standing (e.g., "9o'clock" -> "9 oclock", "o'clock" -> "oclock", "o clock" -> "oclock")
+    text = text.replace(/\bo['’`]?\s*clock\b/gi, 'oclock');
+    text = text.replace(/(\d+)\s*oclock\b/gi, '$1 oclock');
+
     // Always expand contractions for comparison (ignores the setting for internal logic)
     text = expandContractions(text);
 
@@ -3528,27 +3876,43 @@ function normalizeText(t) {
     text = text.replace(/(\d{1,2}):(\d{2})/g, (match, hours, minutes) => {
         const hourWords = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
             'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty',
-            'twenty one', 'twenty two', 'twenty three'];
-        const minWords = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+            'twenty one', 'twenty two', 'twenty three', 'twenty four'];
+        const onesWords = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+        const teenWords = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+        const tensWords = ['', '', 'twenty', 'thirty', 'forty', 'fifty'];
+
         const h = parseInt(hours);
         const m = parseInt(minutes);
         let result = hourWords[h] || hours;
-        if (m > 0) {
-            if (m < 10 && m !== 0) result += ' o ' + minWords[m];
-            else if (m === 30) result += ' thirty';
-            else if (m === 15) result += ' fifteen';
-            else if (m === 45) result += ' forty five';
-            else result += ' ' + (minWords[Math.floor(m / 10)] || '') + (m % 10 > 0 ? ' ' + minWords[m % 10] : '');
+
+        if (m === 0) {
+            // "9:00" spoken / transcribed as "nine o'clock" or "nine"
+            result += ' oclock';
+        } else if (m < 10) {
+            // "9:05" -> "nine o five"
+            result += ' o ' + onesWords[m];
+        } else if (m < 20) {
+            // "9:15" -> "nine fifteen", "9:10" -> "nine ten"
+            result += ' ' + teenWords[m - 10];
+        } else {
+            // "9:30" -> "nine thirty", "9:45" -> "nine forty five", "9:25" -> "nine twenty five"
+            const tens = tensWords[Math.floor(m / 10)] || '';
+            const ones = m % 10 > 0 ? ' ' + onesWords[m % 10] : '';
+            result += ' ' + tens + ones;
         }
         return result;
     });
+
+    // Clean up duplicate 'oclock' (e.g. from "9:00 o'clock" -> "nine oclock oclock" -> "nine oclock")
+    text = text.replace(/\boclock\s+oclock\b/g, 'oclock');
 
     // Convert digits to words for better matching (e.g., "10" -> "ten")
     const numMap = {
         '0': 'zero', '1': 'one', '2': 'two', '3': 'three', '4': 'four', '5': 'five',
         '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine', '10': 'ten',
         '11': 'eleven', '12': 'twelve', '13': 'thirteen', '14': 'fourteen', '15': 'fifteen',
-        '16': 'sixteen', '17': 'seventeen', '18': 'eighteen', '19': 'nineteen', '20': 'twenty'
+        '16': 'sixteen', '17': 'seventeen', '18': 'eighteen', '19': 'nineteen', '20': 'twenty',
+        '30': 'thirty', '40': 'forty', '50': 'fifty', '60': 'sixty', '70': 'seventy', '80': 'eighty', '90': 'ninety', '100': 'one hundred'
     };
     text = text.replace(/\b(\d+)\b/g, (m) => numMap[m] || m);
 
@@ -3681,7 +4045,7 @@ function playAudio(t, lang = 'en-US', onComplete = null) {
         // Don't restart if we are showing results or if session ended
         const isResultVisible = $('feedbackBar')?.classList.contains('active');
         if (session.active && !isResultVisible && (wasListening || session.mode === 'pronounce') && (session.mode === 'speak' || session.mode === 'pronounce')) {
-            if (!exerciseTimerInterval) startExerciseTimer(20);
+            if (!exerciseTimerInterval && !session.timedOut) startExerciseTimer(getExerciseTimeForPhrase(session.current, session.mode));
             if (!isRecognitionActive) startListening();
         }
     };
@@ -4708,10 +5072,10 @@ function finishSpeedRun() {
     renderStats();
 }
 
-function isPhraseDuplicate(english) {
+function isPhraseDuplicate(english, ignorePhraseId = null) {
     const norm = normalizeText(english);
     for (const list of appData.lists) {
-        if (list.phrases.some(p => normalizeText(p.english) === norm)) return true;
+        if (list.phrases.some(p => p.id !== ignorePhraseId && normalizeText(p.english) === norm)) return true;
     }
     return false;
 }
@@ -5069,6 +5433,14 @@ function showBulkModal() {
     openModal('bulkAddModal');
 }
 
+function splitIntoSentences(line) {
+    if (!line) return [];
+    // Separa por ., ! ou ? preservando abreviações comuns (Mr., Mrs., Dr., a.m., p.m., etc.) e números decimais (3.5)
+    const matches = line.match(/(?:Mr\.|Mrs\.|Ms\.|Dr\.|St\.|Prof\.|a\.m\.|p\.m\.|A\.M\.|P\.M\.|\d+\.\d+|[^.!?])+[.!?]*\s*/gi);
+    if (!matches) return [line.trim()].filter(Boolean);
+    return matches.map(s => s.trim()).filter(Boolean);
+}
+
 async function processBulkAdd() {
     const rawInput = $('bulkInput').value.trim();
     if (!rawInput) return;
@@ -5083,66 +5455,51 @@ async function processBulkAdd() {
     let addedCount = 0;
     let duplicateCount = 0;
 
-    if (autoTranslate) {
-        // MODO AUTO-TRADUÇÃO: apenas . separa frases, ignora ; completamente
-        let lines = rawInput.split('\n').map(l => l.trim()).filter(l => l);
-        let phrases = [];
+    const lines = rawInput.split(/\r?\n/).map(l => l.trim()).filter(l => l);
+    const hasSemicolonLines = lines.some(l => l.includes(';'));
 
-        for (let line of lines) {
-            let parts = line.split(/\.(?!\d)/).map(s => s.trim()).filter(s => s);
-            phrases.push(...parts);
-        }
+    // Helper para traduzir e adicionar uma frase em um único idioma (EN ou PT)
+    const translateAndAddSinglePhrase = async (phrase) => {
+        const cleanPhrase = phrase.trim();
+        if (!cleanPhrase) return;
+        const res = await translateText(cleanPhrase, 'auto', 'pt');
+        if (res) {
+            let eng = '', pt = '';
+            const likelyPt = res.detected === 'pt' || isProbablyPortuguese(cleanPhrase) || (res.translated === cleanPhrase && /[áàãâéêíóôúçÁÀÃÂÉÊÍÓÔÚÇ]/.test(cleanPhrase));
 
-        // Traduzir cada frase automaticamente
-        for (let phrase of phrases) {
-            const res = await translateText(phrase, 'auto', 'pt');
-            if (res) {
-                let eng = '', pt = '';
-                const likelyPt = res.detected === 'pt' || isProbablyPortuguese(phrase) || (res.translated === phrase && /[áàãâéêíóôúçÁÀÃÂÉÊÍÓÔÚÇ]/.test(phrase));
+            if (likelyPt) {
+                const resEng = await translateText(cleanPhrase, 'pt', 'en');
+                eng = resEng ? resEng.translated : '';
+                pt = cleanPhrase;
+            } else {
+                eng = cleanPhrase;
+                pt = res.translated;
+            }
 
-                if (likelyPt) {
-                    const resEng = await translateText(phrase, 'pt', 'en');
-                    eng = resEng ? resEng.translated : '';
-                    pt = phrase;
-                } else {
-                    eng = phrase;
-                    pt = res.translated;
+            if (eng && pt) {
+                if (isPhraseDuplicate(eng)) {
+                    duplicateCount++;
+                    return;
                 }
-
-                if (eng && pt) {
-                    if (isPhraseDuplicate(eng)) {
-                        duplicateCount++;
-                        continue;
-                    }
-                    list.phrases.push({
-                        id: 'ph_' + Date.now() + Math.random(),
-                        english: eng,
-                        portuguese: pt,
-                        levels: { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 },
-                        nextReview: null
-                    });
-                    addedCount++;
-                }
+                list.phrases.push({
+                    id: 'ph_' + Date.now() + Math.random(),
+                    english: eng,
+                    portuguese: pt,
+                    levels: { standard: 0, quiz: 0, write: 0, listen: 0, pronounce: 0, speak: 0 },
+                    nextReview: null
+                });
+                addedCount++;
             }
         }
-    } else {
-        // MODO MANUAL: ; para tradução manual, . para separar frases
-        let lines = rawInput.split('\n').map(l => l.trim()).filter(l => l);
-        let entries = [];
+    };
 
+    if (hasSemicolonLines) {
+        // Processa linha por linha preservando pontos finais antes/depois do ponto e vírgula (Inglês; Português)
         for (let line of lines) {
-            // Split por . para separar múltiplas frases em uma linha
-            let phrases = line.split(/\.(?!\d)/).map(s => s.trim()).filter(s => s);
-            entries.push(...phrases);
-        }
-
-        // Verificar se há traduções manuais com ;
-        const hasSemicolon = entries.some(e => e.includes(';'));
-
-        if (hasSemicolon) {
-            // Modo pares manuais: parte1; parte2
-            for (let entry of entries) {
-                let [part1, part2] = entry.split(';').map(s => s ? s.trim() : '');
+            if (line.includes(';')) {
+                const [rawPart1, ...rest] = line.split(';');
+                const part1 = rawPart1 ? rawPart1.trim() : '';
+                const part2 = rest.join(';').trim();
 
                 if (part1 && part2) {
                     if (isPhraseDuplicate(part1)) {
@@ -5157,13 +5514,39 @@ async function processBulkAdd() {
                         nextReview: null
                     });
                     addedCount++;
+                } else if (part1 && autoTranslate) {
+                    const sentences = splitIntoSentences(part1);
+                    for (let s of sentences) {
+                        await translateAndAddSinglePhrase(s);
+                    }
+                }
+            } else if (autoTranslate) {
+                const sentences = splitIntoSentences(line);
+                for (let s of sentences) {
+                    await translateAndAddSinglePhrase(s);
                 }
             }
-        } else if (entries.length >= 2) {
-            // Pareamento automático de linhas: linha 1 = eng, linha 2 = pt, etc
-            for (let i = 0; i < entries.length; i += 2) {
-                const eng = entries[i];
-                const pt = entries[i + 1];
+        }
+    } else {
+        // Separa todas as linhas em frases individuais (por ., !, ? e quebras de linha)
+        let allSentences = [];
+        for (let line of lines) {
+            allSentences.push(...splitIntoSentences(line));
+        }
+
+        // Verifica se o texto parece ser apenas em um idioma (ex.: texto todo em inglês)
+        const hasAnyPt = allSentences.some(s => isProbablyPortuguese(s));
+        const shouldAutoTranslate = autoTranslate || !hasAnyPt || allSentences.length === 1;
+
+        if (shouldAutoTranslate) {
+            for (let phrase of allSentences) {
+                await translateAndAddSinglePhrase(phrase);
+            }
+        } else if (allSentences.length >= 2) {
+            // MODO MANUAL SEM ';': pareamento de frases (frase 1 = eng, frase 2 = pt, etc.)
+            for (let i = 0; i < allSentences.length; i += 2) {
+                const eng = allSentences[i];
+                const pt = allSentences[i + 1];
                 if (eng && pt) {
                     if (isPhraseDuplicate(eng)) {
                         duplicateCount++;
@@ -5425,10 +5808,10 @@ function startListening() {
         currentRecognition = null;
     }
 
-    // Garante que o cronômetro de 20s inicie caso o usuário tenha ativado o microfone antes do áudio terminar
+    // Garante que o cronômetro proporcional inicie caso o usuário tenha ativado o microfone antes do áudio terminar
     const isResultVisible = $('feedbackBar')?.classList.contains('active');
-    if (session.active && !isResultVisible && (session.mode === 'pronounce' || session.mode === 'speak') && !exerciseTimerInterval) {
-        startExerciseTimer(20);
+    if (session.active && !isResultVisible && (session.mode === 'pronounce' || session.mode === 'speak') && !exerciseTimerInterval && !session.timedOut) {
+        startExerciseTimer(getExerciseTimeForPhrase(session.current, session.mode));
     }
 
     const rec = new SR();
@@ -5487,6 +5870,23 @@ function startListening() {
             if (regex.test(heard)) {
                 session.wordStatus[targetIdx] = 'correct';
                 return;
+            }
+
+            // Special matching for time-related target words:
+            // a) If target word is "oclock" (from "o'clock"), accept if heard contains "oclock" or "clock"
+            if (ntw === 'oclock' && /\b(oclock|clock)\b/i.test(heard)) {
+                session.wordStatus[targetIdx] = 'correct';
+                return;
+            }
+
+            // b) If target word is a composite time ending in " oclock" (e.g. target was "9:00" -> "nine oclock")
+            // accept if heard contains the hour part (e.g. "nine")
+            if (ntw.endsWith(' oclock')) {
+                const hourOnly = ntw.replace(/\s+oclock$/, '');
+                if (new RegExp(`\\b${hourOnly}\\b`, 'i').test(heard)) {
+                    session.wordStatus[targetIdx] = 'correct';
+                    return;
+                }
             }
 
             // 2. Fuzzy Match and Word-by-Word logic
@@ -5680,9 +6080,9 @@ function startListeningCorrection() {
         normTargetWords.forEach((ntw, idx) => {
             if (isFullMatch) {
                 displayedHTML += `<span style="color: var(--success); font-weight: 700;">${targetWords[idx]}</span> `;
-            } else if (recentAttempt[idx] === ntw) {
+            } else if (recentAttempt[idx] === ntw || (ntw === 'oclock' && (recentAttempt[idx] === 'clock' || recentAttempt[idx] === 'oclock'))) {
                 displayedHTML += `<span style="color: var(--success); font-weight: 700;">${targetWords[idx]}</span> `;
-            } else if (heardWords.includes(ntw)) {
+            } else if (heardWords.includes(ntw) || (ntw === 'oclock' && (heardWords.includes('clock') || heardWords.includes('oclock')))) {
                 displayedHTML += `<span style="color: var(--warning); font-weight: 700;">${targetWords[idx]}</span> `;
             }
         });
@@ -6094,6 +6494,79 @@ function showEditListModal(id) {
     };
 
     openModal('editListModal');
+}
+
+function findPhraseById(phraseId) {
+    for (const list of appData.lists) {
+        const phrase = list.phrases.find(p => p.id === phraseId);
+        if (phrase) return { phrase, list };
+    }
+    return null;
+}
+
+function showEditPhraseModal(phraseId) {
+    const item = findPhraseById(phraseId);
+    if (!item) return;
+    const { phrase } = item;
+
+    $('editPhraseId').value = phrase.id;
+    $('editPhraseEng').value = phrase.english;
+    $('editPhrasePt').value = phrase.portuguese;
+
+    openModal('editPhraseModal');
+    setTimeout(() => {
+        const input = $('editPhraseEng');
+        if (input) {
+            input.focus();
+            input.select();
+        }
+    }, 150);
+}
+
+function saveEditedPhrase() {
+    const phraseId = $('editPhraseId').value;
+    const eng = $('editPhraseEng').value.trim();
+    const pt = $('editPhrasePt').value.trim();
+
+    if (!eng || !pt) {
+        alert("Preencha os campos em inglês e português.", "Campos Obrigatórios", "⚠️");
+        return;
+    }
+
+    if (isPhraseDuplicate(eng, phraseId)) {
+        alert("Esta frase em inglês já existe em uma de suas listas!", "Frase Duplicada", "⚠️");
+        return;
+    }
+
+    const item = findPhraseById(phraseId);
+    if (!item) return;
+    const { phrase } = item;
+
+    phrase.english = eng;
+    phrase.portuguese = pt;
+
+    if (session.current && session.current.id === phraseId) {
+        session.current.english = eng;
+        session.current.portuguese = pt;
+    }
+
+    saveData(appData);
+    prefetchMissingPhonetics();
+    renderPhrases($('phraseSearchInput')?.value || '');
+    renderStats();
+    closeModal();
+
+    setTimeout(() => {
+        const el = $(`phrase-${phraseId}`);
+        if (el) {
+            el.style.border = '2px solid var(--primary)';
+            el.style.boxShadow = '0 0 25px var(--primary-soft)';
+            setTimeout(() => {
+                el.style.border = '';
+                el.style.boxShadow = '';
+            }, 1800);
+        }
+    }, 100);
 }
 
 function showMovePhraseModal(phraseId) {
