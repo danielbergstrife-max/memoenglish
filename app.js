@@ -1,4 +1,4 @@
-const APP_VERSION = '5.0.0';
+const APP_VERSION = '5.0.6';
 // ==================== PWA INSTALLATION ====================
 let deferredPrompt;
 
@@ -67,6 +67,14 @@ async function forceAppUpdate() {
 
 async function checkVersionAndUpdateAutomatically() {
     if (!navigator.onLine) return;
+
+    // Proteção contra loops infinitos de recarregamento:
+    // Garante no máximo 1 verificação de reload automático a cada 30 segundos
+    const lastAutoReload = sessionStorage.getItem('memo_last_auto_reload');
+    if (lastAutoReload && (Date.now() - Number(lastAutoReload)) < 30000) {
+        return;
+    }
+
     try {
         const res = await fetch(`./sw.js?check=${Date.now()}`, { cache: 'no-store' });
         if (res.ok) {
@@ -76,7 +84,9 @@ async function checkVersionAndUpdateAutomatically() {
                 const serverCacheName = match[1];
                 const localCacheName = `memoenglish-v${APP_VERSION}`;
                 if (serverCacheName !== localCacheName) {
-                    console.log(`Nova versão disponível no servidor: ${serverCacheName}. Atualizando app automaticamente...`);
+                    console.log(`Nova versão detectada no servidor: ${serverCacheName} (atual: ${localCacheName}). Atualizando app...`);
+                    sessionStorage.setItem('memo_last_auto_reload', Date.now().toString());
+
                     if ('caches' in window) {
                         const keys = await caches.keys();
                         for (const k of keys) {
@@ -910,10 +920,13 @@ async function syncWithCloud(isManual = false, isInitialSync = false, pullOnly =
 async function callGas(data) {
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
 
         const res = await fetch(GAS_URL, {
             method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8'
+            },
             body: JSON.stringify(data),
             redirect: 'follow',
             signal: controller.signal
@@ -1249,7 +1262,7 @@ function renderSyncStatus() {
     const actionArea = $('syncActionArea');
     const displayPass = $('displayPassword');
 
-    if (appData.auth.isLoggedIn) {
+    if (appData.auth && appData.auth.isLoggedIn) {
         if (loggedOutView) loggedOutView.style.display = 'none';
         if (userInfo) userInfo.style.display = 'block';
         if (actionArea) actionArea.style.display = 'flex';
@@ -6628,49 +6641,76 @@ async function initializeApp() {
     const appContainer = $('appContainer');
     const loadingStatus = $('loadingStatus');
 
-    // 1. Renderizar Status inicial (offline)
-    renderSyncStatus();
-    applyDarkMode();
+    let isDismissed = false;
+    const dismissLoadingScreen = () => {
+        if (isDismissed) return;
+        isDismissed = true;
 
-    // Se logado, tentar sincronizar
-    if (appData.auth && appData.auth.isLoggedIn) {
-        if (navigator.onLine) {
-            await syncWithCloud(false, true);
-        } else {
-            if (loadingStatus) loadingStatus.textContent = "Modo Offline";
-            await new Promise(r => setTimeout(r, 1000));
+        try {
+            renderStats();
+            startCountdownInterval();
+        } catch (uiErr) {
+            console.error("Erro ao inicializar stats na UI:", uiErr);
         }
-    } else {
-        if (loadingStatus) loadingStatus.textContent = "Pronto!";
-        await new Promise(r => setTimeout(r, 800));
-    }
 
-    // 2. Preparar UI principal
-    renderStats();
-    startCountdownInterval();
+        if (loadingScreen) {
+            loadingScreen.classList.add('fade-out');
+        }
 
-    // Pequeno delay para garantir que o usuário veja o "Concluído" ou "Pronto"
-    await new Promise(r => setTimeout(r, 500));
+        if (appContainer) {
+            appContainer.style.display = 'flex';
+            setTimeout(() => {
+                appContainer.style.opacity = '1';
 
-    // 3. Transição: Splash -> App
-    if (loadingScreen) loadingScreen.classList.add('fade-out');
+                // Iniciar Tutorial se for a primeira vez
+                if (appData.settings && !appData.settings.tutorialCompleted) {
+                    setTimeout(startTutorial, 1200);
+                }
+            }, 50);
+        }
 
-    if (appContainer) {
-        appContainer.style.display = 'flex';
+        // Remover o splash do DOM após a animação para liberar recursos
         setTimeout(() => {
-            appContainer.style.opacity = '1';
-
-            // 4. Iniciar Tutorial se for a primeira vez
-            if (!appData.settings.tutorialCompleted) {
-                setTimeout(startTutorial, 1200);
+            if (loadingScreen && loadingScreen.parentNode) {
+                loadingScreen.remove();
             }
-        }, 50);
-    }
+        }, 1000);
+    };
 
-    // Remover o splash do DOM após a animação para economizar recursos
-    setTimeout(() => {
-        if (loadingScreen) loadingScreen.remove();
-    }, 1000);
+    // Watchdog de segurança absoluto: NUNCA deixa a tela de splash travada
+    // Garante que o aplicativo abra em no máximo 2.5s mesmo em caso de erro, lentidão ou queda de conexão
+    const watchdogTimer = setTimeout(() => {
+        console.warn("Watchdog acionado: transição forçada para a tela principal.");
+        dismissLoadingScreen();
+    }, 2500);
+
+    try {
+        // 1. Renderizar Status inicial (offline) e tema
+        renderSyncStatus();
+        applyDarkMode();
+
+        // 2. Se logado, tentar sincronizar com timeout protetor de 2s para não atrasar a abertura
+        if (appData.auth && appData.auth.isLoggedIn) {
+            if (navigator.onLine) {
+                if (loadingStatus) loadingStatus.textContent = "Sincronizando com a nuvem...";
+                await Promise.race([
+                    syncWithCloud(false, true),
+                    new Promise(r => setTimeout(r, 2000))
+                ]);
+            } else {
+                if (loadingStatus) loadingStatus.textContent = "Modo Offline";
+                await new Promise(r => setTimeout(r, 600));
+            }
+        } else {
+            if (loadingStatus) loadingStatus.textContent = "Pronto!";
+            await new Promise(r => setTimeout(r, 400));
+        }
+    } catch (e) {
+        console.warn("Aviso na inicialização do app:", e);
+    } finally {
+        clearTimeout(watchdogTimer);
+        dismissLoadingScreen();
+    }
 }
 
 // Start the application
