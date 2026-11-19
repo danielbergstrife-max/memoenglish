@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MemoEnglish - Premium</title>
-    <link rel="stylesheet" href="style.css?v=5.0.6">
+    <link rel="stylesheet" href="style.css?v=5.3.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -74,6 +74,9 @@
             <div class="nav-link" data-view="listsView">
                 <span class="nav-icon">📖</span> Minhas Listas
             </div>
+            <div class="nav-link" data-view="leagueView">
+                <span class="nav-icon">🏆</span> Liga Semanal
+            </div>
             <div class="nav-link" data-view="metricsView">
                 <span class="nav-icon">📊</span> Métricas
             </div>
@@ -124,21 +127,63 @@
             <div class="stats-grid">
                 <div class="stat-card">
                     <span class="stat-value" id="statTotal">0</span>
-                    <span class="stat-label">Total Frases</span>
+                    <span class="stat-label"><span class="desktop-text">Total Frases</span><span class="mobile-text">Total</span></span>
                 </div>
                 <div class="stat-card">
                     <span class="stat-value" id="statDue">0</span>
-                    <span class="stat-label">Para Revisar</span>
+                    <span class="stat-label"><span class="desktop-text">Para Revisar</span><span class="mobile-text">Pendentes</span></span>
                 </div>
                 <div class="stat-card" style="cursor: pointer;" onclick="showStudiedWordsModal()">
                     <span class="stat-value" id="statWords">0</span>
-                    <span class="stat-label">Palavras Estudadas</span>
+                    <span class="stat-label"><span class="desktop-text">Palavras Estudadas</span><span class="mobile-text">Palavras</span></span>
                 </div>
                 <div class="stat-card"
                     style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; cursor: pointer;"
                     onclick="showMasteredModal()">
                     <span class="stat-value" id="statMemorized" style="color: white;">0</span>
-                    <span class="stat-label" style="color: rgba(255,255,255,0.8);">Frases Memorizadas</span>
+                    <span class="stat-label" style="color: rgba(255,255,255,0.8);"><span class="desktop-text">Frases Memorizadas</span><span class="mobile-text">Dominadas</span></span>
+                </div>
+            </div>
+
+            <!-- CENTRAL DE MISSÕES DIÁRIAS & SEMANAIS -->
+            <div id="missionsCardHome" class="card missions-card" style="margin-bottom: 32px; padding: 24px; position: relative; overflow: hidden;">
+                <!-- Banner de Poções / XP Boosters -->
+                <div id="missionsBoosterBanner" class="xp-booster-banner" style="display: none;"></div>
+
+                <div class="missions-header">
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.35rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                            <span>🎯</span> Central de Missões
+                        </h3>
+                        <p style="margin: 4px 0 0 0; color: var(--text-muted); font-size: 0.88rem;">
+                            Desafios de estudo, retenção e imersão com recompensas exclusivas.
+                        </p>
+                    </div>
+                    <div class="missions-tabs">
+                        <button type="button" class="tab-btn active" id="tabDailyMissions" onclick="switchMissionsTab('daily')">
+                            ☀️ Diárias (+100 XP)
+                        </button>
+                        <button type="button" class="tab-btn" id="tabWeeklyMissions" onclick="switchMissionsTab('weekly')">
+                            👑 Semanais (+1.000 XP)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="missions-timer-row">
+                    <span id="missionsTimerText" class="missions-timer">⏳ Reinicia em: 00h 00m</span>
+                    <span id="missionsSummaryCount" style="font-size: 0.82rem; font-weight: 700; color: var(--primary);">0/3 Concluídas</span>
+                </div>
+
+                <!-- Lista Diária -->
+                <div id="dailyMissionsContainer" class="missions-list-container">
+                    <div id="dailyMissionsList" class="missions-list"></div>
+                    <div id="dailyChestCard" class="mission-chest-card"></div>
+                </div>
+
+                <!-- Lista Semanal -->
+                <div id="weeklyMissionsContainer" class="missions-list-container" style="display: none;">
+                    <div id="weeklyMissionsList" class="missions-list"></div>
+                    <div id="weeklyChestCard" class="mission-chest-card"></div>
                 </div>
             </div>
 
@@ -177,7 +222,7 @@
                             style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: 800; font-size: 1.2rem;">
                             0%</div>
                     </div>
-                    <span class="stat-label">Meta Diária: <span id="goalTargetText">20</span> frases</span>
+                    <span class="stat-label">Meta Diária: <span id="goalTargetText">50</span> frases</span>
                     <div id="streakFreezeBadge" class="freeze-badge" title="Gelo Protetor salva sua sequência de dias caso você esqueça de estudar">
                         🧊 <span id="freezeCountSpan">1</span> Gelo Protetor
                     </div>
@@ -189,16 +234,19 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <span style="font-size: 1.4rem;">🏆</span>
-                        <span style="font-weight: 800; font-size: 1.05rem;">Marcos de Sequência</span>
+                        <span style="font-weight: 800; font-size: 1.05rem;"><span class="desktop-text">Marcos de Sequência</span><span class="mobile-text">Troféus</span></span>
                     </div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <span class="badge" style="background: rgba(205, 127, 50, 0.12); color: #b45309; border: 1px solid rgba(205, 127, 50, 0.3); font-weight: 800; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem;" title="Troféus de Bronze">
+                    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                        <span class="badge" style="background: rgba(100, 116, 139, 0.15); color: #475569; border: 1px solid rgba(100, 116, 139, 0.35); font-weight: 800; padding: 4px 8px; border-radius: 8px; font-size: 0.85rem;" title="Troféus de Ferro (3 dias • +0,2%)">
+                            🛡️ <span id="trophyIronCount">0</span>
+                        </span>
+                        <span class="badge" style="background: rgba(205, 127, 50, 0.12); color: #b45309; border: 1px solid rgba(205, 127, 50, 0.3); font-weight: 800; padding: 4px 8px; border-radius: 8px; font-size: 0.85rem;" title="Troféus de Bronze (7 dias • +0,3%)">
                             🥉 <span id="trophyBronzeCount">0</span>
                         </span>
-                        <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #64748b; border: 1px solid rgba(148, 163, 184, 0.3); font-weight: 800; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem;" title="Troféus de Prata">
+                        <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #64748b; border: 1px solid rgba(148, 163, 184, 0.3); font-weight: 800; padding: 4px 8px; border-radius: 8px; font-size: 0.85rem;" title="Troféus de Prata (14 dias • +0,5%)">
                             🥈 <span id="trophySilverCount">0</span>
                         </span>
-                        <span class="badge" style="background: rgba(234, 179, 8, 0.15); color: #d97706; border: 1px solid rgba(234, 179, 8, 0.3); font-weight: 800; padding: 4px 10px; border-radius: 8px; font-size: 0.85rem;" title="Troféus de Ouro">
+                        <span class="badge" style="background: rgba(234, 179, 8, 0.15); color: #d97706; border: 1px solid rgba(234, 179, 8, 0.3); font-weight: 800; padding: 4px 8px; border-radius: 8px; font-size: 0.85rem;" title="Troféus de Ouro (30 dias • +1,0%)">
                             🥇 <span id="trophyGoldCount">0</span>
                         </span>
                     </div>
@@ -213,8 +261,33 @@
                         <div id="nextTrophyProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #d97706, #b45309); transition: width 0.4s ease; border-radius: 6px;"></div>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; flex-wrap: wrap; gap: 6px;">
-                        <span id="trophyGoalHint" style="font-size: 0.75rem; color: var(--text-muted);">Só avança ao bater a meta diária (0/20 frases hoje).</span>
+                        <span id="trophyGoalHint" style="font-size: 0.75rem; color: var(--text-muted);"><span class="desktop-text">Só avança ao bater a meta diária (0/50 frases hoje).</span><span class="mobile-text">🎯 0/50 frases hoje</span></span>
                         <span id="trophyBonusActiveText" style="font-size: 0.75rem; font-weight: 700; color: var(--success);">⚡ Bônus Ativo: +0 XP/meta diária</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD DE RESUMO DA LIGA SEMANAL NA HOME -->
+            <div id="leagueCardHome" class="card" onclick="showView('leagueView')" style="cursor: pointer; margin-bottom: 24px; padding: 18px 20px; background: var(--surface-glass); border: 1px solid var(--border); border-radius: var(--radius-lg); animation: fadeIn 0.4s ease; transition: transform 0.2s, box-shadow 0.2s;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span id="homeLeagueIcon" style="font-size: 1.5rem;">🥉</span>
+                        <div>
+                            <span style="font-weight: 800; font-size: 1.05rem;" id="homeLeagueTitle">Liga Bronze</span>
+                            <span class="desktop-text" style="font-size: 0.75rem; color: var(--text-muted); margin-left: 6px;">• Divisão Semanal</span>
+                        </div>
+                    </div>
+                    <div id="homeLeagueZoneBadge" class="zone-tag zone-tag-promo">
+                        ⬆️ Zona de Promoção
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="font-size: 0.9rem; color: var(--text);">
+                        <span class="desktop-text">Sua Posição: </span><strong id="homeLeagueRankText" style="color: var(--primary);">#1 de 15</strong> 
+                        • <span id="homeLeagueXPText" style="font-weight: 700;">0 XP esta semana</span>
+                    </div>
+                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 4px;">
+                        <span class="desktop-text">Ver Tabela Completa ➔</span><span class="mobile-text">Ver ➔</span>
                     </div>
                 </div>
             </div>
@@ -256,74 +329,74 @@
                         🎯 Modos de Treino
                     </h3>
                     <button id="btnToggleMultiMode" class="btn btn-outline btn-sm" onclick="toggleMultiModeSelect()" style="border-radius: 20px; padding: 8px 16px; font-weight: 700;">
-                        ☑️ Combinar Modos
+                        <span class="desktop-text">☑️ Combinar Modos</span><span class="mobile-text">☑️ Combinar</span>
                     </button>
                 </div>
 
                 <!-- BARRA DE TREINO COMBINADO -->
                 <div id="multiModeBar" class="multi-mode-bar" style="display: none;">
                     <div class="multi-mode-info">
-                        <span id="multiModeStatusText">Selecione 2 ou mais modos abaixo para combinar na mesma sessão</span>
+                        <span id="multiModeStatusText"><span class="desktop-text">Selecione 2 ou mais modos abaixo para combinar na mesma sessão</span><span class="mobile-text">Escolha 2+ modos para combinar</span></span>
                     </div>
                     <div class="multi-mode-actions">
                         <button class="btn btn-outline btn-sm" onclick="clearMultiModeSelection()">Cancelar</button>
                         <button id="btnStartMultiMode" class="btn btn-primary btn-sm" onclick="startMultiModeReview()" disabled>
-                            🚀 Iniciar Combinado (0)
+                            🚀 <span class="desktop-text">Iniciar Combinado</span><span class="mobile-text">Iniciar</span> (0)
                         </button>
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                <div class="training-modes-grid">
                     <div class="card mode-card" data-mode="quiz" onclick="handleModeCardClick('quiz')">
                         <span class="mode-select-check" onclick="event.stopPropagation(); toggleModeInMulti('quiz')" title="Selecionar para combinar">✓</span>
-                        <div style="font-size: 2rem; margin-bottom: 12px;">🧩</div>
-                        <h4 style="margin-bottom: 4px;">Foco: Quiz</h4>
-                        <p style="font-size: 0.85rem; color: var(--text-muted);">Reconhecimento visual</p>
+                        <div class="mode-icon" style="font-size: 2rem; margin-bottom: 12px;">🧩</div>
+                        <h4 style="margin-bottom: 4px;"><span class="desktop-text">Foco: </span>Quiz</h4>
+                        <p class="mobile-hide" style="font-size: 0.85rem; color: var(--text-muted);">Reconhecimento visual</p>
                     </div>
                     <div class="card mode-card" data-mode="write" onclick="handleModeCardClick('write')">
                         <span class="mode-select-check" onclick="event.stopPropagation(); toggleModeInMulti('write')" title="Selecionar para combinar">✓</span>
-                        <div style="font-size: 2rem; margin-bottom: 12px;">✍️</div>
-                        <h4 style="margin-bottom: 4px;">Foco: Escrita</h4>
-                        <p style="font-size: 0.85rem; color: var(--text-muted);">Prática de digitação</p>
+                        <div class="mode-icon" style="font-size: 2rem; margin-bottom: 12px;">✍️</div>
+                        <h4 style="margin-bottom: 4px;"><span class="desktop-text">Foco: </span>Escrita</h4>
+                        <p class="mobile-hide" style="font-size: 0.85rem; color: var(--text-muted);">Prática de digitação</p>
                     </div>
                     <div class="card mode-card" data-mode="listen" onclick="handleModeCardClick('listen')">
                         <span class="mode-select-check" onclick="event.stopPropagation(); toggleModeInMulti('listen')" title="Selecionar para combinar">✓</span>
-                        <div style="font-size: 2rem; margin-bottom: 12px;">👂</div>
-                        <h4 style="margin-bottom: 4px;">Foco: Escuta</h4>
-                        <p style="font-size: 0.85rem; color: var(--text-muted);">Entender áudio em inglês</p>
+                        <div class="mode-icon" style="font-size: 2rem; margin-bottom: 12px;">👂</div>
+                        <h4 style="margin-bottom: 4px;"><span class="desktop-text">Foco: </span>Escuta</h4>
+                        <p class="mobile-hide" style="font-size: 0.85rem; color: var(--text-muted);">Entender áudio em inglês</p>
                     </div>
                     <div class="card mode-card" data-mode="pronounce" onclick="handleModeCardClick('pronounce')">
                         <span class="mode-select-check" onclick="event.stopPropagation(); toggleModeInMulti('pronounce')" title="Selecionar para combinar">✓</span>
-                        <div style="font-size: 2rem; margin-bottom: 12px;">🗣️</div>
-                        <h4 style="margin-bottom: 4px;">Foco: Pronúncia</h4>
-                        <p style="font-size: 0.85rem; color: var(--text-muted);">Treino com guia fonético</p>
+                        <div class="mode-icon" style="font-size: 2rem; margin-bottom: 12px;">🗣️</div>
+                        <h4 style="margin-bottom: 4px;"><span class="desktop-text">Foco: </span>Pronúncia</h4>
+                        <p class="mobile-hide" style="font-size: 0.85rem; color: var(--text-muted);">Treino com guia fonético</p>
                     </div>
                     <div class="card mode-card" data-mode="speak" onclick="handleModeCardClick('speak')">
                         <span class="mode-select-check" onclick="event.stopPropagation(); toggleModeInMulti('speak')" title="Selecionar para combinar">✓</span>
-                        <div style="font-size: 2rem; margin-bottom: 12px;">🎙️</div>
-                        <h4 style="margin-bottom: 4px;">Foco: Fala</h4>
-                        <p style="font-size: 0.85rem; color: var(--text-muted);">Prática de voz pura</p>
+                        <div class="mode-icon" style="font-size: 2rem; margin-bottom: 12px;">🎙️</div>
+                        <h4 style="margin-bottom: 4px;"><span class="desktop-text">Foco: </span>Fala</h4>
+                        <p class="mobile-hide" style="font-size: 0.85rem; color: var(--text-muted);">Prática de voz pura</p>
                     </div>
                     <div class="card mode-card" onclick="startHandsFreeMode()" style="border-top: 3px solid var(--primary);">
-                        <div style="font-size: 2rem; margin-bottom: 12px;">🎧</div>
+                        <div class="mode-icon" style="font-size: 2rem; margin-bottom: 12px;">🎧</div>
                         <h4 style="margin-bottom: 4px;">Hands-Free</h4>
-                        <p style="font-size: 0.85rem; color: var(--text-muted);">Áudio passivo contínuo</p>
+                        <p class="mobile-hide" style="font-size: 0.85rem; color: var(--text-muted);">Áudio passivo contínuo</p>
                     </div>
                     <div class="card mode-card" onclick="startSpeedRun()" style="border-top: 3px solid #f59e0b; cursor: pointer;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-                            <span style="font-size: 2rem;">⚡</span>
+                            <span class="mode-icon" style="font-size: 2rem;">⚡</span>
                             <span id="speedRunRecordBadge" class="speedrun-badge-glow">Recorde: 0</span>
                         </div>
-                        <h4 style="margin-bottom: 4px;">Speed Run (5 min)</h4>
-                        <p style="font-size: 0.85rem; color: var(--text-muted);">Escreva com blocos de letras em 5 minutos</p>
+                        <h4 style="margin-bottom: 4px;">Speed Run<span class="desktop-text"> (5 min)</span></h4>
+                        <p class="mobile-hide" style="font-size: 0.85rem; color: var(--text-muted);">Escreva com blocos de letras em 5 minutos</p>
                     </div>
                     <div id="btnTroublesome" class="card mode-card" onclick="startTroublesomeReview()" style="border-top: 3px solid #f59e0b; cursor: pointer;" title="Praticar cada frase no treino em que ela está com o menor nível">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-                            <span style="font-size: 2rem;">⚠️</span>
+                            <span class="mode-icon" style="font-size: 2rem;">⚠️</span>
                             <span id="troublesomeCount" class="btn-troublesome-badge">0</span>
                         </div>
-                        <h4 style="margin-bottom: 4px;">Treinar Dificuldades</h4>
-                        <p style="font-size: 0.85rem; color: var(--text-muted);">Testes no menor nível de cada frase</p>
+                        <h4 style="margin-bottom: 4px;"><span class="desktop-text">Treinar Dificuldades</span><span class="mobile-text">Dificuldades</span></h4>
+                        <p class="mobile-hide" style="font-size: 0.85rem; color: var(--text-muted);">Testes no menor nível de cada frase</p>
                     </div>
                 </div>
             </div>
@@ -346,7 +419,7 @@
                     <span class="stat-value" id="statStreak">0</span>
                     <span class="stat-label">Dias Seguidos</span>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" style="display: none;">
                     <span class="stat-value" id="statTotalPoints">0</span>
                     <span class="stat-label">Pontos de Mestre</span>
                 </div>
@@ -363,20 +436,89 @@
                     </div>
                 </div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 16px; text-align: center;">
+                    <div style="background: rgba(100, 116, 139, 0.08); border: 1px solid rgba(100, 116, 139, 0.25); border-radius: var(--radius-md); padding: 18px 12px;">
+                        <div style="font-size: 2.4rem; margin-bottom: 6px;">🛡️</div>
+                        <div style="font-weight: 800; font-size: 1.6rem; color: #475569;" id="metricsTrophyIron">0</div>
+                        <div style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-top: 2px;">Ferro (3 dias) • +0,2%</div>
+                    </div>
                     <div style="background: rgba(205, 127, 50, 0.08); border: 1px solid rgba(205, 127, 50, 0.25); border-radius: var(--radius-md); padding: 18px 12px;">
                         <div style="font-size: 2.4rem; margin-bottom: 6px;">🥉</div>
                         <div style="font-weight: 800; font-size: 1.6rem; color: #b45309;" id="metricsTrophyBronze">0</div>
-                        <div style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-top: 2px;">Bronze (7 dias) • +0,2%</div>
+                        <div style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-top: 2px;">Bronze (7 dias) • +0,3%</div>
                     </div>
                     <div style="background: rgba(148, 163, 184, 0.08); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: var(--radius-md); padding: 18px 12px;">
                         <div style="font-size: 2.4rem; margin-bottom: 6px;">🥈</div>
                         <div style="font-weight: 800; font-size: 1.6rem; color: #64748b;" id="metricsTrophySilver">0</div>
-                        <div style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-top: 2px;">Prata (14 dias) • +0,3%</div>
+                        <div style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-top: 2px;">Prata (14 dias) • +0,5%</div>
                     </div>
                     <div style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: var(--radius-md); padding: 18px 12px;">
                         <div style="font-size: 2.4rem; margin-bottom: 6px;">🥇</div>
                         <div style="font-weight: 800; font-size: 1.6rem; color: #d97706;" id="metricsTrophyGold">0</div>
-                        <div style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-top: 2px;">Ouro (30 dias) • +0,5%</div>
+                        <div style="font-size: 0.75rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-top: 2px;">Ouro (30 dias) • +1,0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PIRÂMIDE DE FLUÊNCIA VOCABULAR -->
+            <div id="fluencyPyramidCard" class="card" style="margin-bottom: 32px; padding: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                            <span>🏔️</span> Pirâmide de Fluência Vocabular
+                        </h3>
+                        <p class="mobile-hide" style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0 0;">
+                            Mapeamento da retenção e profundidade de memória de todo o seu vocabulário
+                        </p>
+                    </div>
+                    <div class="badge" style="background: var(--primary-soft); color: var(--primary); font-weight: 800; font-size: 0.95rem; padding: 8px 16px; border-radius: 20px;">
+                        📖 <span id="totalActiveWordsCount">0</span> <span class="desktop-text">palavras ativas</span><span class="mobile-text">palavras</span>
+                    </div>
+                </div>
+
+                <!-- VISUAL PYRAMID TIERS -->
+                <div class="fluency-pyramid-container">
+                    <!-- TIER 3: TOP (DOMINADAS - Lvl 4+) -->
+                    <div class="pyramid-tier tier-mastered">
+                        <div class="tier-content">
+                            <div class="tier-title">
+                                <span>🥇 <span class="desktop-text">Topo: Memória de Longo Prazo (Dominadas)</span><span class="mobile-text">Dominadas</span></span>
+                                <span class="tier-stat" id="pyramidMasteredStat">0 palavras (0%)</span>
+                            </div>
+                            <div class="tier-sub mobile-hide">Nível 4 ou 5 em habilidades • <span id="pyramidMasteredPhrases">0</span> frases consolidadas</div>
+                        </div>
+                    </div>
+
+                    <!-- TIER 2: MIDDLE (EM FIXAÇÃO - Lvl 2-3) -->
+                    <div class="pyramid-tier tier-fixing">
+                        <div class="tier-content">
+                            <div class="tier-title">
+                                <span>🥈 <span class="desktop-text">Meio: Memória Intermediária (Em Fixação)</span><span class="mobile-text">Em Fixação</span></span>
+                                <span class="tier-stat" id="pyramidFixingStat">0 palavras (0%)</span>
+                            </div>
+                            <div class="tier-sub mobile-hide">Nível 2 a 3 no SRS • <span id="pyramidFixingPhrases">0</span> frases em processo de fixação</div>
+                        </div>
+                    </div>
+
+                    <!-- TIER 1: BASE (NOVAS - Lvl 0-1) -->
+                    <div class="pyramid-tier tier-new">
+                        <div class="tier-content">
+                            <div class="tier-title">
+                                <span>🥉 <span class="desktop-text">Base: Fase de Aquisição (Novas)</span><span class="mobile-text">Novas</span></span>
+                                <span class="tier-stat" id="pyramidNewStat">0 palavras (0%)</span>
+                            </div>
+                            <div class="tier-sub mobile-hide">Nível 0 a 1 • <span id="pyramidNewPhrases">0</span> frases recém-adicionadas</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ESTIMATIVA DE NÍVEL CEFR -->
+                <div style="margin-top: 22px; padding: 14px 18px; border-radius: var(--radius-md); background: var(--surface-glass); border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="font-size: 0.85rem; color: var(--text);">
+                        🎓 <strong>Estimativa de Nível:</strong> <span id="pyramidCefrLevel" style="font-weight: 800; color: var(--primary);">Iniciante A1</span>
+                        <span id="pyramidCefrDesc" style="color: var(--text-muted); margin-left: 6px;">(Construindo vocabulário base)</span>
+                    </div>
+                    <div class="mobile-hide" style="font-size: 0.8rem; color: var(--text-muted);">
+                        💡 500 palavras cobrem ~75% das conversas cotidianas
                     </div>
                 </div>
             </div>
@@ -422,8 +564,101 @@
                 </div>
             </div>
 
+            <!-- GALERIA DE BADGES & MEDALHAS REPETÍVEIS -->
+            <div id="badgesShowcaseCard" class="card" style="margin-bottom: 32px; padding: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                            <span>🎖️</span> Álbum de Conquistas & Medalhas Repetíveis
+                        </h3>
+                        <p class="mobile-hide" style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0 0;">
+                            Conquiste cada medalha até 1 vez por dia para subir de nível e ganhar mais XP. Se você não realizar o badge no dia, ele é perdido!
+                        </p>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <span class="badge" style="background: var(--primary-soft); color: var(--primary); font-weight: 800; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem;">
+                            ⭐ <span id="badgesTotalConquests">0</span> <span class="desktop-text">Conquistas Totais</span><span class="mobile-text">Conquistas</span>
+                        </span>
+                        <span class="badge" style="background: rgba(16, 185, 129, 0.1); color: var(--success); font-weight: 800; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem;">
+                            ⚡ <span id="badgesTotalBonusXP">0</span> <span class="desktop-text">XP acumulados</span><span class="mobile-text">XP</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div id="badgesGrid" class="badges-grid">
+                    <!-- Badges cards dynamically rendered here -->
+                </div>
+            </div>
+
             <!-- Seção movida para modal -->
             <div id="masteredPhrasesContainer" style="display: none;"></div>
+        </div>
+
+        <!-- LEAGUE VIEW -->
+        <div id="leagueView" class="view" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+                <div>
+                    <h1 style="font-weight: 800; font-size: 2rem; margin: 0; display: flex; align-items: center; gap: 10px;">
+                        <span id="leagueHeaderIcon">🥉</span> <span id="leagueHeaderTitle">Liga Bronze</span>
+                    </h1>
+                    <p class="mobile-hide" style="color: var(--text-muted); font-size: 0.95rem; margin: 4px 0 0 0;">
+                        Compita semanalmente com outros estudantes ativos e suba para as divisões de elite!
+                    </p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="badge" style="background: var(--surface-glass); border: 1px solid var(--border); padding: 8px 16px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; color: var(--primary);">
+                        ⏳ <span id="leagueCountdownText">Calculando tempo...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LEAGUE DIVISION BANNER & USER STATS -->
+            <div class="card" id="leagueDivisionBanner" style="margin-bottom: 24px; padding: 22px 24px; border: 1px solid var(--border);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div id="leagueDivisionBadgeIcon" style="font-size: 3.2rem; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.12));">🥉</div>
+                        <div>
+                            <div class="desktop-text" style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Sua Divisão Atual</div>
+                            <div id="leagueDivisionName" style="font-size: 1.5rem; font-weight: 800; color: var(--text);">Liga Bronze</div>
+                            <div id="leagueDivisionRule" class="mobile-hide" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">
+                                Top 3 sobem para a Liga Prata • Sem rebaixamento
+                            </div>
+                            <div id="leagueDifficultyBadge" style="font-size: 0.75rem; font-weight: 700; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px;"></div>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div class="desktop-text" style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted);">Seu XP nesta Semana</div>
+                        <div id="leagueUserWeeklyXPDisplay" style="font-size: 1.8rem; font-weight: 800; color: var(--primary);">0 XP</div>
+                        <div id="leagueUserRankBadge" style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);">Posição: -</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LEAGUE LEADERBOARD TABLE -->
+            <div class="card" style="padding: 0; overflow: hidden; margin-bottom: 32px;">
+                <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--surface);">
+                    <div style="font-weight: 800; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
+                        <span>📋</span> Tabela de Classificação
+                    </div>
+                    <div class="mobile-hide" style="font-size: 0.8rem; color: var(--text-muted);">
+                        🔄 Pontuações atualizadas organicamente
+                    </div>
+                </div>
+                <div id="leagueLeaderboardList" class="league-list-container">
+                    <!-- Dynamic bot and user rows injected here -->
+                </div>
+                <div style="padding: 14px 20px; background: var(--surface); border-top: 1px solid var(--border); display: flex; justify-content: space-around; flex-wrap: wrap; gap: 12px; font-size: 0.8rem; font-weight: 700;">
+                    <div style="display: flex; align-items: center; gap: 6px; color: var(--success);">
+                        <span>🟢</span> <span class="desktop-text">Posições 1 a 3: Zona de Promoção (Sobe de Liga)</span><span class="mobile-text">1-3 ⬆️ Promoção</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; color: var(--text-muted);">
+                        <span>⚪</span> <span class="desktop-text">Posições 4 a 11: Zona Segura (Permanece)</span><span class="mobile-text">4-11 🛡️ Segura</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; color: var(--danger);">
+                        <span>🔴</span> <span class="desktop-text">Posições 12 a 15: Zona de Rebaixamento (Cai de Liga)</span><span class="mobile-text">12-15 ⬇️ Rebaixamento</span>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- SETTINGS VIEW -->
@@ -494,7 +729,7 @@
                     </label>
                 </div>
 
-                <div class="settings-item">
+                <div class="settings-item" id="settingDailyGoalItem" style="display: none;">
                     <div>
                         <div style="font-weight: 700;">Meta Diária</div>
                         <div style="color: var(--text-muted); font-size: 0.9rem;">Quantidade de revisões por dia</div>
@@ -503,9 +738,9 @@
                         style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-weight: 700; color: var(--primary);">
                         <option value="10">10 frases</option>
                         <option value="15">15 frases</option>
-                        <option value="20" selected>20 frases (Padrão)</option>
+                        <option value="20">20 frases</option>
                         <option value="30">30 frases</option>
-                        <option value="50">50 frases</option>
+                        <option value="50" selected>50 frases (Padrão)</option>
                     </select>
                 </div>
 
@@ -659,7 +894,7 @@
                     style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); text-align: center;">
                     <p style="font-size: 0.9rem; font-weight: 700; color: var(--primary); margin-bottom: 8px;">📧
                         Contato: systemmemoenglish@gmail.com</p>
-                    <p style="font-size: 0.8rem; color: var(--text-muted);">MemoEnglish Premium v5.0.6<br>© 2026 Todos
+                    <p id="settingsAppVersionDisplay" style="font-size: 0.8rem; color: var(--text-muted);">MemoEnglish Premium v5.3.0<br>© 2026 Todos
                         os direitos reservados.</p>
                 </div>
             </div>
@@ -670,11 +905,9 @@
             <div class="view-header">
                 <h1 style="font-weight: 800; font-size: 2rem;">Minhas Listas</h1>
                 <div class="header-actions">
-                    <button class="btn btn-outline" onclick="$('importListInput').click()">📥 Importar
-                        Lista</button>
-                    <button class="btn btn-outline btn-auto-glow" onclick="showAutoListModal()">✨ Lista
-                        Inteligente</button>
-                    <button class="btn btn-primary" onclick="showAddListModal()">+ Nova Lista</button>
+                    <button class="btn btn-outline" onclick="$('importListInput').click()"><span class="desktop-text">📥 Importar Lista</span><span class="mobile-text">📥 Importar</span></button>
+                    <button class="btn btn-outline btn-auto-glow" onclick="showAutoListModal()"><span class="desktop-text">✨ Lista Inteligente</span><span class="mobile-text">✨ I.A.</span></button>
+                    <button class="btn btn-primary" onclick="showAddListModal()"><span class="desktop-text">+ Nova Lista</span><span class="mobile-text">+ Nova</span></button>
                     <input type="file" id="importListInput" style="display: none;" accept=".json"
                         onchange="importIndividualList(this)">
                 </div>
@@ -757,7 +990,7 @@
                 </div>
                 <div class="bulk-btn-wrapper" style="margin-top: 16px; text-align: right;">
 
-                    <button class="btn btn-outline btn-sm" onclick="showBulkModal()">📂 Adicionar em Massa</button>
+                    <button class="btn btn-outline btn-sm" onclick="showBulkModal()"><span class="desktop-text">📂 Adicionar em Massa</span><span class="mobile-text">📂 Em Massa</span></button>
                 </div>
             </div>
 
@@ -1020,6 +1253,27 @@
                     <div id="srContinueControls" style="display: none; justify-content: center; margin-top: 12px;">
                         <button type="button" class="btn btn-primary" id="srContinueBtn" style="min-width: 200px; padding: 12px 28px; font-weight: 800; font-size: 1.05rem;" onclick="srContinueAfterSkip()">Continuar ➔</button>
                     </div>
+
+                    <!-- Tela de Sucesso ao Acertar a Frase -->
+                    <div id="srSuccessArea" class="speedrun-success-area" style="display: none;">
+                        <div class="speedrun-success-header">
+                            <span class="speedrun-success-title">🎉 Excelente!</span>
+                            <span id="srSuccessRewards" class="speedrun-success-reward-pill">+30 pts (+2s ⏱️)</span>
+                        </div>
+                        <div class="speedrun-success-card">
+                            <div class="speedrun-success-hint">Toque nas palavras para ver pronúncia e significado:</div>
+                            <div id="srSuccessEng" class="speedrun-success-eng"></div>
+                            <div id="srSuccessPhonetic" class="speedrun-success-phonetic"></div>
+                            <div id="srSuccessPt" class="speedrun-success-pt"></div>
+                        </div>
+                        <div class="speedrun-success-actions">
+                            <button type="button" class="btn btn-outline btn-sm" onclick="if(speedRunSession.currentPhrase) playAudio(speedRunSession.currentPhrase.english)" title="Ouvir novamente">🔊 Ouvir</button>
+                            <button type="button" class="btn btn-primary" id="srSuccessContinueBtn" style="min-width: 180px; padding: 10px 24px; font-weight: 800;" onclick="srContinueAfterSuccess()">
+                                Continuar ➔
+                            </button>
+                        </div>
+                        <div id="srSuccessTimerNotice" class="speedrun-success-timer-notice">Avançando automaticamente... (ou toque em uma palavra para pausar)</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1036,6 +1290,10 @@
             <span style="font-size: 1.5rem;">📖</span>
             <span>Listas</span>
         </div>
+        <div class="mobile-nav-item" data-view="leagueView">
+            <span style="font-size: 1.5rem;">🏆</span>
+            <span>Liga</span>
+        </div>
         <div class="mobile-nav-item" data-view="metricsView">
             <span style="font-size: 1.5rem;">📊</span>
             <span>Métricas</span>
@@ -1051,7 +1309,10 @@
         <div class="feedback-content">
             <div class="feedback-info" id="feedbackInfo">
                 <div class="feedback-header-row">
-                    <h4 id="feedbackTitle">Correto!</h4>
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <h4 id="feedbackTitle">Correto!</h4>
+                        <span id="feedbackXPBadge" class="feedback-xp-badge" style="display: none;">+0 XP</span>
+                    </div>
                     <button type="button" class="btn btn-outline btn-sm feedback-audio-btn" onclick="if(session.current) playAudio(session.current.english)" title="Ouvir pronúncia correta">
                         🔊 Ouvir
                     </button>
@@ -1147,7 +1408,7 @@
 
             <div style="display: flex; gap: 10px; justify-content: center;">
                 <button class="btn btn-outline" style="flex: 1;" onclick="closeModal(); showView('homeView');">🏠 Início</button>
-                <button class="btn btn-primary" id="srPlayAgainBtn" style="flex: 1.2;" onclick="closeModal(); startSpeedRun();">⚡ Jogar Novamente</button>
+                <button class="btn btn-primary" id="srPlayAgainBtn" style="flex: 1.2;" onclick="handleSpeedRunPlayAgain();">⚡ Jogar Novamente</button>
             </div>
         </div>
 
@@ -1428,19 +1689,194 @@
             </div>
         </div>
 
+        <!-- LEVEL UP CELEBRATION MODAL -->
+        <div id="levelUpModal" class="card celebration-card level-up-modal-card" style="width: 100%; max-width: 440px; display: none; text-align: center; padding: 36px 24px; position: relative; overflow: hidden;">
+            <div class="celebration-glow level-glow"></div>
+            <div class="level-up-badge-container">
+                <span class="level-up-sparkle left">✨</span>
+                <div id="levelUpNumberBadge" class="level-up-circle">1</div>
+                <span class="level-up-sparkle right">⭐</span>
+            </div>
+            <div class="celebration-pill level-pill">🚀 SUBIU DE NÍVEL!</div>
+            <h2 id="levelUpTitle" style="font-size: 1.7rem; font-weight: 800; margin: 10px 0 6px 0; color: var(--text);">Nível 2 Alcançado!</h2>
+            <p id="levelUpSubtitle" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.4;">Seu esforço e dedicação estão elevando seu inglês para o próximo patamar!</p>
+
+            <div style="background: var(--primary-soft); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border); margin-bottom: 24px;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px;">Progresso Geral</div>
+                <div id="levelUpXPText" style="font-size: 1.5rem; font-weight: 800; color: var(--text); margin-top: 4px;">50 Total XP ⚡</div>
+                <div id="levelUpNextStepText" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px;">Próximo nível em 100 XP</div>
+            </div>
+
+            <button type="button" class="btn btn-primary" style="width: 100%; padding: 16px; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);" onclick="closeModal()">Continuar Evoluindo 🚀</button>
+        </div>
+
+        <!-- DAILY GOAL CELEBRATION MODAL -->
+        <div id="dailyGoalCelebrationModal" class="card celebration-card goal-modal-card" style="width: 100%; max-width: 440px; display: none; text-align: center; padding: 36px 24px; position: relative; overflow: hidden;">
+            <div class="celebration-glow" style="background: radial-gradient(circle, rgba(16, 185, 129, 0.45) 0%, rgba(5, 150, 105, 0.15) 70%, transparent 100%);"></div>
+            <div class="trophy-badge-container">
+                <div class="trophy-animated-icon" style="font-size: 4.8rem; filter: drop-shadow(0 6px 16px rgba(16, 185, 129, 0.4));">🎯</div>
+            </div>
+            <div class="celebration-pill" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.25)); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.4);">🎯 META DIÁRIA CONQUISTADA!</div>
+            <h2 id="dailyGoalModalTitle" style="font-size: 1.65rem; font-weight: 800; margin: 10px 0 6px 0; color: var(--text);">Meta do Dia Batida!</h2>
+            <p id="dailyGoalModalSubtitle" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.4;">Sensacional! Você atingiu sua meta diária de estudos e manteve seu foco firme!</p>
+            <div style="background: var(--primary-soft); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border); margin-bottom: 24px;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px;">Recompensas do Dia</div>
+                <div id="dailyGoalStreakText" style="font-size: 1.25rem; font-weight: 800; color: var(--text); margin-top: 6px;">🔥 +1 Dia na Sequência de Estudos</div>
+                <div id="dailyGoalFreezeRewardText" style="font-size: 0.9rem; font-weight: 700; color: #0891b2; margin-top: 4px;">🧊 +1 Gelo Protetor adicionado!</div>
+            </div>
+            <button type="button" class="btn btn-primary" style="width: 100%; padding: 16px; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4); background: linear-gradient(135deg, #10b981 0%, #059669 100%);" onclick="closeModal()">Continuar Praticando 🚀</button>
+        </div>
+
         <!-- Trophy Celebration Modal -->
-        <div id="trophyCelebrationModal" class="card" style="width: 100%; max-width: 440px; display: none; text-align: center; padding: 32px 24px;">
-            <div id="trophyModalIcon" style="font-size: 4.5rem; margin-bottom: 12px; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.15));">🏆</div>
-            <h2 id="trophyModalTitle" style="font-size: 1.6rem; font-weight: 800; margin-bottom: 8px;">Novo Troféu Conquistado!</h2>
+        <div id="trophyCelebrationModal" class="card celebration-card trophy-modal-card" style="width: 100%; max-width: 440px; display: none; text-align: center; padding: 36px 24px; position: relative; overflow: hidden;">
+            <div id="trophyModalGlow" class="celebration-glow trophy-glow-bronze"></div>
+            <div class="trophy-badge-container">
+                <div id="trophyModalIcon" class="trophy-animated-icon">🏆</div>
+            </div>
+            <div id="trophyModalPill" class="celebration-pill trophy-pill">🏆 NOVO TROFÉU!</div>
+            <h2 id="trophyModalTitle" style="font-size: 1.65rem; font-weight: 800; margin: 10px 0 6px 0; color: var(--text);">Novo Troféu Conquistado!</h2>
             <p id="trophyModalSubtitle" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.4;">Você completou o marco com meta diária batida!</p>
             
             <div style="background: var(--primary-soft); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border); margin-bottom: 24px;">
                 <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px;">Recompensa por Marco</div>
-                <div id="trophyModalXPText" style="font-size: 1.5rem; font-weight: 800; color: var(--text); margin-top: 4px;">+30 XP Bônus ⚡</div>
-                <div id="trophyModalCollectionText" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px;">Total na estante: 1 🥉</div>
+                <div id="trophyModalXPText" style="font-size: 1.6rem; font-weight: 800; color: var(--text); margin-top: 4px;">+30 XP Bônus ⚡</div>
+                <div id="trophyModalBoostText" style="font-size: 0.85rem; font-weight: 700; color: var(--success); margin-top: 4px;">+0,3% de Bônus Diário Permanente 🚀</div>
+                <div id="trophyModalCollectionText" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;">Total na estante: 1 🥉</div>
             </div>
 
-            <button type="button" class="btn btn-primary" style="width: 100%; padding: 16px; font-weight: 800; font-size: 1rem;" onclick="closeModal()">Continuar Aprendendo 🚀</button>
+            <button type="button" class="btn btn-primary" style="width: 100%; padding: 16px; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);" onclick="closeModal()">Continuar Aprendendo 🚀</button>
+        </div>
+
+        <!-- BADGE CELEBRATION MODAL -->
+        <div id="badgeCelebrationModal" class="card celebration-card badge-modal-card" style="width: 100%; max-width: 440px; display: none; text-align: center; padding: 36px 24px; position: relative; overflow: hidden;">
+            <div class="celebration-glow" style="background: radial-gradient(circle, #f59e0b 0%, #d97706 100%);"></div>
+            <div class="trophy-badge-container">
+                <div id="badgeModalIcon" class="trophy-animated-icon" style="font-size: 4.8rem; filter: drop-shadow(0 6px 16px rgba(245, 158, 11, 0.4));">🎖️</div>
+            </div>
+            <div id="badgeModalLevelBadge" class="celebration-pill" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.25)); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.4);">
+                ⭐ NÍVEL 1
+            </div>
+            <h2 id="badgeModalTitle" style="font-size: 1.65rem; font-weight: 800; margin: 10px 0 6px 0; color: var(--text);">Insígnia Conquistada!</h2>
+            <p id="badgeModalDesc" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.4;">Descrição do badge</p>
+
+            <div style="background: var(--primary-soft); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border); margin-bottom: 24px;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px;">Recompensa deste Nível</div>
+                <div id="badgeModalXPText" style="font-size: 1.6rem; font-weight: 800; color: var(--text); margin-top: 4px;">+40 XP Bônus ⚡</div>
+                <div id="badgeModalNextReward" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px;">Próximo nível: +60 XP</div>
+            </div>
+
+            <button type="button" class="btn btn-primary" style="width: 100%; padding: 16px; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4); background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);" onclick="closeModal()">Sensacional! Continuar 🚀</button>
+        </div>
+
+        <!-- LEAGUE OVERTAKE CELEBRATION MODAL -->
+        <div id="leagueOvertakeModal" class="card celebration-card overtake-modal-card" style="width: 100%; max-width: 440px; display: none; text-align: center; padding: 36px 24px; position: relative; overflow: hidden;">
+            <div class="celebration-glow overtake-glow"></div>
+            <div class="overtake-animation-container">
+                <div class="overtake-avatar-box left-bot" id="overtakeBotBox">
+                    <div class="overtake-avatar" id="overtakeBotAvatar">🎓</div>
+                    <div class="overtake-name" id="overtakeBotName">Thiago</div>
+                    <div class="overtake-rank-tag old" id="overtakeBotRank">#7</div>
+                </div>
+                <div class="overtake-arrow-wrap">
+                    <span class="overtake-chevron">⚡▶️</span>
+                </div>
+                <div class="overtake-avatar-box right-user" id="overtakeUserBox">
+                    <div class="overtake-avatar user" id="overtakeUserAvatar">👤</div>
+                    <div class="overtake-name user" id="overtakeUserName">Você</div>
+                    <div class="overtake-rank-tag new" id="overtakeUserRank">#6</div>
+                </div>
+            </div>
+            <div class="celebration-pill overtake-pill">⚡ ULTRAPASSAGEM NA LIGA!</div>
+            <h2 id="overtakeTitle" style="font-size: 1.65rem; font-weight: 800; margin: 10px 0 6px 0; color: var(--text);">Você subiu no Ranking!</h2>
+            <p id="overtakeSubtitle" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.4;">Você ultrapassou <strong>Thiago Ribeiro</strong> e assumiu a <strong>6ª posição</strong> da Liga!</p>
+
+            <div style="background: var(--primary-soft); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--border); margin-bottom: 24px; display: flex; justify-content: space-around; align-items: center;">
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Posição Anterior</div>
+                    <div id="overtakeOldRankDisplay" style="font-size: 1.3rem; font-weight: 800; color: var(--text-muted);">#7</div>
+                </div>
+                <div style="font-size: 1.4rem; color: var(--success); font-weight: 800;">➔</div>
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--success); font-weight: 700;">Nova Posição</div>
+                    <div id="overtakeNewRankDisplay" style="font-size: 1.5rem; font-weight: 800; color: var(--success);">#6 ⬆️</div>
+                </div>
+            </div>
+
+            <button type="button" class="btn btn-primary" style="width: 100%; padding: 16px; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4); background: linear-gradient(135deg, #10b981 0%, #059669 100%);" onclick="closeModal()">Rumo ao Topo! 🚀</button>
+        </div>
+
+        <!-- LEAGUE DROP MODAL (QUEDA DE POSIÇÃO NA LIGA) -->
+        <div id="leagueDropModal" class="card celebration-card drop-modal-card" style="width: 100%; max-width: 440px; display: none; text-align: center; padding: 32px 22px; position: relative; overflow: hidden;">
+            <div class="celebration-glow drop-glow"></div>
+            <div class="overtake-animation-container">
+                <div class="overtake-avatar-box left-bot" id="dropBotBox" style="transform: scale(1.06);">
+                    <div class="overtake-avatar" id="dropBotAvatar" style="border-color: #ef4444; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);">🎓</div>
+                    <div class="overtake-name" id="dropBotName" style="color: #ef4444; font-weight: 800;">Thiago</div>
+                    <div class="overtake-rank-tag new" id="dropBotRank" style="background: #ef4444; box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);">#6</div>
+                </div>
+                <div class="overtake-arrow-wrap drop-arrow">
+                    <span class="overtake-chevron" style="color: #ef4444; font-weight: 800;">⚡◀️</span>
+                </div>
+                <div class="overtake-avatar-box right-user" id="dropUserBox" style="transform: scale(0.94); opacity: 0.85;">
+                    <div class="overtake-avatar user" id="dropUserAvatar" style="border-color: var(--border); box-shadow: none; background: var(--surface);">👤</div>
+                    <div class="overtake-name user" id="dropUserName" style="color: var(--text-muted); font-weight: 700;">Você</div>
+                    <div class="overtake-rank-tag old" id="dropUserRank">#7 🔻</div>
+                </div>
+            </div>
+            <div class="celebration-pill drop-pill">⚠️ DISPUTA NA LIGA SEMANAL!</div>
+            <h2 id="dropTitle" style="font-size: 1.55rem; font-weight: 800; margin: 10px 0 6px 0; color: var(--text);">Você perdeu posição!</h2>
+            <p id="dropSubtitle" style="color: var(--text-muted); font-size: 0.92rem; margin-bottom: 20px; line-height: 1.4;">A disputa está acirrada! Competidores pontuaram enquanto você esteve fora e ultrapassaram você no ranking semanal.</p>
+
+            <div style="background: rgba(239, 68, 68, 0.08); padding: 12px 14px; border-radius: var(--radius-md); border: 1px solid rgba(239, 68, 68, 0.25); margin-bottom: 20px; display: flex; justify-content: space-around; align-items: center;">
+                <div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Posição Anterior</div>
+                    <div id="dropOldRankDisplay" style="font-size: 1.3rem; font-weight: 800; color: var(--text-muted);">#6</div>
+                </div>
+                <div style="font-size: 1.4rem; color: #ef4444; font-weight: 800;">➔</div>
+                <div>
+                    <div style="font-size: 0.75rem; color: #ef4444; font-weight: 700;">Nova Posição</div>
+                    <div id="dropNewRankDisplay" style="font-size: 1.5rem; font-weight: 800; color: #ef4444;">#7 🔻</div>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button type="button" class="btn btn-primary" style="width: 100%; padding: 15px; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4); background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);" onclick="closeModal()">Recuperar Minha Posição! ⚡</button>
+                <button type="button" class="btn btn-secondary" style="width: 100%; padding: 12px; font-weight: 700; font-size: 0.9rem;" onclick="closeModal(); showView('leagueView');">Ver Ranking da Liga 🏆</button>
+            </div>
+        </div>
+
+        <!-- LEAGUE TRANSITION MODAL -->
+        <div id="leagueTransitionModal" class="card" style="width: 100%; max-width: 440px; display: none; text-align: center; padding: 32px 24px;">
+            <div id="leagueTransIcon" style="font-size: 4.5rem; margin-bottom: 12px;">🏆</div>
+            <h2 id="leagueTransTitle" style="font-size: 1.6rem; font-weight: 800; margin-bottom: 8px;">Fim da Rodada Semanal!</h2>
+            <p id="leagueTransDesc" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.4;"></p>
+            <div id="leagueTransResultBox" style="background: var(--primary-soft); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border); margin-bottom: 24px;">
+                <div id="leagueTransDivisionName" style="font-size: 1.4rem; font-weight: 800; color: var(--text);">Liga Prata</div>
+                <div id="leagueTransSub" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Parabéns pelo resultado!</div>
+                <div id="leagueTransDifficultyInfo" style="font-size: 0.85rem; font-weight: 700; margin-top: 10px; padding: 8px 12px; border-radius: 8px; display: none; line-height: 1.35;"></div>
+            </div>
+            <button type="button" class="btn btn-primary" style="width: 100%; padding: 16px; font-weight: 800; font-size: 1rem;" onclick="closeModal(); showView('leagueView');">Ver Tabela da Nova Semana 🚀</button>
+        </div>
+
+        <!-- MISSION CHEST CELEBRATION MODAL -->
+        <div id="missionChestModal" class="card celebration-card" style="width: 100%; max-width: 440px; display: none; text-align: center; padding: 36px 24px; position: relative; overflow: hidden;">
+            <div id="missionChestGlow" class="celebration-glow" style="background: radial-gradient(circle, #f59e0b 0%, #d97706 100%);"></div>
+            <div class="trophy-badge-container">
+                <div id="missionChestIcon" class="trophy-animated-icon" style="font-size: 4.8rem; filter: drop-shadow(0 6px 16px rgba(245, 158, 11, 0.4));">🎁</div>
+            </div>
+            <div id="missionChestPill" class="celebration-pill" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.25)); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.4);">
+                🎉 TODAS AS MISSÕES CONCLUÍDAS!
+            </div>
+            <h2 id="missionChestTitle" style="font-size: 1.65rem; font-weight: 800; margin: 10px 0 6px 0; color: var(--text);">Baú de Recompensas!</h2>
+            <p id="missionChestSubtitle" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 20px; line-height: 1.4;">Você completou todos os desafios com maestria!</p>
+
+            <div style="background: var(--primary-soft); padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--border); margin-bottom: 24px;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px;">Itens Conquistados</div>
+                <div id="missionChestBoosterText" style="font-size: 1.05rem; font-weight: 800; color: #d97706; margin-top: 6px;">🧪 +1 Poção de XP adicionada!</div>
+                <div id="missionChestItemText" style="font-size: 0.95rem; font-weight: 700; color: #0891b2; margin-top: 6px; display: none;">🧊 +1 Gelo Protetor adicionado!</div>
+            </div>
+
+            <button type="button" class="btn btn-primary" style="width: 100%; padding: 16px; font-weight: 800; font-size: 1rem; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4); background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);" onclick="closeModal()">Guardar no Inventário & Continuar 🚀</button>
         </div>
 
         <div id="movePhraseModal" class="card" style="width: 100%; max-width: 450px; display: none;">
@@ -1645,11 +2081,20 @@
 
 </div>
 
+<!-- TOAST FLUTUANTE DE MISSÃO CONCLUÍDA -->
+<div id="missionToast" class="mission-toast">
+    <div class="mission-toast-icon" id="missionToastIcon">🎯</div>
+    <div class="mission-toast-content">
+        <div class="mission-toast-title" id="missionToastTitle">Missão Concluída!</div>
+        <div class="mission-toast-desc" id="missionToastDesc">Desafio superado (+100 XP)</div>
+    </div>
+</div>
+
 <audio id="soundCorrect" src="https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3"></audio>
 <audio id="soundFinish" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"></audio>
 
-<script src="phonetics.js?v=5.0.6"></script>
-<script src="app.js?v=5.0.6"></script>
+<script src="phonetics.js?v=5.3.0"></script>
+<script src="app.js?v=5.3.0"></script>
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
@@ -1674,7 +2119,7 @@
                     installingWorker.onstatechange = () => {
                         if (installingWorker.state === 'installed') {
                             if (navigator.serviceWorker.controller) {
-                                // Novo conteúdo disponível! Recarrega automaticamente para aplicar v5.0.6
+                                // Novo conteúdo disponível! Recarrega automaticamente para aplicar v5.1.3
                                 console.log('Nova versão baixada. Aplicando atualização...');
                                 window.location.reload();
                             }

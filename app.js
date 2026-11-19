@@ -1,4 +1,4 @@
-const APP_VERSION = '5.0.6';
+const APP_VERSION = '5.3.0';
 // ==================== PWA INSTALLATION ====================
 let deferredPrompt;
 
@@ -110,6 +110,1379 @@ async function checkVersionAndUpdateAutomatically() {
 const STORAGE_KEY = 'memoenglish_data_v2';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxO5PcEJnB3M88trJRn96ae8UN40PfFgdOt8RZo5zQzVCzunuPidnP5zX-8m7ToK8K7/exec';
 
+// ==================== DEFINIÇÕES DE BADGES & LIGA SEMANAL ====================
+const BADGE_DEFINITIONS = {
+    early_bird: {
+        id: 'early_bird',
+        name: 'Madrugador',
+        icon: '🌅',
+        description: 'Praticar uma sessão de estudos antes das 08:00 da manhã.',
+        baseXP: 40,
+        scalingXP: 20,
+        type: 'daily'
+    },
+    night_owl: {
+        id: 'night_owl',
+        name: 'Coruja Noturna',
+        icon: '🦉',
+        description: 'Praticar uma sessão de estudos após as 22:00 da noite.',
+        baseXP: 40,
+        scalingXP: 20,
+        type: 'daily'
+    },
+    speed_runner: {
+        id: 'speed_runner',
+        name: 'Velocista Relâmpago',
+        icon: '⚡',
+        description: 'Fazer 500 ou mais pontos em uma partida de Speed Run.',
+        baseXP: 60,
+        scalingXP: 30,
+        type: 'speedrun'
+    },
+    perfect_streak: {
+        id: 'perfect_streak',
+        name: 'Precisão Cirúrgica',
+        icon: '🎯',
+        description: 'Acertar 10 frases seguidas sem nenhum erro em uma sessão.',
+        baseXP: 50,
+        scalingXP: 25,
+        type: 'session'
+    },
+    master_speaker: {
+        id: 'master_speaker',
+        name: 'Orador Fluente',
+        icon: '🗣️',
+        description: 'Acertar 10 frases no modo de Pronúncia ou Fala.',
+        baseXP: 50,
+        scalingXP: 25,
+        type: 'session'
+    },
+    typing_master: {
+        id: 'typing_master',
+        name: 'Mestre da Escrita',
+        icon: '✍️',
+        description: 'Acertar 10 frases no modo de Escrita.',
+        baseXP: 50,
+        scalingXP: 25,
+        type: 'session'
+    },
+    word_explorer: {
+        id: 'word_explorer',
+        name: 'Explorador de Vocabulário',
+        icon: '🔍',
+        description: 'Consultar o significado de 5 palavras no dicionário popover hoje.',
+        baseXP: 30,
+        scalingXP: 15,
+        type: 'daily'
+    },
+    marathoner: {
+        id: 'marathoner',
+        name: 'Maratonista Diário',
+        icon: '🏃',
+        description: 'Completar 30 revisões no mesmo dia.',
+        baseXP: 60,
+        scalingXP: 30,
+        type: 'daily'
+    },
+    streak_protector: {
+        id: 'streak_protector',
+        name: 'Guardião de Gelo',
+        icon: '🧊',
+        description: 'Proteger ou recarregar seu estoque de Gelo e manter a sequência.',
+        baseXP: 45,
+        scalingXP: 20,
+        type: 'daily'
+    },
+    league_podium: {
+        id: 'league_podium',
+        name: 'Pódio da Liga',
+        icon: '👑',
+        description: 'Terminar a semana no Top 3 (Zona de Promoção) da Liga Semanal.',
+        baseXP: 100,
+        scalingXP: 50,
+        type: 'league'
+    }
+};
+
+const LEAGUE_DIVISIONS = {
+    bronze: {
+        id: 'bronze',
+        name: 'Liga Bronze',
+        icon: '🥉',
+        color: '#b45309',
+        nextDivision: 'prata',
+        prevDivision: null,
+        baseScoreMin: 20,
+        baseScoreMax: 90,
+        incMin: 8,
+        incMax: 26,
+        ruleText: 'Top 3 sobem para a Liga Prata • Sem rebaixamento'
+    },
+    prata: {
+        id: 'prata',
+        name: 'Liga Prata',
+        icon: '🥈',
+        color: '#64748b',
+        nextDivision: 'ouro',
+        prevDivision: 'bronze',
+        baseScoreMin: 70,
+        baseScoreMax: 210,
+        incMin: 16,
+        incMax: 48,
+        ruleText: 'Top 3 sobem para a Liga Ouro • Últimos 4 caem para Bronze'
+    },
+    ouro: {
+        id: 'ouro',
+        name: 'Liga Ouro',
+        icon: '🥇',
+        color: '#d97706',
+        nextDivision: 'safira',
+        prevDivision: 'prata',
+        baseScoreMin: 180,
+        baseScoreMax: 450,
+        incMin: 28,
+        incMax: 80,
+        ruleText: 'Top 3 sobem para a Liga Safira • Últimos 4 caem para Prata'
+    },
+    safira: {
+        id: 'safira',
+        name: 'Liga Safira',
+        icon: '💎',
+        color: '#0284c7',
+        nextDivision: 'diamante',
+        prevDivision: 'ouro',
+        baseScoreMin: 400,
+        baseScoreMax: 900,
+        incMin: 45,
+        incMax: 120,
+        ruleText: 'Top 3 sobem para a Liga Diamante • Últimos 4 caem para Ouro'
+    },
+    diamante: {
+        id: 'diamante',
+        name: 'Liga Diamante',
+        icon: '👑',
+        color: '#9333ea',
+        nextDivision: null,
+        prevDivision: 'safira',
+        baseScoreMin: 800,
+        baseScoreMax: 1800,
+        incMin: 65,
+        incMax: 180,
+        ruleText: 'Top 3 conquistam a Glória dos Campeões • Últimos 4 caem para Safira'
+    }
+};
+
+const BOT_PERSONAS = [
+    { name: "Mariana Costa", avatar: "💻" },
+    { name: "Gabriel Lima", avatar: "⚡" },
+    { name: "Sofia Ramos", avatar: "📚" },
+    { name: "Lucas Gomes", avatar: "🎧" },
+    { name: "Beatriz Moreira", avatar: "🔬" },
+    { name: "Rafael Silveira", avatar: "🚀" },
+    { name: "Larissa Fernandes", avatar: "🎨" },
+    { name: "Thiago Ribeiro", avatar: "🎓" },
+    { name: "Camila Duarte", avatar: "✨" },
+    { name: "Felipe Almeida", avatar: "🌟" },
+    { name: "Matheus Vieira", avatar: "🦁" },
+    { name: "Juliana Prado", avatar: "🐱" },
+    { name: "Bruno Kramer", avatar: "☕" },
+    { name: "Amanda Nogueira", avatar: "🎯" },
+    { name: "Rodrigo Mendes", avatar: "🧭" },
+    { name: "Letícia Lima", avatar: "🌺" },
+    { name: "Marcos Vinícius", avatar: "🏄" },
+    { name: "Juliana Rocha", avatar: "🌿" },
+    { name: "Pedro Henrique", avatar: "⚽" },
+    { name: "Carolina Meireles", avatar: "🎵" },
+    { name: "Gustavo Santos", avatar: "🕹️" },
+    { name: "Fernanda Dias", avatar: "🥋" },
+    { name: "Diego Carvalho", avatar: "🎸" },
+    { name: "Larissa Becker", avatar: "📸" },
+    { name: "Leonardo Barbosa", avatar: "🚴" },
+    { name: "Bruna Martins", avatar: "🏖️" },
+    { name: "Vanessa Araújo", avatar: "🌻" },
+    { name: "Felipe Duarte", avatar: "🏹" },
+    { name: "Lucas Zanetti", avatar: "🦅" },
+    { name: "Aline Farias", avatar: "🧁" },
+    { name: "Renan Castro", avatar: "⚡" },
+    { name: "Bianca Silveira", avatar: "💎" },
+    { name: "Marcelo Guimarães", avatar: "🐺" },
+    { name: "Patrícia Souza", avatar: "🪐" },
+    { name: "André Tavares", avatar: "⛵" },
+    { name: "Rebeca Morais", avatar: "🔮" },
+    { name: "Igor Pires", avatar: "🛹" },
+    { name: "Bruno Teixeira", avatar: "🧩" },
+    { name: "Daniela Lopes", avatar: "🎯" },
+    { name: "Otávio Ferreira", avatar: "🏔️" },
+    { name: "Isabela Ramos", avatar: "🦋" },
+    { name: "Victor Hugo", avatar: "🎭" },
+    { name: "Caio Mendonça", avatar: "🔭" },
+    { name: "Débora Peixoto", avatar: "🎻" },
+    { name: "Enzo Silveira", avatar: "🏓" },
+    { name: "Flávia Toledo", avatar: "🌇" },
+    { name: "Guilherme Castro", avatar: "🧗" },
+    { name: "Helena Paiva", avatar: "🦚" },
+    { name: "Ícaro Santana", avatar: "🏄" },
+    { name: "Jéssica Antunes", avatar: "🎡" },
+    { name: "Kevin Albuquerque", avatar: "🎙️" },
+    { name: "Luana Siqueira", avatar: "🌸" },
+    { name: "Murilo Vasconcelos", avatar: "♟️" },
+    { name: "Natália Rezende", avatar: "🦄" },
+    { name: "Paula Bittencourt", avatar: "🐬" },
+    { name: "Samuel Furtado", avatar: "⛵" },
+    { name: "Tatiana Lins", avatar: "🌠" },
+    { name: "Vinícius Portela", avatar: "🏀" },
+    { name: "Yasmin Guimarães", avatar: "🍯" },
+    { name: "Arthur Valente", avatar: "🐯" },
+    { name: "Cecília Brandão", avatar: "🍓" },
+    { name: "Danilo Muniz", avatar: "🛩️" },
+    { name: "Eduardo Quintana", avatar: "⚓" },
+    { name: "Fabrício Dorneles", avatar: "🏹" },
+    { name: "Gabriela Neves", avatar: "🍁" },
+    { name: "Henrique Bicalho", avatar: "🏂" },
+    { name: "Ingrid Padilha", avatar: "🎠" },
+    { name: "Jonas Medeiros", avatar: "🛸" },
+    { name: "Lorena Fontes", avatar: "🕊️" },
+    { name: "Mayara Trindade", avatar: "🧶" },
+    { name: "Nicolas Barreto", avatar: "🦊" },
+    { name: "Olívia Fagundes", avatar: "🌷" },
+    { name: "Pablo Esteves", avatar: "🌴" },
+    { name: "Priscila Vianna", avatar: "💎" },
+    { name: "Renato Lacerda", avatar: "🥊" },
+    { name: "Sabrina Furtado", avatar: "🎀" },
+    { name: "Talita Albuquerque", avatar: "🥑" },
+    { name: "Vicente Bueno", avatar: "🍇" },
+    { name: "Wesley Sampaio", avatar: "⚡" },
+    { name: "Zilda Figueiredo", avatar: "🕊️" }
+];
+
+function getCurrentWeekId() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+    const week1 = new Date(d.getFullYear(), 0, 4);
+    const weekNo = 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+    return `${d.getFullYear()}-W${weekNo < 10 ? '0' + weekNo : weekNo}`;
+}
+
+function generateBotsForDivision(divKey, difficulty = 1.0, excludedNames = []) {
+    const conf = LEAGUE_DIVISIONS[divKey] || LEAGUE_DIVISIONS.bronze;
+    const diff = (difficulty != null) ? difficulty : 1.0;
+    const excludedSet = new Set(excludedNames || []);
+
+    const available = BOT_PERSONAS.filter(p => !excludedSet.has(p.name));
+    const shuffled = [...available].sort(() => Math.random() - 0.5);
+    const pool = shuffled.length >= 14 ? shuffled : [...BOT_PERSONAS].sort(() => Math.random() - 0.5);
+
+    return pool.slice(0, 14).map((p, idx) => {
+        const pace = 0.85 + Math.random() * 0.4;
+        const baseScore = conf.baseScoreMin + (Math.random() * (conf.baseScoreMax - conf.baseScoreMin));
+        const score = Math.round(baseScore * diff);
+        return {
+            id: 'bot_' + idx + '_' + Math.floor(Math.random() * 10000),
+            name: p.name,
+            avatar: p.avatar,
+            score: score,
+            pace: pace,
+            prevRank: idx + 1
+        };
+    });
+}
+
+// Simula de forma realista a rotação semanal: quem sobe, quem desce e novos entrantes
+function generateNextWeekBots(oldBots, userRank, oldDivKey, nextDivKey, difficulty = 1.0) {
+    const conf = LEAGUE_DIVISIONS[nextDivKey] || LEAGUE_DIVISIONS.bronze;
+    const diff = (difficulty != null) ? difficulty : 1.0;
+
+    // Se não há bots anteriores, gera novo grupo completo
+    if (!oldBots || oldBots.length === 0) {
+        return generateBotsForDivision(nextDivKey, diff);
+    }
+
+    // 1. Reconstrói o ranking final da semana anterior (1 a 15)
+    const sortedLastWeek = [
+        { isUser: true, name: (appData.auth?.username || 'Você'), score: (appData.league?.userXP || 0) },
+        ...(oldBots || [])
+    ].sort((a, b) => b.score - a.score);
+
+    // 2. Classifica quem foi promovido (1-3), quem ficou (4-11) e quem foi rebaixado (12-15)
+    const promotedBots = sortedLastWeek.slice(0, 3).filter(c => !c.isUser); // Top 3
+    const safeZoneBots = sortedLastWeek.slice(3, 11).filter(c => !c.isUser); // 4 a 11
+    const demotedBots = sortedLastWeek.slice(11, 15).filter(c => !c.isUser); // 12 a 15
+
+    let retainedBots = [];
+
+    if (nextDivKey !== oldDivKey) {
+        const isPromotion = userRank <= 3;
+        if (isPromotion) {
+            // Caso A: Usuário foi PROMOVIDO para uma liga superior!
+            // Apenas os outros competidores que também ficaram no Top 3 sobem junto como rivais promovidos.
+            // Os concorrentes do 4º ao 15º lugar FICAM na divisão anterior e NÃO sobem!
+            retainedBots = [...promotedBots];
+        } else {
+            // Caso B: Usuário foi REBAIXADO para uma liga inferior!
+            // Os competidores que também caíram descem junto. Os do topo NÃO descem!
+            retainedBots = [...demotedBots.slice(0, 2)];
+        }
+    } else {
+        // Caso C: Usuário PERMANECEU na mesma divisão!
+        if (oldDivKey === 'diamante' && userRank <= 3) {
+            // Na Liga Diamante (ápice), quem fica no pódio permanece na Diamante como campeão.
+            // Retemos 1 a 2 rivais do pódio para manter a rivalidade de elite, mais 2 da zona segura.
+            const shuffledPodium = [...promotedBots].sort(() => Math.random() - 0.5);
+            const shuffledSafe = [...safeZoneBots].sort(() => Math.random() - 0.5);
+            retainedBots = [...shuffledPodium.slice(0, 2), ...shuffledSafe.slice(0, 2)];
+        } else {
+            // Nas divisões comuns:
+            // Os 3 primeiros foram promovidos e SAÍRAM da divisão!
+            // Os 4 últimos foram rebaixados e SAÍRAM da divisão!
+            // Colegas da zona segura (4º ao 11º) continuam na sala (3 a 4 colegas),
+            // e novos competidores chegam para preencher as vagas!
+            const shuffledSafe = [...safeZoneBots].sort(() => Math.random() - 0.5);
+            retainedBots = shuffledSafe.slice(0, 4);
+        }
+    }
+
+    // Nomes já utilizados para evitar duplicações na sala
+    const usedNames = new Set(retainedBots.map(b => b.name));
+    if (appData.auth?.username) usedNames.add(appData.auth.username);
+
+    // Quantos novos bots precisamos para completar os 14 adversários?
+    const needed = Math.max(0, 14 - retainedBots.length);
+    const availablePersonas = BOT_PERSONAS.filter(p => !usedNames.has(p.name));
+    const shuffledPersonas = [...availablePersonas].sort(() => Math.random() - 0.5);
+    const newPersonas = shuffledPersonas.slice(0, needed);
+
+    // Monta o novo roster com pontuações iniciais frescas da nova divisão
+    const combinedList = [];
+
+    // Adiciona os bots retidos com novos scores iniciais da rodada
+    retainedBots.forEach((b, idx) => {
+        const pace = 0.85 + Math.random() * 0.4;
+        const baseScore = conf.baseScoreMin + (Math.random() * (conf.baseScoreMax - conf.baseScoreMin));
+        const score = Math.round(baseScore * diff);
+        combinedList.push({
+            id: 'bot_ret_' + idx + '_' + Math.floor(Math.random() * 10000),
+            name: b.name,
+            avatar: b.avatar,
+            score: score,
+            pace: pace,
+            prevRank: idx + 1
+        });
+    });
+
+    // Adiciona os novos competidores que entraram na liga
+    newPersonas.forEach((p, idx) => {
+        const pace = 0.85 + Math.random() * 0.4;
+        const baseScore = conf.baseScoreMin + (Math.random() * (conf.baseScoreMax - conf.baseScoreMin));
+        const score = Math.round(baseScore * diff);
+        combinedList.push({
+            id: 'bot_new_' + idx + '_' + Math.floor(Math.random() * 10000),
+            name: p.name,
+            avatar: p.avatar,
+            score: score,
+            pace: pace,
+            prevRank: combinedList.length + 1
+        });
+    });
+
+    // Embaralha para que os competidores comecem a nova semana de forma variada
+    return combinedList.sort(() => Math.random() - 0.5).slice(0, 14);
+}
+
+function initLeagueData(division = 'bronze', difficulty = 1.0) {
+    const currentWeek = getCurrentWeekId();
+    const diff = (difficulty != null) ? difficulty : 1.0;
+    return {
+        division: division,
+        weekId: currentWeek,
+        userXP: 0,
+        bots: generateBotsForDivision(division, diff),
+        botDifficulty: diff,
+        lastFinishedRank: null,
+        lastVisitTime: Date.now()
+    };
+}
+
+// ==================== DEFINIÇÕES DE MISSÕES DIÁRIAS & SEMANAIS ====================
+
+function getCurrentDayId() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function getMissionSeedRandom(seedStr) {
+    let hash = 0;
+    for (let i = 0; i < seedStr.length; i++) {
+        hash = ((hash << 5) - hash) + seedStr.charCodeAt(i);
+        hash |= 0;
+    }
+    return function() {
+        hash = (hash * 9301 + 49297) % 233280;
+        return (hash < 0 ? hash + 233280 : hash) / 233280;
+    };
+}
+
+// Bônus temporário de XP (Poções)
+function isXPBoostActive() {
+    if (!appData || !appData.activeXPBoost || !appData.activeXPBoost.expiresAt) return false;
+    return Date.now() < appData.activeXPBoost.expiresAt;
+}
+
+function getXPBoostMultiplier() {
+    if (!isXPBoostActive()) return 1.0;
+    return appData.activeXPBoost.multiplier || 1.5;
+}
+
+function getXPBoostRemainingMs() {
+    if (!isXPBoostActive()) return 0;
+    return Math.max(0, appData.activeXPBoost.expiresAt - Date.now());
+}
+
+function activateXPBooster(type) {
+    if (!appData.inventory) appData.inventory = { xpBoosters50: 0, xpBoosters100: 0 };
+    const duration24h = 24 * 60 * 60 * 1000;
+
+    if (type === '50') {
+        if ((appData.inventory.xpBoosters50 || 0) <= 0) {
+            alert("Você não possui Poções de XP +50% no momento. Complete todas as missões diárias para ganhar uma!");
+            return;
+        }
+        appData.inventory.xpBoosters50 = Math.max(0, appData.inventory.xpBoosters50 - 1);
+        const currentRemaining = isXPBoostActive() ? Math.max(0, appData.activeXPBoost.expiresAt - Date.now()) : 0;
+        appData.activeXPBoost = {
+            multiplier: 1.5,
+            type: '50',
+            expiresAt: Date.now() + currentRemaining + duration24h
+        };
+        saveData(appData);
+        if (typeof confetti === 'function') confetti({ particleCount: 110, spread: 75, origin: { y: 0.6 } });
+        const sound = document.getElementById('soundFinish');
+        if (sound) sound.play().catch(() => {});
+        showMissionToast("🧪 Poção +50% XP Ativada!", "Todas as frases e testes valem +50% de XP por 24 horas!", "🧪");
+    } else if (type === '100') {
+        if ((appData.inventory.xpBoosters100 || 0) <= 0) {
+            alert("Você não possui Poções de XP +100% no momento. Complete as missões semanais para conquistar uma!");
+            return;
+        }
+        appData.inventory.xpBoosters100 = Math.max(0, appData.inventory.xpBoosters100 - 1);
+        const currentRemaining = isXPBoostActive() ? Math.max(0, appData.activeXPBoost.expiresAt - Date.now()) : 0;
+        appData.activeXPBoost = {
+            multiplier: 2.0,
+            type: '100',
+            expiresAt: Date.now() + currentRemaining + duration24h
+        };
+        saveData(appData);
+        if (typeof confetti === 'function') confetti({ particleCount: 160, spread: 90, origin: { y: 0.6 } });
+        const sound = document.getElementById('soundFinish');
+        if (sound) sound.play().catch(() => {});
+        showMissionToast("⚡ Poção +100% XP Ativada!", "Todas as frases e testes valem XP em DOBRO (2x) por 24 horas!", "⚡");
+    }
+
+    renderStats();
+    renderMissionsUI();
+}
+
+// POOL DE MISSÕES DIÁRIAS (100 XP CADA - Foco em Treinos e Mecânicas Únicas)
+const DAILY_MISSION_POOLS = {
+    // Slot 1: Dificuldades, Treino Híbrido & Evolução
+    slot1: [
+        {
+            id: 'd_troublesome_5',
+            title: 'Caçador de Erros',
+            desc: 'Acertar 5 frases no Treino de Dificuldades',
+            icon: '🎯',
+            target: 5,
+            xpReward: 100,
+            type: 'troublesome',
+            action: 'troublesome'
+        },
+        {
+            id: 'd_multimode_15',
+            title: 'Mestre Multimodal',
+            desc: 'Completar 15 frases no Treino Combinado',
+            icon: '🔄',
+            target: 15,
+            xpReward: 100,
+            type: 'multi',
+            action: 'multi'
+        },
+        {
+            id: 'd_master_3',
+            title: 'Elevação Cognitiva',
+            desc: 'Avançar o nível de memorização de 3 frases hoje',
+            icon: '⭐',
+            target: 3,
+            xpReward: 100,
+            type: 'phrase_leveled',
+            action: 'review'
+        },
+        {
+            id: 'd_two_lists',
+            title: 'Conexão Cruzada',
+            desc: 'Praticar frases de pelo menos 2 listas diferentes',
+            icon: '📚',
+            target: 2,
+            xpReward: 100,
+            type: 'distinct_lists',
+            action: 'review'
+        }
+    ],
+    // Slot 2: Habilidades Específicas de Idioma
+    slot2: [
+        {
+            id: 'd_blind_listen_15',
+            title: 'Percepção Auditiva',
+            desc: 'Acertar 15 frases no modo Escuta',
+            icon: '👂',
+            target: 15,
+            xpReward: 100,
+            type: 'mode',
+            mode: 'listen',
+            action: 'listen'
+        },
+        {
+            id: 'd_speech_clarity_12',
+            title: 'Expressão Verbal',
+            desc: 'Acertar 12 frases no modo Fala ou Pronúncia',
+            icon: '🎙️',
+            target: 12,
+            xpReward: 100,
+            type: 'mode_audio',
+            action: 'speak'
+        },
+        {
+            id: 'd_quick_quiz_15',
+            title: 'Reflexo de Compreensão',
+            desc: 'Acertar 15 frases no modo Quiz',
+            icon: '🧩',
+            target: 15,
+            xpReward: 100,
+            type: 'mode',
+            mode: 'quiz',
+            action: 'quiz'
+        },
+        {
+            id: 'd_accurate_writing_12',
+            title: 'Soletrador Preciso',
+            desc: 'Acertar 12 frases no modo Escrita',
+            icon: '✍️',
+            target: 12,
+            xpReward: 100,
+            type: 'mode',
+            mode: 'write',
+            action: 'write'
+        }
+    ],
+    // Slot 3: Ritmo & Performance Diária
+    slot3: [
+        {
+            id: 'd_clean_run_15',
+            title: 'Fluxo Perfeito',
+            desc: 'Acertar 15 frases seguidas sem nenhum erro',
+            icon: '⚡',
+            target: 15,
+            xpReward: 100,
+            type: 'streak',
+            action: 'review'
+        },
+        {
+            id: 'd_speedrun_burst_350',
+            title: 'Impulso Relâmpago',
+            desc: 'Fazer 350+ pontos em uma partida de Speed Run',
+            icon: '⏱️',
+            target: 350,
+            xpReward: 100,
+            type: 'speedrun',
+            action: 'speedrun'
+        },
+        {
+            id: 'd_extra_reviews_40',
+            title: 'Ritmo Acelerado',
+            desc: 'Completar 40 revisões no dia de hoje',
+            icon: '🔥',
+            target: 40,
+            xpReward: 100,
+            type: 'reviews',
+            action: 'review'
+        }
+    ]
+};
+
+// POOL DE MISSÕES SEMANAIS (1.000 XP CADA - Muito Difíceis & Vários Dias de Dedicação)
+const WEEKLY_MISSION_POOLS = {
+    // Slot 1: Consistência ao Longo de 5 a 6 Dias da Semana
+    slot1: [
+        {
+            id: 'w_six_days_streak',
+            title: 'Disciplina Implacável',
+            desc: 'Estudar e bater a meta diária em 6 dias diferentes da semana',
+            icon: '📅',
+            target: 6,
+            xpReward: 1000,
+            type: 'w_goal_days',
+            action: 'review'
+        },
+        {
+            id: 'w_reviews_450',
+            title: 'Maratona de Ferro',
+            desc: 'Completar 450 revisões ao longo da semana',
+            icon: '🏃',
+            target: 450,
+            xpReward: 1000,
+            type: 'w_reviews',
+            action: 'review'
+        },
+        {
+            id: 'w_five_days_intense',
+            title: 'Constância Absoluta',
+            desc: 'Fazer ao menos 40 revisões por dia em 5 dias diferentes',
+            icon: '🛡️',
+            target: 5,
+            xpReward: 1000,
+            type: 'w_intense_days',
+            action: 'review'
+        }
+    ],
+    // Slot 2: Domínio Vocabular & Dificuldades
+    slot2: [
+        {
+            id: 'w_master_phrases_25',
+            title: 'Fixação Definitiva',
+            desc: 'Elevar 25 frases para o nível 5 (Totalmente Memorizadas) na semana',
+            icon: '👑',
+            target: 25,
+            xpReward: 1000,
+            type: 'w_master',
+            action: 'review'
+        },
+        {
+            id: 'w_clear_troublesome_40',
+            title: 'Exterminador de Erros',
+            desc: 'Acertar 40 frases no Treino de Dificuldades ao longo da semana',
+            icon: '⚠️',
+            target: 40,
+            xpReward: 1000,
+            type: 'w_troublesome',
+            action: 'troublesome'
+        },
+        {
+            id: 'w_skills_audio_150',
+            title: 'Imersão Sonora Total',
+            desc: 'Acertar 150 desafios somando Escuta, Pronúncia e Fala na semana',
+            icon: '🎧',
+            target: 150,
+            xpReward: 1000,
+            type: 'w_audio_total',
+            action: 'listen'
+        }
+    ],
+    // Slot 3: Competição & Arcade de Alto Nível
+    slot3: [
+        {
+            id: 'w_speedrun_3500',
+            title: 'Lenda do SpeedRun',
+            desc: 'Acumular 3.500 pontos no Speed Run ao longo da semana',
+            icon: '⚡',
+            target: 3500,
+            xpReward: 1000,
+            type: 'w_speedrun',
+            action: 'speedrun'
+        },
+        {
+            id: 'w_combos_12',
+            title: 'Precisão Extrema',
+            desc: 'Alcançar 12 combos perfeitos de 10 acertos seguidos na semana',
+            icon: '🎯',
+            target: 12,
+            xpReward: 1000,
+            type: 'w_combos',
+            action: 'review'
+        },
+        {
+            id: 'w_league_xp_1500',
+            title: 'Conquistador da Liga',
+            desc: 'Conquistar 1.500 XP na Liga Semanal nesta semana',
+            icon: '🏆',
+            target: 1500,
+            xpReward: 1000,
+            type: 'w_league_xp',
+            action: 'league'
+        }
+    ]
+};
+
+let currentMissionsTab = 'daily';
+
+function switchMissionsTab(tab) {
+    currentMissionsTab = tab;
+    const dailyBtn = document.getElementById('tabDailyMissions');
+    const weeklyBtn = document.getElementById('tabWeeklyMissions');
+    const dailyCont = document.getElementById('dailyMissionsContainer');
+    const weeklyCont = document.getElementById('weeklyMissionsContainer');
+
+    if (tab === 'daily') {
+        if (dailyBtn) dailyBtn.classList.add('active');
+        if (weeklyBtn) weeklyBtn.classList.remove('active');
+        if (dailyCont) dailyCont.style.display = 'block';
+        if (weeklyCont) weeklyCont.style.display = 'none';
+    } else {
+        if (dailyBtn) dailyBtn.classList.remove('active');
+        if (weeklyBtn) weeklyBtn.classList.add('active');
+        if (dailyCont) dailyCont.style.display = 'none';
+        if (weeklyCont) weeklyCont.style.display = 'block';
+    }
+    updateMissionsCountdown();
+}
+
+function generateMissionsList(pools, seedStr, type = 'daily') {
+    const rng = getMissionSeedRandom(seedStr);
+    const slots = ['slot1', 'slot2', 'slot3'];
+    const fixedReward = type === 'daily' ? 100 : 1000;
+    return slots.map(slotKey => {
+        const pool = pools[slotKey];
+        const idx = Math.floor(rng() * pool.length);
+        const template = pool[idx];
+        return {
+            id: template.id,
+            slot: slotKey,
+            title: template.title,
+            desc: template.desc,
+            icon: template.icon,
+            target: template.target,
+            xpReward: fixedReward,
+            type: template.type,
+            mode: template.mode || null,
+            action: template.action || 'review',
+            current: 0,
+            completed: false,
+            claimed: false
+        };
+    });
+}
+
+function initMissionsData() {
+    const today = getCurrentDayId();
+    const weekId = getCurrentWeekId();
+    return {
+        dailyDate: today,
+        daily: generateMissionsList(DAILY_MISSION_POOLS, today, 'daily'),
+        dailyAllClaimed: false,
+        weeklyId: weekId,
+        weekly: generateMissionsList(WEEKLY_MISSION_POOLS, weekId, 'weekly'),
+        weeklyAllClaimed: false,
+        bonusXP: 0,
+        // Diários
+        todayReviewsCount: 0,
+        todayTroublesomeCount: 0,
+        todayMultiCount: 0,
+        todayLeveledCount: 0,
+        todayListenCount: 0,
+        todaySpeakCount: 0,
+        todayQuizCount: 0,
+        todayWriteCount: 0,
+        todaySpeedRunMax: 0,
+        todayCleanStreakMax: 0,
+        todayLists: [],
+        // Semanais
+        weeklyGoalDays: [],
+        weeklyIntenseDays: [],
+        weeklyReviewsCount: 0,
+        weeklyMasterCount: 0,
+        weeklyTroublesomeCount: 0,
+        weeklyAudioCount: 0,
+        weeklySpeedRunScore: 0,
+        weeklyCombosCount: 0,
+        weeklyLeagueXP: 0
+    };
+}
+
+function checkAndRollMissions() {
+    if (!appData) return;
+    if (!appData.missions) {
+        appData.missions = initMissionsData();
+        return;
+    }
+
+    const today = getCurrentDayId();
+    const currentWeek = getCurrentWeekId();
+
+    // Rola Diárias se virou o dia
+    if (appData.missions.dailyDate !== today) {
+        appData.missions.dailyDate = today;
+        appData.missions.dailyAllClaimed = false;
+        appData.missions.todayReviewsCount = 0;
+        appData.missions.todayTroublesomeCount = 0;
+        appData.missions.todayMultiCount = 0;
+        appData.missions.todayLeveledCount = 0;
+        appData.missions.todayListenCount = 0;
+        appData.missions.todaySpeakCount = 0;
+        appData.missions.todayQuizCount = 0;
+        appData.missions.todayWriteCount = 0;
+        appData.missions.todaySpeedRunMax = 0;
+        appData.missions.todayCleanStreakMax = 0;
+        appData.missions.todayLists = [];
+        appData.missions.daily = generateMissionsList(DAILY_MISSION_POOLS, today, 'daily');
+    }
+
+    // Rola Semanais se virou a semana
+    if (appData.missions.weeklyId !== currentWeek) {
+        appData.missions.weeklyId = currentWeek;
+        appData.missions.weeklyAllClaimed = false;
+        appData.missions.weeklyGoalDays = [];
+        appData.missions.weeklyIntenseDays = [];
+        appData.missions.weeklyReviewsCount = 0;
+        appData.missions.weeklyMasterCount = 0;
+        appData.missions.weeklyTroublesomeCount = 0;
+        appData.missions.weeklyAudioCount = 0;
+        appData.missions.weeklySpeedRunScore = 0;
+        appData.missions.weeklyCombosCount = 0;
+        appData.missions.weeklyLeagueXP = 0;
+        appData.missions.weekly = generateMissionsList(WEEKLY_MISSION_POOLS, currentWeek, 'weekly');
+    }
+}
+
+function recordMissionProgress(eventType, value = 1, extra = {}) {
+    if (!appData) return;
+    checkAndRollMissions();
+    if (!appData.missions) return;
+
+    let hasChanges = false;
+    const today = getCurrentDayId();
+
+    // 1. Rastreadores Diários
+    if (eventType === 'reviews' && value > 0) {
+        appData.missions.todayReviewsCount = (appData.missions.todayReviewsCount || 0) + value;
+        appData.missions.weeklyReviewsCount = (appData.missions.weeklyReviewsCount || 0) + value;
+        hasChanges = true;
+    }
+
+    if (eventType === 'troublesome_correct' && value > 0) {
+        appData.missions.todayTroublesomeCount = (appData.missions.todayTroublesomeCount || 0) + value;
+        appData.missions.weeklyTroublesomeCount = (appData.missions.weeklyTroublesomeCount || 0) + value;
+        hasChanges = true;
+    }
+
+    if (eventType === 'multimode_complete' && value > 0) {
+        appData.missions.todayMultiCount = (appData.missions.todayMultiCount || 0) + value;
+        hasChanges = true;
+    }
+
+    if (eventType === 'phrase_leveled' && value > 0) {
+        appData.missions.todayLeveledCount = (appData.missions.todayLeveledCount || 0) + value;
+        hasChanges = true;
+    }
+
+    if (eventType === 'phrase_mastered' && value > 0) {
+        appData.missions.weeklyMasterCount = (appData.missions.weeklyMasterCount || 0) + value;
+        hasChanges = true;
+    }
+
+    if (eventType === 'mode_correct' && value > 0) {
+        const m = extra.mode;
+        if (m === 'listen') {
+            appData.missions.todayListenCount = (appData.missions.todayListenCount || 0) + value;
+            appData.missions.weeklyAudioCount = (appData.missions.weeklyAudioCount || 0) + value;
+        } else if (m === 'speak' || m === 'pronounce') {
+            appData.missions.todaySpeakCount = (appData.missions.todaySpeakCount || 0) + value;
+            appData.missions.weeklyAudioCount = (appData.missions.weeklyAudioCount || 0) + value;
+        } else if (m === 'quiz') {
+            appData.missions.todayQuizCount = (appData.missions.todayQuizCount || 0) + value;
+        } else if (m === 'write') {
+            appData.missions.todayWriteCount = (appData.missions.todayWriteCount || 0) + value;
+        }
+        hasChanges = true;
+    }
+
+    if (eventType === 'list_reviewed' && extra.listId) {
+        appData.missions.todayLists = appData.missions.todayLists || [];
+        if (!appData.missions.todayLists.includes(extra.listId)) {
+            appData.missions.todayLists.push(extra.listId);
+            hasChanges = true;
+        }
+    }
+
+    if (eventType === 'speedrun_score' && value > 0) {
+        appData.missions.todaySpeedRunMax = Math.max(appData.missions.todaySpeedRunMax || 0, value);
+        appData.missions.weeklySpeedRunScore = (appData.missions.weeklySpeedRunScore || 0) + value;
+        hasChanges = true;
+    }
+
+    if (eventType === 'perfect_combo' && value > 0) {
+        appData.missions.weeklyCombosCount = (appData.missions.weeklyCombosCount || 0) + value;
+        hasChanges = true;
+    }
+
+    if (eventType === 'clean_streak' && value > 0) {
+        appData.missions.todayCleanStreakMax = Math.max(appData.missions.todayCleanStreakMax || 0, value);
+        hasChanges = true;
+    }
+
+    if (eventType === 'league_xp' && value > 0) {
+        appData.missions.weeklyLeagueXP = (appData.missions.weeklyLeagueXP || 0) + value;
+        hasChanges = true;
+    }
+
+    if (eventType === 'daily_goal_met') {
+        appData.missions.weeklyGoalDays = appData.missions.weeklyGoalDays || [];
+        if (!appData.missions.weeklyGoalDays.includes(today)) {
+            appData.missions.weeklyGoalDays.push(today);
+            hasChanges = true;
+        }
+    }
+
+    // Dias com ao menos 40 revisões para missão semanal w_five_days_intense
+    if (eventType === 'reviews' && (appData.missions.todayReviewsCount || 0) >= 40) {
+        appData.missions.weeklyIntenseDays = appData.missions.weeklyIntenseDays || [];
+        if (!appData.missions.weeklyIntenseDays.includes(today)) {
+            appData.missions.weeklyIntenseDays.push(today);
+            hasChanges = true;
+        }
+    }
+
+    // 2. Atualizar Progresso nas Missões Diárias
+    (appData.missions.daily || []).forEach(m => {
+        if (m.completed) return;
+        let currentVal = 0;
+        if (m.type === 'troublesome') currentVal = appData.missions.todayTroublesomeCount || 0;
+        else if (m.type === 'multi') currentVal = appData.missions.todayMultiCount || 0;
+        else if (m.type === 'phrase_leveled') currentVal = appData.missions.todayLeveledCount || 0;
+        else if (m.type === 'distinct_lists') currentVal = (appData.missions.todayLists || []).length;
+        else if (m.type === 'mode' && m.mode === 'listen') currentVal = appData.missions.todayListenCount || 0;
+        else if (m.type === 'mode' && m.mode === 'quiz') currentVal = appData.missions.todayQuizCount || 0;
+        else if (m.type === 'mode' && m.mode === 'write') currentVal = appData.missions.todayWriteCount || 0;
+        else if (m.type === 'mode_audio') currentVal = (appData.missions.todaySpeakCount || 0) + (appData.missions.todayListenCount || 0);
+        else if (m.type === 'streak') currentVal = appData.missions.todayCleanStreakMax || 0;
+        else if (m.type === 'speedrun') currentVal = appData.missions.todaySpeedRunMax || 0;
+        else if (m.type === 'reviews') currentVal = appData.missions.todayReviewsCount || 0;
+
+        m.current = Math.min(m.target, currentVal);
+        if (m.current >= m.target) {
+            m.completed = true;
+            hasChanges = true;
+            showMissionToast("🎯 Missão Diária Concluída!", `${m.title} (+100 XP)`, m.icon);
+        }
+    });
+
+    // 3. Atualizar Progresso nas Missões Semanais
+    (appData.missions.weekly || []).forEach(m => {
+        if (m.completed) return;
+        let currentVal = 0;
+        if (m.type === 'w_goal_days') currentVal = (appData.missions.weeklyGoalDays || []).length;
+        else if (m.type === 'w_reviews') currentVal = appData.missions.weeklyReviewsCount || 0;
+        else if (m.type === 'w_intense_days') currentVal = (appData.missions.weeklyIntenseDays || []).length;
+        else if (m.type === 'w_master') currentVal = appData.missions.weeklyMasterCount || 0;
+        else if (m.type === 'w_troublesome') currentVal = appData.missions.weeklyTroublesomeCount || 0;
+        else if (m.type === 'w_audio_total') currentVal = appData.missions.weeklyAudioCount || 0;
+        else if (m.type === 'w_speedrun') currentVal = appData.missions.weeklySpeedRunScore || 0;
+        else if (m.type === 'w_combos') currentVal = appData.missions.weeklyCombosCount || 0;
+        else if (m.type === 'w_league_xp') currentVal = appData.missions.weeklyLeagueXP || 0;
+
+        m.current = Math.min(m.target, currentVal);
+        if (m.current >= m.target) {
+            m.completed = true;
+            hasChanges = true;
+            showMissionToast("👑 Missão Semanal Concluída!", `${m.title} (+1.000 XP)`, m.icon);
+        }
+    });
+
+    if (hasChanges) {
+        saveData(appData);
+        renderMissionsUI();
+    }
+}
+
+function claimMission(type, slotIndex) {
+    checkAndRollMissions();
+    const list = type === 'daily' ? appData.missions.daily : appData.missions.weekly;
+    if (!list || !list[slotIndex]) return;
+
+    const mission = list[slotIndex];
+    if (!mission.completed || mission.claimed) return;
+
+    mission.claimed = true;
+    const reward = type === 'daily' ? 100 : 1000;
+
+    appData.missions.bonusXP = (appData.missions.bonusXP || 0) + reward;
+    addLeagueXP(reward, true);
+    updateGlobalLevel();
+    saveData(appData);
+
+    const sound = document.getElementById('soundFinish');
+    if (sound) sound.play().catch(() => {});
+    if (typeof confetti === 'function') {
+        confetti({ particleCount: type === 'weekly' ? 150 : 80, spread: 70, origin: { y: 0.65 } });
+    }
+
+    renderMissionsUI();
+}
+
+function claimMissionsChest(type) {
+    checkAndRollMissions();
+
+    if (type === 'daily') {
+        const allClaimed = (appData.missions.daily || []).every(m => m.completed && m.claimed);
+        if (!allClaimed || appData.missions.dailyAllClaimed) return;
+
+        appData.missions.dailyAllClaimed = true;
+        if (!appData.inventory) appData.inventory = { xpBoosters50: 0, xpBoosters100: 0 };
+        appData.inventory.xpBoosters50 = (appData.inventory.xpBoosters50 || 0) + 1;
+
+        saveData(appData);
+
+        openCelebrationModal('missionChestModal', () => {
+            const titleEl = document.getElementById('missionChestTitle');
+            const subEl = document.getElementById('missionChestSubtitle');
+            const itemEl = document.getElementById('missionChestItemText');
+            const boostEl = document.getElementById('missionChestBoosterText');
+            if (titleEl) titleEl.textContent = 'Baú Diário Coletado!';
+            if (subEl) subEl.textContent = 'Sensacional! Você cumpriu todas as missões diárias com maestria!';
+            if (boostEl) {
+                boostEl.style.display = 'block';
+                boostEl.textContent = '🧪 +1 Poção de XP +50% (24 Horas) adicionada ao seu inventário!';
+            }
+            if (itemEl) itemEl.style.display = 'none';
+
+            if (typeof confetti === 'function') confetti({ particleCount: 160, spread: 85, origin: { y: 0.55 } });
+            const s = document.getElementById('soundFinish');
+            if (s) s.play().catch(() => {});
+        });
+    } else {
+        const allClaimed = (appData.missions.weekly || []).every(m => m.completed && m.claimed);
+        if (!allClaimed || appData.missions.weeklyAllClaimed) return;
+
+        appData.missions.weeklyAllClaimed = true;
+        if (!appData.inventory) appData.inventory = { xpBoosters50: 0, xpBoosters100: 0 };
+        appData.inventory.xpBoosters100 = (appData.inventory.xpBoosters100 || 0) + 1;
+        appData.streakFreezes = (appData.streakFreezes || 0) + 1;
+
+        saveData(appData);
+
+        openCelebrationModal('missionChestModal', () => {
+            const titleEl = document.getElementById('missionChestTitle');
+            const subEl = document.getElementById('missionChestSubtitle');
+            const itemEl = document.getElementById('missionChestItemText');
+            const boostEl = document.getElementById('missionChestBoosterText');
+            if (titleEl) titleEl.textContent = 'Baú Semanal Lendário!';
+            if (subEl) subEl.textContent = 'Conquista Épica! Você venceu desafios de altíssima exigência nesta semana!';
+            if (boostEl) {
+                boostEl.style.display = 'block';
+                boostEl.textContent = '⚡ +1 Poção de XP +100% (24h de XP Dobrado!) adicionada!';
+            }
+            if (itemEl) {
+                itemEl.style.display = 'block';
+                itemEl.textContent = '🧊 +1 Gelo Protetor de Ofensiva adicionado!';
+            }
+
+            if (typeof confetti === 'function') confetti({ particleCount: 220, spread: 100, origin: { y: 0.5 } });
+            const s = document.getElementById('soundFinish');
+            if (s) s.play().catch(() => {});
+        });
+    }
+
+    renderMissionsUI();
+}
+
+function getMissionActionLabel(action, mode) {
+    if (action === 'troublesome') return 'Dificuldades ⚠️';
+    if (action === 'speedrun') return 'Speed Run ⚡';
+    if (action === 'multi') return 'Treino Combinado 🔄';
+    if (action === 'listen' || mode === 'listen') return 'Ouvir 🎧';
+    if (action === 'speak' || mode === 'speak') return 'Falar 🎙️';
+    if (action === 'pronounce' || mode === 'pronounce') return 'Pronunciar 🗣️';
+    if (action === 'quiz' || mode === 'quiz') return 'Quiz 🧩';
+    if (action === 'write' || mode === 'write') return 'Escrever ✍️';
+    return 'Praticar 🚀';
+}
+
+function executeMissionAction(action, mode) {
+    if (action === 'troublesome') {
+        startTroublesomeReview();
+    } else if (action === 'speedrun') {
+        startSpeedRun();
+    } else if (action === 'multi') {
+        startMultiModeReview();
+    } else if (action === 'listen' || mode === 'listen') {
+        startReview('listen');
+    } else if (action === 'speak' || mode === 'speak') {
+        startReview('speak');
+    } else if (action === 'pronounce' || mode === 'pronounce') {
+        startReview('pronounce');
+    } else if (action === 'quiz' || mode === 'quiz') {
+        startReview('quiz');
+    } else if (action === 'write' || mode === 'write') {
+        startReview('write');
+    } else {
+        startReview('standard');
+    }
+}
+
+function showMissionToast(title, desc, icon = '🎯') {
+    const toast = document.getElementById('missionToast');
+    if (!toast) return;
+    const titleEl = document.getElementById('missionToastTitle');
+    const descEl = document.getElementById('missionToastDesc');
+    const iconEl = document.getElementById('missionToastIcon');
+    if (titleEl) titleEl.textContent = title;
+    if (descEl) descEl.textContent = desc;
+    if (iconEl) iconEl.textContent = icon;
+
+    toast.classList.add('show');
+    if (window._missionToastTimer) clearTimeout(window._missionToastTimer);
+    window._missionToastTimer = setTimeout(() => {
+        toast.classList.remove('show');
+    }, 4000);
+}
+
+function updateMissionsCountdown() {
+    const timerEl = document.getElementById('missionsTimerText');
+    if (!timerEl) return;
+
+    const now = new Date();
+    if (currentMissionsTab === 'daily') {
+        const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+        const diffMs = midnight - now;
+        const hours = Math.floor(diffMs / 3600000);
+        const min = Math.floor((diffMs % 3600000) / 60000);
+        timerEl.textContent = `⏳ Reinicia em: ${hours}h ${String(min).padStart(2, '0')}m`;
+    } else {
+        const d = new Date(now);
+        const dayOfWeek = (d.getDay() + 6) % 7; // Seg:0 ... Dom:6
+        const daysLeft = 6 - dayOfWeek;
+        const sundayMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate() + daysLeft + 1, 0, 0, 0);
+        const diffMs = sundayMidnight - now;
+        const hours = Math.floor((diffMs % 86400000) / 3600000);
+        const min = Math.floor((diffMs % 3600000) / 60000);
+        timerEl.textContent = `⏳ Termina em: ${daysLeft}d ${hours}h ${String(min).padStart(2, '0')}m`;
+    }
+}
+
+function renderMissionItemHTML(m, type, idx) {
+    const pct = Math.min(100, Math.round(((m.current || 0) / m.target) * 100));
+    const isCompleted = m.completed || (m.current >= m.target);
+    const rewardXP = type === 'daily' ? 100 : 1000;
+    const rewardFormatted = type === 'daily' ? '100' : '1.000';
+
+    let itemClass = 'mission-item';
+    if (m.claimed) itemClass += ' claimed';
+    else if (isCompleted) itemClass += ' completed';
+
+    let actionBtnHtml = '';
+    if (m.claimed) {
+        actionBtnHtml = `<span class="mission-claimed-tag">✓ Resgatado (+${rewardFormatted} XP)</span>`;
+    } else if (isCompleted) {
+        actionBtnHtml = `<button class="btn-mission-claim" onclick="claimMission('${type}', ${idx})">🎁 Resgatar +${rewardFormatted} XP</button>`;
+    } else {
+        const actionLabel = getMissionActionLabel(m.action, m.mode);
+        actionBtnHtml = `<button class="btn-mission-action" onclick="executeMissionAction('${m.action}', '${m.mode || ''}')">${actionLabel}</button>`;
+    }
+
+    return `
+        <div class="${itemClass}">
+            <div class="mission-icon-box">
+                <span>${m.icon}</span>
+            </div>
+            <div class="mission-content">
+                <div class="mission-item-header">
+                    <span class="mission-item-title">${escapeHTML(m.title)}</span>
+                    <span class="mission-reward-badge">⚡ +${rewardFormatted} XP</span>
+                </div>
+                <div class="mission-item-desc">${escapeHTML(m.desc)}</div>
+                <div class="mission-progress-container">
+                    <div class="mission-progress-bar">
+                        <div class="mission-progress-fill" style="width: ${pct}%"></div>
+                    </div>
+                    <span class="mission-progress-text">${m.current || 0}/${m.target}</span>
+                </div>
+            </div>
+            <div class="mission-actions">
+                ${actionBtnHtml}
+            </div>
+        </div>
+    `;
+}
+
+function renderMissionsBoosterBanner() {
+    const banner = document.getElementById('missionsBoosterBanner');
+    if (!banner) return;
+
+    const isActive = isXPBoostActive();
+    const inv50 = (appData.inventory && appData.inventory.xpBoosters50) || 0;
+    const inv100 = (appData.inventory && appData.inventory.xpBoosters100) || 0;
+
+    if (!isActive && inv50 <= 0 && inv100 <= 0) {
+        banner.style.display = 'none';
+        banner.innerHTML = '';
+        return;
+    }
+
+    banner.style.display = 'flex';
+    if (isActive) {
+        banner.className = 'xp-booster-banner active';
+        const mult = appData.activeXPBoost.multiplier || 1.5;
+        const pctLabel = mult >= 2.0 ? 'XP EM DOBRO (+100%)' : '+50% DE XP';
+        const icon = mult >= 2.0 ? '⚡' : '🧪';
+        const remMs = getXPBoostRemainingMs();
+        const remHours = Math.floor(remMs / 3600000);
+        const remMin = Math.floor((remMs % 3600000) / 60000);
+        const remSec = Math.floor((remMs % 60000) / 1000);
+        const timeStr = `${remHours}h ${String(remMin).padStart(2, '0')}m ${String(remSec).padStart(2, '0')}s`;
+
+        let invBtns = '';
+        if (inv50 > 0 || inv100 > 0) {
+            invBtns = `<span style="font-size: 0.78rem; opacity: 0.85;">(Inventário: ${inv50 > 0 ? '🧪 ' + inv50 + 'x (+50%) ' : ''}${inv100 > 0 ? '⚡ ' + inv100 + 'x (+100%)' : ''})</span>`;
+        }
+
+        banner.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span class="xp-boost-badge">${icon} ${pctLabel}</span>
+                <span style="font-size: 0.88rem; font-weight: 700;">Restam: ${timeStr}</span>
+                ${invBtns}
+            </div>
+            <div style="font-size: 0.78rem; opacity: 0.9;">Multiplicador aplicado automaticamente a revisões e SpeedRun!</div>
+        `;
+    } else {
+        banner.className = 'xp-booster-banner ready';
+        let buttons = [];
+        if (inv50 > 0) {
+            buttons.push(`<button type="button" class="btn-activate-boost" onclick="activateXPBooster('50')">🧪 Ativar +50% XP (${inv50} disponível${inv50 > 1 ? 's' : ''})</button>`);
+        }
+        if (inv100 > 0) {
+            buttons.push(`<button type="button" class="btn-activate-boost boost-100" onclick="activateXPBooster('100')">⚡ Ativar +100% XP (${inv100} disponível${inv100 > 1 ? 's' : ''})</button>`);
+        }
+        banner.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span style="font-size: 0.95rem; font-weight: 800;">🎒 Poções Disponíveis no Inventário:</span>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    ${buttons.join('')}
+                </div>
+            </div>
+        `;
+    }
+}
+
+function renderMissionsUI() {
+    checkAndRollMissions();
+    if (!appData.missions) return;
+
+    renderMissionsBoosterBanner();
+
+    const daily = appData.missions.daily || [];
+    const weekly = appData.missions.weekly || [];
+
+    const dailyCompleted = daily.filter(m => m.completed).length;
+    const weeklyCompleted = weekly.filter(m => m.completed).length;
+
+    const summaryEl = document.getElementById('missionsSummaryCount');
+    if (summaryEl) {
+        summaryEl.textContent = currentMissionsTab === 'daily'
+            ? `${dailyCompleted}/3 Concluídas`
+            : `${weeklyCompleted}/3 Concluídas`;
+    }
+
+    // Renderizar Lista Diária
+    const dailyContainer = document.getElementById('dailyMissionsList');
+    if (dailyContainer) {
+        dailyContainer.innerHTML = daily.map((m, idx) => renderMissionItemHTML(m, 'daily', idx)).join('');
+    }
+
+    // Renderizar Baú Diário
+    const dailyChest = document.getElementById('dailyChestCard');
+    if (dailyChest) {
+        const allClaimed = daily.every(m => m.completed && m.claimed);
+        if (appData.missions.dailyAllClaimed) {
+            dailyChest.className = 'mission-chest-card claimed';
+            dailyChest.innerHTML = `
+                <div class="mission-chest-info">
+                    <span class="mission-chest-icon">🎁</span>
+                    <div>
+                        <div class="mission-chest-title">Baú Diário Coletado!</div>
+                        <div class="mission-chest-desc">Você já garantiu sua Poção de XP +50% (24h) de hoje. Volte amanhã para novos desafios!</div>
+                    </div>
+                </div>
+                <span class="mission-claimed-tag">✓ Resgatado</span>
+            `;
+        } else if (allClaimed) {
+            dailyChest.className = 'mission-chest-card unlocked';
+            dailyChest.innerHTML = `
+                <div class="mission-chest-info">
+                    <span class="mission-chest-icon">✨🎁</span>
+                    <div>
+                        <div class="mission-chest-title">Baú Diário Pronto!</div>
+                        <div class="mission-chest-desc">Todas as missões diárias cumpridas! Abra para receber sua Poção de XP +50%!</div>
+                    </div>
+                </div>
+                <button class="mission-chest-btn" onclick="claimMissionsChest('daily')">Abrir Baú (🧪 Poção +50% XP) 🚀</button>
+            `;
+        } else {
+            dailyChest.className = 'mission-chest-card';
+            dailyChest.innerHTML = `
+                <div class="mission-chest-info">
+                    <span class="mission-chest-icon">🔒🎁</span>
+                    <div>
+                        <div class="mission-chest-title">Baú Bônus Diário (Recompensa: 🧪 Poção +50% XP)</div>
+                        <div class="mission-chest-desc">Complete e resgate as 3 missões do dia para abrir o baú dourado.</div>
+                    </div>
+                </div>
+                <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-muted);">${dailyCompleted}/3 Concluídas</span>
+            `;
+        }
+    }
+
+    // Renderizar Lista Semanal
+    const weeklyContainer = document.getElementById('weeklyMissionsList');
+    if (weeklyContainer) {
+        weeklyContainer.innerHTML = weekly.map((m, idx) => renderMissionItemHTML(m, 'weekly', idx)).join('');
+    }
+
+    // Renderizar Baú Semanal
+    const weeklyChest = document.getElementById('weeklyChestCard');
+    if (weeklyChest) {
+        const allClaimed = weekly.every(m => m.completed && m.claimed);
+        if (appData.missions.weeklyAllClaimed) {
+            weeklyChest.className = 'mission-chest-card claimed';
+            weeklyChest.innerHTML = `
+                <div class="mission-chest-info">
+                    <span class="mission-chest-icon">🏆</span>
+                    <div>
+                        <div class="mission-chest-title">Baú Semanal Coletado!</div>
+                        <div class="mission-chest-desc">Você conquistou sua Poção de XP +100% (24h) e 1 Gelo Protetor desta semana!</div>
+                    </div>
+                </div>
+                <span class="mission-claimed-tag">✓ Resgatado</span>
+            `;
+        } else if (allClaimed) {
+            weeklyChest.className = 'mission-chest-card unlocked';
+            weeklyChest.innerHTML = `
+                <div class="mission-chest-info">
+                    <span class="mission-chest-icon">💎🎁</span>
+                    <div>
+                        <div class="mission-chest-title">Baú Semanal Pronto!</div>
+                        <div class="mission-chest-desc">Desafios semanais de alto nível superados! Resgate seu prêmio lendário!</div>
+                    </div>
+                </div>
+                <button class="mission-chest-btn" onclick="claimMissionsChest('weekly')">Abrir Baú (⚡ Poção +100% XP + 🧊 1 Gelo) 🚀</button>
+            `;
+        } else {
+            weeklyChest.className = 'mission-chest-card';
+            weeklyChest.innerHTML = `
+                <div class="mission-chest-info">
+                    <span class="mission-chest-icon">🔒💎</span>
+                    <div>
+                        <div class="mission-chest-title">Baú Lendário Semanal (Recompensa: ⚡ Poção +100% XP + 🧊 1 Gelo)</div>
+                        <div class="mission-chest-desc">Complete as 3 missões desafiadoras da semana para abrir o baú supremo.</div>
+                    </div>
+                </div>
+                <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-muted);">${weeklyCompleted}/3 Concluídas</span>
+            `;
+        }
+    }
+
+    updateMissionsCountdown();
+}
+
 function getDefaultData() {
     return {
         lists: [],
@@ -122,10 +1495,28 @@ function getDefaultData() {
         streakFreezes: 1, // Proteção contra perda de sequência
         lastStreakFreezeRewardDate: null,
         lastReviewDate: null,
-        trophies: { bronze: 0, silver: 0, gold: 0 },
+        trophies: { iron: 0, bronze: 0, silver: 0, gold: 0 },
         streakMilestoneProgress: 0,
         streakBonusXP: 0,
         lastMilestoneGoalDate: null,
+        lastDailyGoalCelebratedDate: null,
+        badges: {}, // { [badgeId]: { count: 0, lastEarned: 0, lastEarnedDate: '' } }
+        badgeBonusXP: 0,
+        archivedPhraseXP: 0, // Preserva permanentemente o XP de frases/listas arquivadas ou excluídas
+        dictLookupsCount: 0,
+        dictLookupsToday: 0,
+        lastDictLookupDate: null,
+        league: null, // Inicializado dinamicamente por initLeagueData()
+        missions: null,
+        inventory: {
+            xpBoosters50: 0,
+            xpBoosters100: 0
+        },
+        activeXPBoost: {
+            multiplier: 1.0,
+            type: null,
+            expiresAt: null
+        },
         phoneticCache: {},
         settings: {
             expandContractions: true,
@@ -133,7 +1524,7 @@ function getDefaultData() {
             autoAdvanceSpeech: false,
             darkMode: false,
             notifications: true,
-            dailyGoal: 20,
+            dailyGoal: 50,
             tutorialCompleted: false
         },
         definitionCache: {},
@@ -186,10 +1577,10 @@ function migrateData(data) {
         modified = true;
     }
     if (!data.trophies) {
-        data.trophies = { bronze: 0, silver: 0, gold: 0 };
+        data.trophies = { iron: 0, bronze: 0, silver: 0, gold: 0 };
         modified = true;
     } else {
-        ['bronze', 'silver', 'gold'].forEach(k => {
+        ['iron', 'bronze', 'silver', 'gold'].forEach(k => {
             if (data.trophies[k] === undefined) {
                 data.trophies[k] = 0;
                 modified = true;
@@ -208,8 +1599,104 @@ function migrateData(data) {
         data.lastMilestoneGoalDate = null;
         modified = true;
     }
-    if (data.settings && data.settings.dailyGoal === undefined) {
-        data.settings.dailyGoal = 20;
+    if (data.lastDailyGoalCelebratedDate === undefined) {
+        data.lastDailyGoalCelebratedDate = null;
+        modified = true;
+    }
+    if (!data.badges) {
+        data.badges = {};
+        modified = true;
+    }
+    if (data.badgeBonusXP === undefined) {
+        data.badgeBonusXP = 0;
+        modified = true;
+    }
+    if (data.archivedPhraseXP === undefined) {
+        data.archivedPhraseXP = 0;
+        modified = true;
+    }
+    if (data.dictLookupsCount === undefined) {
+        data.dictLookupsCount = 0;
+        modified = true;
+    }
+    if (data.dictLookupsToday === undefined) {
+        data.dictLookupsToday = 0;
+        modified = true;
+    }
+    if (data.lastDictLookupDate === undefined) {
+        data.lastDictLookupDate = null;
+        modified = true;
+    }
+    if (!data.league) {
+        data.league = initLeagueData('bronze');
+        modified = true;
+    } else if (data.league && Array.isArray(data.league.bots)) {
+        const emojiFixes = {
+            '🧑‍🎓': '🎓',
+            '👩‍💻': '💻',
+            '👩‍🔬': '🔬',
+            '👨‍🎓': '🎓',
+            '👨‍💻': '💻',
+            '👨‍🔬': '🔬'
+        };
+        data.league.bots.forEach(bot => {
+            if (emojiFixes[bot.avatar]) {
+                bot.avatar = emojiFixes[bot.avatar];
+                modified = true;
+            }
+        });
+        if (data.league.botDifficulty == null) {
+            data.league.botDifficulty = 1.0;
+            modified = true;
+        }
+
+        // Garante que não haja competidores com nomes duplicados ou iguais ao usuário
+        const seenNames = new Set();
+        if (data.auth?.username) seenNames.add(data.auth.username.trim().toLowerCase());
+        const pool = BOT_PERSONAS.filter(p => !seenNames.has(p.name.toLowerCase()));
+        data.league.bots.forEach(bot => {
+            const botKey = (bot.name || '').trim().toLowerCase();
+            if (seenNames.has(botKey) || !bot.name) {
+                const replacement = pool.pop();
+                if (replacement) {
+                    bot.name = replacement.name;
+                    bot.avatar = replacement.avatar;
+                    modified = true;
+                }
+            }
+            if (bot.name) seenNames.add(bot.name.trim().toLowerCase());
+        });
+    }
+    if (data.lastCelebratedLevel === undefined) {
+        const totalXP = calculateTotalProgress(data);
+        const baseL = (1 + Math.sqrt(1 + 4 * totalXP / 25)) / 2;
+        data.lastCelebratedLevel = Math.max(1, Math.floor(baseL));
+        modified = true;
+    }
+    if (data.settings) {
+        if (data.settings.dailyGoal === undefined || data.settings.dailyGoal === 20) {
+            data.settings.dailyGoal = 50;
+            modified = true;
+        }
+    }
+    if (!data.missions) {
+        data.missions = initMissionsData();
+        modified = true;
+    }
+    if (!data.inventory) {
+        data.inventory = { xpBoosters50: 0, xpBoosters100: 0 };
+        modified = true;
+    }
+    if (data.inventory.xpBoosters50 === undefined) {
+        data.inventory.xpBoosters50 = 0;
+        modified = true;
+    }
+    if (data.inventory.xpBoosters100 === undefined) {
+        data.inventory.xpBoosters100 = 0;
+        modified = true;
+    }
+    if (!data.activeXPBoost) {
+        data.activeXPBoost = { multiplier: 1.0, type: null, expiresAt: null };
         modified = true;
     }
     // Limpeza de caches vazios ou invlidos para forar nova busca
@@ -249,16 +1736,70 @@ function loadData() {
     return getDefaultData();
 }
 
+let debouncedCloudSyncTimer = null;
+
+function scheduleDebouncedCloudSync(delayMs = 4000) {
+    if (debouncedCloudSyncTimer) {
+        clearTimeout(debouncedCloudSyncTimer);
+    }
+    debouncedCloudSyncTimer = setTimeout(() => {
+        debouncedCloudSyncTimer = null;
+        if (appData.auth && appData.auth.isLoggedIn && navigator.onLine) {
+            syncWithCloud(false);
+        }
+    }, delayMs);
+}
+
+// Quando a página for fechada ou ocultada, envia sincronização pendente imediatamente
+window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && debouncedCloudSyncTimer) {
+        clearTimeout(debouncedCloudSyncTimer);
+        debouncedCloudSyncTimer = null;
+        if (appData.auth && appData.auth.isLoggedIn && navigator.onLine) {
+            syncWithCloud(false);
+        }
+    }
+});
+
 function saveData(data, options = {}) {
     // touch=false: salvamento de fundo (caches de fonética/tradução/definição, migrações).
     // Não altera a data de modificação (lastUpdated) nem dispara envio para a nuvem,
     // para que a data represente apenas alterações reais feitas pelo usuário.
     const touch = options.touch !== false;
     if (touch) data.lastUpdated = Date.now();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    // Trigger background sync if possible
+
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+        console.warn('Erro ao salvar no localStorage (possível limite de cota atingido):', e);
+        // Em caso de limite de cota do navegador (5MB), limpa caches secundários e tenta novamente
+        try {
+            if (data.definitionCache && Object.keys(data.definitionCache).length > 200) {
+                data.definitionCache = {};
+            }
+            if (data.translationCache && Object.keys(data.translationCache).length > 200) {
+                data.translationCache = {};
+            }
+            if (data.history && data.history.length > 5000) {
+                data.history = data.history.slice(-3000);
+            }
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        } catch (retryErr) {
+            console.error('Falha crítica ao persistir dados após descarte de cache:', retryErr);
+        }
+    }
+
+    // Trigger debounced background sync if possible
     if (touch && data.auth && data.auth.isLoggedIn && navigator.onLine) {
-        syncWithCloud(false);
+        if (options.immediateSync) {
+            if (debouncedCloudSyncTimer) {
+                clearTimeout(debouncedCloudSyncTimer);
+                debouncedCloudSyncTimer = null;
+            }
+            syncWithCloud(false);
+        } else {
+            scheduleDebouncedCloudSync(4000);
+        }
     }
 }
 
@@ -348,6 +1889,13 @@ function startCountdownInterval() {
         } else {
             if (container) container.style.display = 'none';
         }
+
+        if (typeof updateMissionsCountdown === 'function') {
+            updateMissionsCountdown();
+        }
+        if (typeof renderMissionsBoosterBanner === 'function' && typeof isXPBoostActive === 'function' && isXPBoostActive()) {
+            renderMissionsBoosterBanner();
+        }
     }, 1000);
 }
 
@@ -366,7 +1914,10 @@ let session = {
     originalCount: 0,
     current: null,
     mode: 'quiz',
-    trainingMode: 'standard' // 'standard', 'quiz', 'write', 'listen', 'pronounce', 'speak'
+    trainingMode: 'standard', // 'standard', 'quiz', 'write', 'listen', 'pronounce', 'speak'
+    correctStreak: 0,
+    speakCorrect: 0,
+    writeCorrect: 0
 };
 
 function getLowestSkillInfo(phrase) {
@@ -584,25 +2135,55 @@ async function prefetchMissingPhonetics() {
 }
 
 
+// ==================== XP & PROGRESS CALCULATIONS ====================
+
+function getPhraseWordCount(english) {
+    if (!english) return 1;
+    const clean = english.trim().replace(/[.,!?;:"]/g, '');
+    const tokens = clean.split(/\s+/).filter(w => w.length > 0);
+    return Math.max(1, tokens.length);
+}
+
+function calculatePhraseXP(p) {
+    if (!p || !p.levels) return 0;
+    const wordsCount = getPhraseWordCount(p.english);
+    // Multiplicador pelo tamanho da frase: +10% por palavra adicional acima de 1 (máx 2.5x)
+    const wordMultiplier = 1 + Math.min(1.5, (wordsCount - 1) * 0.10);
+
+    // Configuração dos tipos de testes: pesos base e multiplicadores por nível
+    const modes = [
+        { key: 'quiz', base: 5, mult: 1 },
+        { key: 'write', base: 10, mult: 2 },
+        { key: 'listen', base: 12, mult: 2.5 },
+        { key: 'pronounce', base: 15, mult: 3 },
+        { key: 'speak', base: 20, mult: 4 }
+    ];
+
+    let phraseXP = 0;
+    for (const m of modes) {
+        const lvl = p.levels[m.key] || 0;
+        if (lvl > 0) {
+            // Fórmula base: Base*L + Mult*(L*(L+1)/2)
+            let modeXP = (m.base * lvl) + (m.mult * (lvl * (lvl + 1) / 2));
+
+            // Bônus de Palavra Nova no nível 1: +25% de bônus por transformar uma palavra/frase nova em aprendida
+            const newWordBonus = Math.round(m.base * 0.25);
+            modeXP += newWordBonus;
+
+            phraseXP += Math.round(modeXP * wordMultiplier);
+        }
+    }
+    return phraseXP;
+}
+
 // ==================== SYNC LAYER ====================
 
 function calculateTotalProgress(data) {
     if (!data || !data.lists) return 0;
-    let totalXP = (data.speedRunXP || 0) + (data.streakBonusXP || 0);
+    let totalXP = (data.speedRunXP || 0) + (data.streakBonusXP || 0) + (data.badgeBonusXP || 0) + (data.archivedPhraseXP || 0) + ((data.missions && data.missions.bonusXP) || 0);
     data.lists.forEach(l => {
         (l.phrases || []).forEach(p => {
-            if (p.levels) {
-                const lq = p.levels.quiz || 0;
-                totalXP += (5 * lq) + (1 * (lq * (lq + 1) / 2));
-                const lw = p.levels.write || 0;
-                totalXP += (10 * lw) + (2 * (lw * (lw + 1) / 2));
-                const ll = p.levels.listen || 0;
-                totalXP += (12 * ll) + (2.5 * (ll * (ll + 1) / 2));
-                const lp = p.levels.pronounce || 0;
-                totalXP += (15 * lp) + (3 * (lp * (lp + 1) / 2));
-                const ls = p.levels.speak || 0;
-                totalXP += (20 * ls) + (4 * (ls * (ls + 1) / 2));
-            }
+            totalXP += calculatePhraseXP(p);
         });
     });
     return totalXP;
@@ -693,12 +2274,41 @@ function mergeAppData(local, remote) {
     merged.speedRunXP = Math.max(remote.speedRunXP || 0, local.speedRunXP || 0);
     merged.streakFreezes = Math.max(remote.streakFreezes || 0, local.streakFreezes || 0);
     merged.streakBonusXP = Math.max(remote.streakBonusXP || 0, local.streakBonusXP || 0);
+    merged.badgeBonusXP = Math.max(remote.badgeBonusXP || 0, local.badgeBonusXP || 0);
+    merged.archivedPhraseXP = Math.max(remote.archivedPhraseXP || 0, local.archivedPhraseXP || 0);
+    merged.dictLookupsCount = Math.max(remote.dictLookupsCount || 0, local.dictLookupsCount || 0);
+    merged.dictLookupsToday = (remote.lastDictLookupDate === local.lastDictLookupDate)
+        ? Math.max(remote.dictLookupsToday || 0, local.dictLookupsToday || 0)
+        : (local.dictLookupsToday || 0);
+    merged.lastDictLookupDate = remote.lastDictLookupDate || local.lastDictLookupDate || null;
     merged.streakMilestoneProgress = Math.max(remote.streakMilestoneProgress || 0, local.streakMilestoneProgress || 0);
     merged.trophies = {
+        iron: Math.max((remote.trophies && remote.trophies.iron) || 0, (local.trophies && local.trophies.iron) || 0),
         bronze: Math.max((remote.trophies && remote.trophies.bronze) || 0, (local.trophies && local.trophies.bronze) || 0),
         silver: Math.max((remote.trophies && remote.trophies.silver) || 0, (local.trophies && local.trophies.silver) || 0),
         gold: Math.max((remote.trophies && remote.trophies.gold) || 0, (local.trophies && local.trophies.gold) || 0)
     };
+    merged.lastDailyGoalCelebratedDate = remote.lastDailyGoalCelebratedDate || local.lastDailyGoalCelebratedDate || null;
+    merged.lastMilestoneGoalDate = remote.lastMilestoneGoalDate || local.lastMilestoneGoalDate || null;
+    merged.lastStreakFreezeRewardDate = remote.lastStreakFreezeRewardDate || local.lastStreakFreezeRewardDate || null;
+
+    // Mesclagem de badges preservando o maior nível / contagem
+    merged.badges = { ...(local.badges || {}) };
+    if (remote.badges) {
+        for (const k in remote.badges) {
+            const locCount = (merged.badges[k] && merged.badges[k].count) || 0;
+            const remCount = (remote.badges[k] && remote.badges[k].count) || 0;
+            if (!merged.badges[k] || remCount > locCount) {
+                merged.badges[k] = remote.badges[k];
+            }
+        }
+    }
+
+    // Mesclagem de liga semanal
+    merged.league = local.league || remote.league;
+    if (remote.league && local.league && remote.league.weekId === local.league.weekId) {
+        merged.league.userXP = Math.max(remote.league.userXP || 0, local.league.userXP || 0);
+    }
 
     // Mesclagem de histórico de revisões sem duplicatas
     const historyMap = new Map();
@@ -711,6 +2321,31 @@ function mergeAppData(local, remote) {
     merged.translationCache = { ...(remote.translationCache || {}), ...(local.translationCache || {}) };
     merged.definitionCache = { ...(remote.definitionCache || {}), ...(local.definitionCache || {}) };
 
+    // Mescla inventário de poções de XP
+    merged.inventory = {
+        xpBoosters50: Math.max((remote.inventory && remote.inventory.xpBoosters50) || 0, (local.inventory && local.inventory.xpBoosters50) || 0),
+        xpBoosters100: Math.max((remote.inventory && remote.inventory.xpBoosters100) || 0, (local.inventory && local.inventory.xpBoosters100) || 0)
+    };
+
+    // Mescla poção ativa (preserva a que tiver maior tempo restante válido)
+    const localActive = (local.activeXPBoost && local.activeXPBoost.expiresAt && local.activeXPBoost.expiresAt > Date.now()) ? local.activeXPBoost : null;
+    const remoteActive = (remote.activeXPBoost && remote.activeXPBoost.expiresAt && remote.activeXPBoost.expiresAt > Date.now()) ? remote.activeXPBoost : null;
+    if (localActive && remoteActive) {
+        merged.activeXPBoost = (localActive.expiresAt >= remoteActive.expiresAt) ? localActive : remoteActive;
+    } else {
+        merged.activeXPBoost = localActive || remoteActive || { multiplier: 1.0, type: null, expiresAt: null };
+    }
+
+    // Mescla missões diárias e semanais
+    if (remote.missions && local.missions) {
+        merged.missions = (remote.missions.dailyDate === local.missions.dailyDate)
+            ? (((remote.missions.bonusXP || 0) >= (local.missions.bonusXP || 0)) ? remote.missions : local.missions)
+            : (local.missions || remote.missions);
+        merged.missions.bonusXP = Math.max(remote.missions.bonusXP || 0, local.missions.bonusXP || 0);
+    } else {
+        merged.missions = local.missions || remote.missions || initMissionsData();
+    }
+
     merged.lastUpdated = Math.max(remote.lastUpdated || 0, local.lastUpdated || 0, Date.now());
     return merged;
 }
@@ -721,6 +2356,11 @@ function refreshMainUI() {
     renderLists();
     if (appData.currentListId) renderPhrases();
     renderMetrics();
+    renderLeagueCardHome();
+    if (typeof renderLeague === 'function') renderLeague();
+    if (typeof renderFluencyPyramid === 'function') renderFluencyPyramid();
+    if (typeof renderBadgesUI === 'function') renderBadgesUI();
+    if (typeof renderMissionsUI === 'function') renderMissionsUI();
 }
 
 let isSyncInProgress = false;
@@ -785,7 +2425,7 @@ function adoptCloudData(remotePayload) {
     next.lastUpdated = getDataTimestamp(remotePayload);
 
     appData = migrateData(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+    saveData(appData, { touch: false });
     applyDarkMode();
     refreshMainUI();
 }
@@ -799,7 +2439,7 @@ async function pushLocalToCloud() {
     });
     if (res && res.success) {
         appData.auth.lastSync = Date.now();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+        saveData(appData, { touch: false });
         return true;
     }
     return false;
@@ -844,7 +2484,7 @@ async function reconcileWithCloud(isManual, loadingStatus) {
         if (ok && isManual) alert("Seus dados locais eram mais recentes e foram enviados para a nuvem!");
     } else {
         appData.auth.lastSync = Date.now();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+        saveData(appData, { touch: false });
         if (isManual) alert("Seus dados já estão sincronizados!");
     }
     return true;
@@ -886,12 +2526,12 @@ async function syncWithCloud(isManual = false, isInitialSync = false, pullOnly =
                         adoptCloudData(remotePayload);
                     } else {
                         appData.auth.lastSync = Date.now();
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+                        saveData(appData, { touch: false });
                     }
                     cloudCheckedThisSession = true;
                 } else {
                     appData.auth.lastSync = Date.now();
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+                    saveData(appData, { touch: false });
                 }
             }
             if (isInitialSync && loadingStatus) loadingStatus.textContent = "Sincronização concluída!";
@@ -1150,7 +2790,7 @@ async function handleLoginSubmit(mode) {
 
                 appData.auth = authInfo;
                 appData = migrateData(appData);
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+                saveData(appData, { touch: false });
                 cloudCheckedThisSession = true;
                 refreshMainUI();
 
@@ -1304,10 +2944,10 @@ function showView(viewId) {
     if (typeof clearAutoAdvanceTimer === 'function') clearAutoAdvanceTimer();
 
     document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
-    $(viewId).style.display = 'block';
+    if ($(viewId)) $(viewId).style.display = 'block';
 
     // BUG FIX: Hide feedback bar when switching views
-    $('feedbackBar').classList.remove('active');
+    if ($('feedbackBar')) $('feedbackBar').classList.remove('active');
 
     // Update Sidebar links
     document.querySelectorAll('.nav-link').forEach(l => {
@@ -1320,8 +2960,20 @@ function showView(viewId) {
     });
 
     if (viewId === 'listsView') renderLists();
-    if (viewId === 'homeView') renderStats();
-    if (viewId === 'metricsView') renderMetrics();
+    if (viewId === 'homeView') {
+        renderStats();
+        renderLeagueCardHome();
+        if (typeof renderMissionsUI === 'function') renderMissionsUI();
+    }
+    if (viewId === 'metricsView') {
+        renderMetrics();
+        renderFluencyPyramid();
+        renderBadgesUI();
+    }
+    if (viewId === 'leagueView') {
+        updateBotScoresOnAppEntry(true);
+        renderLeague();
+    }
     if (viewId === 'settingsView') {
         populateSettings();
         updateStorageUsage();
@@ -1342,6 +2994,9 @@ function populateSettings() {
     syncAutoAdvanceToggles();
     $('settingDarkMode').checked = appData.settings.darkMode;
     $('settingNotifications').checked = appData.settings.notifications !== false;
+    if ($('settingsAppVersionDisplay')) {
+        $('settingsAppVersionDisplay').innerHTML = `MemoEnglish Premium v${APP_VERSION}<br>© 2026 Todos os direitos reservados.`;
+    }
 }
 
 function updateSetting(key, val) {
@@ -1357,6 +3012,31 @@ function updateSetting(key, val) {
 
 function applyDarkMode() {
     document.body.classList.toggle('dark-mode', appData.settings.darkMode);
+}
+
+function getTodayReviewsCount(history) {
+    if (!history || history.length === 0) return 0;
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const startTimestamp = startOfDay.getTime();
+    let count = 0;
+    for (let i = history.length - 1; i >= 0; i--) {
+        const item = history[i];
+        if (!item || !item.date) continue;
+        if (item.date >= startTimestamp) {
+            count++;
+        } else {
+            break;
+        }
+    }
+    return count;
+}
+
+function updateUI() {
+    renderStats();
+    renderLists();
+    updateTroublesomeCount();
+    updateGlobalLevel();
 }
 
 function renderStats() {
@@ -1397,7 +3077,6 @@ function renderStats() {
     $('statTotal').textContent = total;
     $('statDue').textContent = due;
     $('statMemorized').textContent = memorized;
-    if ($('statReviewsSide')) $('statReviewsSide').textContent = appData.totalReviews;
     $('dueText').textContent = due;
 
     // Atualiza o texto do botão de início principal
@@ -1433,13 +3112,13 @@ function renderStats() {
         });
     });
 
-    $('statWords').textContent = studiedWordsSet.size;
-    $('statMemorized').textContent = memorizedCount;
+    if ($('statWords')) $('statWords').textContent = studiedWordsSet.size;
+    if ($('statMemorized')) $('statMemorized').textContent = memorizedCount;
 
     // Daily Goal & Gamification
     const today = new Date().toDateString();
-    const reviewsToday = appData.history.filter(h => new Date(h.date).toDateString() === today).length;
-    const goal = (appData.settings && appData.settings.dailyGoal) ? parseInt(appData.settings.dailyGoal) : 20;
+    const reviewsToday = getTodayReviewsCount(appData.history);
+    const goal = (appData.settings && appData.settings.dailyGoal) ? parseInt(appData.settings.dailyGoal) : 50;
     const pct = Math.min(Math.round((reviewsToday / goal) * 100), 100);
 
     if ($('goalPct')) $('goalPct').textContent = pct + '%';
@@ -1452,18 +3131,34 @@ function renderStats() {
     if ($('freezeCountSpan')) $('freezeCountSpan').textContent = freezes;
     if ($('freezeCountSpanSettings')) $('freezeCountSpanSettings').textContent = freezes;
 
+    // Reset diário da contagem de consultas de dicionário se o dia virou
+    if (appData.lastDictLookupDate !== today) {
+        appData.lastDictLookupDate = today;
+        appData.dictLookupsToday = 0;
+    }
+
     // Daily Goal Reward: bater a meta concede 1 Streak Freeze (máx 2)
-    if (reviewsToday >= goal && appData.lastStreakFreezeRewardDate !== today && freezes < 2) {
-        appData.streakFreezes = freezes + 1;
-        appData.lastStreakFreezeRewardDate = today;
-        saveData(appData);
-        if ($('freezeCountSpan')) $('freezeCountSpan').textContent = appData.streakFreezes;
-        if ($('freezeCountSpanSettings')) $('freezeCountSpanSettings').textContent = appData.streakFreezes;
+    if (reviewsToday >= goal) {
+        if (appData.lastStreakFreezeRewardDate !== today && freezes < 2) {
+            appData.streakFreezes = freezes + 1;
+            appData.lastStreakFreezeRewardDate = today;
+            saveData(appData);
+            if ($('freezeCountSpan')) $('freezeCountSpan').textContent = appData.streakFreezes;
+            if ($('freezeCountSpanSettings')) $('freezeCountSpanSettings').textContent = appData.streakFreezes;
+            checkAndAwardBadge('streak_protector');
+        } else if (freezes >= 2) {
+            // Estoque de gelo já no máximo de 2: protegeu a sequência com escudo intacto e ganha/renova o badge!
+            checkAndAwardBadge('streak_protector');
+        }
     }
 
     // Marcos de Sequência & Troféus (Bronze, Prata, Ouro)
     checkStreakMilestones(reviewsToday, goal, today);
     renderTrophiesUI();
+
+    // Resumo da Liga Semanal na Home
+    renderLeagueCardHome();
+    if (typeof renderMissionsUI === 'function') renderMissionsUI();
 
     // Troublesome phrases count
     updateTroublesomeCount();
@@ -1479,7 +3174,7 @@ function renderStats() {
 
 function updateDailyGoalSetting(val) {
     if (!appData.settings) appData.settings = {};
-    appData.settings.dailyGoal = parseInt(val) || 20;
+    appData.settings.dailyGoal = parseInt(val) || 50;
     saveData(appData);
     updateUI();
 }
@@ -1488,8 +3183,9 @@ function updateDailyGoalSetting(val) {
 
 function checkStreakMilestones(reviewsToday, goal, today) {
     if (!appData.trophies) {
-        appData.trophies = { bronze: 0, silver: 0, gold: 0 };
+        appData.trophies = { iron: 0, bronze: 0, silver: 0, gold: 0 };
     }
+    if (appData.trophies.iron === undefined) appData.trophies.iron = 0;
     if (appData.streakMilestoneProgress === undefined) {
         appData.streakMilestoneProgress = 0;
     }
@@ -1507,17 +3203,22 @@ function checkStreakMilestones(reviewsToday, goal, today) {
     appData.streakMilestoneProgress = (appData.streakMilestoneProgress || 0) + 1;
 
     // Bônus diário percentual permanente por troféus acumulados na estante:
-    // 🥉 Bronze: +0,2% (0.002) | 🥈 Prata: +0,3% (0.003) | 🥇 Ouro: +0,5% (0.005)
+    // 🛡️ Ferro: +0,2% (0.002) | 🥉 Bronze: +0,3% (0.003) | 🥈 Prata: +0,5% (0.005) | 🥇 Ouro: +1,0% (0.01)
+    const ironCount = appData.trophies.iron || 0;
     const bronzeCount = appData.trophies.bronze || 0;
     const silverCount = appData.trophies.silver || 0;
     const goldCount = appData.trophies.gold || 0;
 
-    const totalPct = (bronzeCount * 0.002) + (silverCount * 0.003) + (goldCount * 0.005);
+    const totalPct = (ironCount * 0.002) + (bronzeCount * 0.003) + (silverCount * 0.005) + (goldCount * 0.01);
     if (totalPct > 0) {
         const currentXP = calculateTotalProgress(appData);
-        const minBonus = bronzeCount + silverCount + goldCount;
-        let dailyBooster = Math.round(currentXP * totalPct);
+        // Base de cálculo sobre o progresso real de estudo (evita juros compostos exponenciais)
+        const baseXP = Math.max(100, currentXP - (appData.streakBonusXP || 0));
+        const minBonus = ironCount + bronzeCount + silverCount + goldCount;
+        let dailyBooster = Math.round(baseXP * totalPct);
         if (dailyBooster < minBonus) dailyBooster = minBonus;
+        const maxDailyCap = 150 + (goldCount * 50);
+        dailyBooster = Math.min(dailyBooster, maxDailyCap);
         appData.streakBonusXP += dailyBooster;
     }
 
@@ -1526,59 +3227,81 @@ function checkStreakMilestones(reviewsToday, goal, today) {
     let milestoneXP = 0;
 
     // Ciclo de marcos em sequência com meta batida:
-    // 1. Bronze: 7 dias
-    // 2. Prata: 14 dias
-    // 3. Ouro: 30 dias (completa o ciclo e recomeça a partir do bronze)
-    if (progress === 7) {
+    // 1. Ferro: 3 dias
+    // 2. Bronze: 7 dias
+    // 3. Prata: 14 dias
+    // 4. Ouro: 30 dias (completa o ciclo e recomeça a partir do Ferro)
+    if (progress === 3) {
+        earnedTrophy = 'iron';
+        appData.trophies.iron = (appData.trophies.iron || 0) + 1;
+        // Bônus: 15 XP base + 3 XP por troféu de ferro acumulado
+        milestoneXP = 15 + (3 * (appData.trophies.iron - 1));
+        appData.streakBonusXP += milestoneXP;
+    } else if (progress === 7) {
         earnedTrophy = 'bronze';
         appData.trophies.bronze = (appData.trophies.bronze || 0) + 1;
-        // Bônus moderado: 30 XP base + 5 XP por troféu de bronze acumulado
+        // Bônus: 30 XP base + 5 XP por troféu de bronze acumulado
         milestoneXP = 30 + (5 * (appData.trophies.bronze - 1));
         appData.streakBonusXP += milestoneXP;
     } else if (progress === 14) {
         earnedTrophy = 'silver';
         appData.trophies.silver = (appData.trophies.silver || 0) + 1;
-        // Bônus moderado: 60 XP base + 10 XP por troféu de prata acumulado
+        // Bônus: 60 XP base + 10 XP por troféu de prata acumulado
         milestoneXP = 60 + (10 * (appData.trophies.silver - 1));
         appData.streakBonusXP += milestoneXP;
     } else if (progress >= 30) {
         earnedTrophy = 'gold';
         appData.trophies.gold = (appData.trophies.gold || 0) + 1;
-        // Bônus moderado: 120 XP base + 20 XP por troféu de ouro acumulado
+        // Bônus: 120 XP base + 20 XP por troféu de ouro acumulado
         milestoneXP = 120 + (20 * (appData.trophies.gold - 1));
         appData.streakBonusXP += milestoneXP;
-        // Ao ganhar o troféu de ouro, recomeça o caminho a partir do de bronze!
+        // Ao ganhar o troféu de ouro, recomeça o caminho a partir do de ferro!
         appData.streakMilestoneProgress = 0;
     }
 
     saveData(appData);
-    updateGlobalLevel();
 
+    // 1. Exibe a janela de celebração do Troféu conquistado em primeiro lugar
     if (earnedTrophy) {
         showTrophyCelebrationModal(earnedTrophy, milestoneXP);
     }
+
+    // 2. Credita o XP na liga semanal (se houver ultrapassagem, a celebração é enfileirada)
+    if (milestoneXP > 0) {
+        addLeagueXP(milestoneXP);
+    }
+
+    // 3. Atualiza o nível global (se houver subida de nível, o Level Up é enfileirado)
+    updateGlobalLevel();
 }
 
 function renderTrophiesUI() {
     if (!appData.trophies) {
-        appData.trophies = { bronze: 0, silver: 0, gold: 0 };
+        appData.trophies = { iron: 0, bronze: 0, silver: 0, gold: 0 };
     }
+    if (appData.trophies.iron === undefined) appData.trophies.iron = 0;
+    const i = appData.trophies.iron || 0;
     const b = appData.trophies.bronze || 0;
     const s = appData.trophies.silver || 0;
     const g = appData.trophies.gold || 0;
     const progress = appData.streakMilestoneProgress || 0;
 
     // Atualiza contadores na Home
+    if ($('trophyIronCount')) $('trophyIronCount').textContent = i;
     if ($('trophyBronzeCount')) $('trophyBronzeCount').textContent = b;
     if ($('trophySilverCount')) $('trophySilverCount').textContent = s;
     if ($('trophyGoldCount')) $('trophyGoldCount').textContent = g;
 
     // Determina o próximo troféu do ciclo
-    let nextTitle = "Próximo: 🥉 Troféu de Bronze";
-    let targetDays = 7;
-    let barColor = "linear-gradient(90deg, #d97706, #b45309)";
+    let nextTitle = "Próximo: 🛡️ Troféu de Ferro";
+    let targetDays = 3;
+    let barColor = "linear-gradient(90deg, #64748b, #475569)";
 
-    if (progress < 7) {
+    if (progress < 3) {
+        nextTitle = "Próximo: 🛡️ Troféu de Ferro";
+        targetDays = 3;
+        barColor = "linear-gradient(90deg, #64748b, #475569)";
+    } else if (progress < 7) {
         nextTitle = "Próximo: 🥉 Troféu de Bronze";
         targetDays = 7;
         barColor = "linear-gradient(90deg, #d97706, #b45309)";
@@ -1594,7 +3317,10 @@ function renderTrophiesUI() {
 
     const pct = Math.min(Math.round((progress / targetDays) * 100), 100);
 
-    if ($('nextTrophyTitle')) $('nextTrophyTitle').textContent = nextTitle;
+    if ($('nextTrophyTitle')) {
+        const shortNext = nextTitle.replace("Próximo: ", "").replace("Troféu de ", "");
+        $('nextTrophyTitle').innerHTML = `<span class="desktop-text">${nextTitle}</span><span class="mobile-text">Próximo: ${shortNext}</span>`;
+    }
     if ($('nextTrophyProgressText')) $('nextTrophyProgressText').textContent = `${progress}/${targetDays} dias`;
     if ($('nextTrophyProgressBar')) {
         $('nextTrophyProgressBar').style.width = `${pct}%`;
@@ -1603,34 +3329,35 @@ function renderTrophiesUI() {
 
     // Status da meta diária hoje
     const today = new Date().toDateString();
-    const reviewsToday = appData.history.filter(h => new Date(h.date).toDateString() === today).length;
-    const goal = (appData.settings && appData.settings.dailyGoal) ? parseInt(appData.settings.dailyGoal) : 20;
+    const reviewsToday = getTodayReviewsCount(appData.history);
+    const goal = (appData.settings && appData.settings.dailyGoal) ? parseInt(appData.settings.dailyGoal) : 50;
 
     if ($('trophyGoalHint')) {
         if (reviewsToday >= goal) {
-            $('trophyGoalHint').innerHTML = "✅ <span style='color: var(--success); font-weight: 700;'>Meta diária de hoje conquistada! (+1 dia na sequência)</span>";
+            $('trophyGoalHint').innerHTML = "✅ <span style='color: var(--success); font-weight: 700;'><span class=\"desktop-text\">Meta diária de hoje conquistada! (+1 dia na sequência)</span><span class=\"mobile-text\">Meta de hoje batida! 🎯</span></span>";
         } else {
             const remaining = goal - reviewsToday;
-            $('trophyGoalHint').textContent = `Faltam ${remaining} frase${remaining > 1 ? 's' : ''} hoje para validar o dia (${reviewsToday}/${goal}).`;
+            $('trophyGoalHint').innerHTML = `<span class="desktop-text">Faltam ${remaining} frase${remaining > 1 ? 's' : ''} hoje para validar o dia (${reviewsToday}/${goal}).</span><span class="mobile-text">🎯 ${reviewsToday}/${goal} hoje (-${remaining})</span>`;
         }
     }
 
-    const totalPctNum = (b * 0.2) + (s * 0.3) + (g * 0.5);
+    const totalPctNum = (i * 0.2) + (b * 0.3) + (s * 0.5) + (g * 1.0);
     const totalPctFormatted = (Math.round(totalPctNum * 10) / 10).toFixed(1).replace(/\.0$/, '');
 
     if ($('trophyBonusActiveText')) {
         if (totalPctNum > 0) {
             const currentXP = calculateTotalProgress(appData);
-            const minBonus = b + s + g;
+            const minBonus = i + b + s + g;
             let estBonus = Math.round(currentXP * (totalPctNum / 100));
             if (estBonus < minBonus) estBonus = minBonus;
-            $('trophyBonusActiveText').textContent = `⚡ Bônus Ativo: +${totalPctFormatted}% (+${estBonus} XP na meta)`;
+            $('trophyBonusActiveText').innerHTML = `⚡ <span class="desktop-text">Bônus Ativo: </span>+${totalPctFormatted}% <span class="desktop-text">(+${estBonus} XP na meta)</span><span class="mobile-text">(+${estBonus} XP)</span>`;
         } else {
-            $('trophyBonusActiveText').textContent = `⚡ Bônus Ativo: +0% XP/meta diária`;
+            $('trophyBonusActiveText').innerHTML = `⚡ <span class="desktop-text">Bônus Ativo: +0% XP/meta diária</span><span class="mobile-text">+0% XP</span>`;
         }
     }
 
     // Elementos da tela de Métricas
+    if ($('metricsTrophyIron')) $('metricsTrophyIron').textContent = i;
     if ($('metricsTrophyBronze')) $('metricsTrophyBronze').textContent = b;
     if ($('metricsTrophySilver')) $('metricsTrophySilver').textContent = s;
     if ($('metricsTrophyGold')) $('metricsTrophyGold').textContent = g;
@@ -1638,34 +3365,1077 @@ function renderTrophiesUI() {
 }
 
 function showTrophyCelebrationModal(type, xpEarned) {
-    const iconMap = { bronze: '🥉', silver: '🥈', gold: '🥇' };
+    const iconMap = { iron: '🛡️', bronze: '🥉', silver: '🥈', gold: '🥇' };
     const titleMap = {
+        iron: 'Novo Troféu de Ferro! 🛡️',
         bronze: 'Novo Troféu de Bronze! 🥉',
         silver: 'Novo Troféu de Prata! 🥈',
         gold: 'Novo Troféu de Ouro! 🥇'
     };
+    const boostMap = {
+        iron: '+0,2% de Bônus Diário Permanente 🚀',
+        bronze: '+0,3% de Bônus Diário Permanente 🚀',
+        silver: '+0,5% de Bônus Diário Permanente 🚀',
+        gold: '+1,0% de Bônus Diário Permanente 🚀'
+    };
     const subMap = {
+        iron: 'Muito bem! Você completou 3 dias seguidos batendo sua meta diária!',
         bronze: 'Incrível! Você completou 7 dias seguidos batendo sua meta diária!',
         silver: 'Sensacional! Você atingiu 14 dias seguidos batendo sua meta diária!',
-        gold: 'Extraordinário! 30 dias seguidos com meta batida! Você completou o ciclo e agora recomeça a jornada a partir do Bronze!'
+        gold: 'Extraordinário! 30 dias seguidos com meta batida! Você completou o ciclo e agora recomeça a jornada a partir do Ferro!'
+    };
+    const glowClassMap = {
+        iron: 'celebration-glow trophy-glow-iron',
+        bronze: 'celebration-glow trophy-glow-bronze',
+        silver: 'celebration-glow trophy-glow-silver',
+        gold: 'celebration-glow trophy-glow-gold'
     };
 
+    if ($('trophyModalGlow')) $('trophyModalGlow').className = glowClassMap[type] || 'celebration-glow trophy-glow-bronze';
     if ($('trophyModalIcon')) $('trophyModalIcon').textContent = iconMap[type] || '🏆';
     if ($('trophyModalTitle')) $('trophyModalTitle').textContent = titleMap[type] || 'Novo Troféu Conquistado!';
     if ($('trophyModalSubtitle')) $('trophyModalSubtitle').textContent = subMap[type] || '';
     if ($('trophyModalXPText')) $('trophyModalXPText').textContent = `+${xpEarned} XP Bônus ⚡`;
+    if ($('trophyModalBoostText')) $('trophyModalBoostText').textContent = boostMap[type] || '+0,3% de Bônus Diário Permanente 🚀';
     if ($('trophyModalCollectionText')) {
+        const i = appData.trophies?.iron || 0;
         const b = appData.trophies?.bronze || 0;
         const s = appData.trophies?.silver || 0;
         const g = appData.trophies?.gold || 0;
-        $('trophyModalCollectionText').textContent = `Sua coleção: ${b} 🥉 Bronze | ${s} 🥈 Prata | ${g} 🥇 Ouro`;
+        $('trophyModalCollectionText').textContent = `Sua coleção: ${i} 🛡️ Ferro | ${b} 🥉 Bronze | ${s} 🥈 Prata | ${g} 🥇 Ouro`;
     }
 
-    try {
-        confetti({ particleCount: 160, spread: 80, origin: { y: 0.5 } });
-    } catch (e) { }
+    openCelebrationModal('trophyCelebrationModal', () => {
+        try {
+            confetti({ particleCount: 180, spread: 90, origin: { y: 0.5 } });
+        } catch (e) { }
+        const soundFinish = $('soundFinish');
+        if (soundFinish) soundFinish.play().catch(() => {});
+    });
+}
 
-    openModal('trophyCelebrationModal');
+// ==================== PIRÂMIDE DE FLUÊNCIA VOCABULAR ====================
+
+function renderFluencyPyramid() {
+    let allPhrases = [];
+    (appData.lists || []).forEach(l => {
+        if (l.phrases && Array.isArray(l.phrases)) {
+            allPhrases = allPhrases.concat(l.phrases);
+        }
+    });
+
+    const wordMasteryMap = new Map(); // word -> max level found
+    let masteredPhrasesCount = 0;
+    let fixingPhrasesCount = 0;
+    let newPhrasesCount = 0;
+
+    allPhrases.forEach(p => {
+        const lv = p.levels || {};
+        const maxLevel = Math.max(
+            lv.quiz || 0,
+            lv.write || 0,
+            lv.listen || 0,
+            lv.pronounce || 0,
+            lv.speak || 0,
+            lv.standard || 0
+        );
+
+        if (maxLevel >= 4) {
+            masteredPhrasesCount++;
+        } else if (maxLevel >= 2) {
+            fixingPhrasesCount++;
+        } else {
+            newPhrasesCount++;
+        }
+
+        // Extrai palavras únicas da frase em inglês
+        const text = (p.english || '').toLowerCase();
+        const rawWords = text
+            .replace(/[^a-z0-9'\s-]/g, ' ')
+            .split(/\s+/)
+            .map(w => w.replace(/^['-]+|['-]+$/g, ''))
+            .filter(w => w.length > 1 && !/^\d+$/.test(w));
+
+        rawWords.forEach(w => {
+            const current = wordMasteryMap.get(w) || 0;
+            if (maxLevel > current) {
+                wordMasteryMap.set(w, maxLevel);
+            } else if (!wordMasteryMap.has(w)) {
+                wordMasteryMap.set(w, maxLevel);
+            }
+        });
+    });
+
+    const totalWords = wordMasteryMap.size;
+    let masteredWords = 0;
+    let fixingWords = 0;
+    let newWords = 0;
+
+    wordMasteryMap.forEach((level) => {
+        if (level >= 4) masteredWords++;
+        else if (level >= 2) fixingWords++;
+        else newWords++;
+    });
+
+    const masteredPct = totalWords > 0 ? Math.round((masteredWords / totalWords) * 100) : 0;
+    const fixingPct = totalWords > 0 ? Math.round((fixingWords / totalWords) * 100) : 0;
+    const newPct = totalWords > 0 ? Math.round((newWords / totalWords) * 100) : 0;
+
+    if ($('totalActiveWordsCount')) $('totalActiveWordsCount').textContent = totalWords;
+
+    if ($('pyramidMasteredStat')) $('pyramidMasteredStat').innerHTML = `<span class="desktop-text">${masteredWords} palavras (${masteredPct}%)</span><span class="mobile-text">${masteredWords} (${masteredPct}%)</span>`;
+    if ($('pyramidMasteredPhrases')) $('pyramidMasteredPhrases').textContent = masteredPhrasesCount;
+
+    if ($('pyramidFixingStat')) $('pyramidFixingStat').innerHTML = `<span class="desktop-text">${fixingWords} palavras (${fixingPct}%)</span><span class="mobile-text">${fixingWords} (${fixingPct}%)</span>`;
+    if ($('pyramidFixingPhrases')) $('pyramidFixingPhrases').textContent = fixingPhrasesCount;
+
+    if ($('pyramidNewStat')) $('pyramidNewStat').innerHTML = `<span class="desktop-text">${newWords} palavras (${newPct}%)</span><span class="mobile-text">${newWords} (${newPct}%)</span>`;
+    if ($('pyramidNewPhrases')) $('pyramidNewPhrases').textContent = newPhrasesCount;
+
+    // Estimativa de Nível CEFR com base no vocabulário ativo
+    let cefrTitle = "Iniciante A1";
+    let cefrDesc = "(Construindo vocabulário base de sobrevivência)";
+    if (totalWords >= 2500) {
+        cefrTitle = "Avançado C1 / Fluente";
+        cefrDesc = "(Vocabulário amplo e natural em qualquer contexto)";
+    } else if (totalWords >= 1500) {
+        cefrTitle = "Independente B2";
+        cefrDesc = "(Excelente fluência e autonomia para debates e mídias)";
+    } else if (totalWords >= 800) {
+        cefrTitle = "Intermediário B1";
+        cefrDesc = "(Boa capacidade para compreender diálogos e narrativas)";
+    } else if (totalWords >= 300) {
+        cefrTitle = "Básico A2";
+        cefrDesc = "(Compreensão de situações cotidianas e rotineiras)";
+    }
+
+    if ($('pyramidCefrLevel')) $('pyramidCefrLevel').textContent = cefrTitle;
+    if ($('pyramidCefrDesc')) $('pyramidCefrDesc').textContent = cefrDesc;
+}
+
+// ==================== BADGES & MEDALHAS REPETÍVEIS COM XP PROGRESSIVO ====================
+
+function checkBadgeExpirations(notify = false) {
+    if (!appData.badges) return [];
+    const today = new Date().toDateString();
+    const currDate = new Date(today);
+    let modified = false;
+    const lostBadges = [];
+
+    const badgeIds = Object.keys(BADGE_DEFINITIONS);
+    badgeIds.forEach(id => {
+        const def = BADGE_DEFINITIONS[id];
+        // O badge de liga semanal é avaliado no encerramento da semana da liga, não diariamente
+        if (def.type === 'league') return;
+
+        const b = appData.badges[id];
+        if (!b || !b.count || b.count <= 0) return;
+
+        if (!b.lastEarnedDate) {
+            b.count = 0;
+            b.lastEarnedDate = '';
+            modified = true;
+            lostBadges.push(def.name);
+            return;
+        }
+
+        const lastDate = new Date(b.lastEarnedDate);
+        if (isNaN(lastDate.getTime())) {
+            b.count = 0;
+            b.lastEarnedDate = '';
+            modified = true;
+            lostBadges.push(def.name);
+            return;
+        }
+
+        // Calcula a diferença em dias corridos
+        const diffTime = currDate.getTime() - lastDate.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+        // Se passaram 2 ou mais dias desde a última conquista, significa que ontem o badge NÃO foi feito.
+        // O usuário não conseguiu fazer no dia e o badge é perdido (bloqueado novamente)!
+        if (diffDays >= 2) {
+            b.count = 0;
+            b.lastEarnedDate = '';
+            modified = true;
+            lostBadges.push(def.name);
+        }
+    });
+
+    if (modified) {
+        saveData(appData, { touch: false });
+        if (typeof renderBadgesUI === 'function') {
+            renderBadgesUI();
+        }
+    }
+
+    if (notify && lostBadges.length > 0) {
+        const listNames = lostBadges.join(', ');
+        setTimeout(() => {
+            alert(
+                `Você não realizou os seguintes badges no dia anterior e eles foram perdidos: ${listNames}. Pratique hoje para conquistá-los novamente!`,
+                "Badges Expirados",
+                "⚠️"
+            );
+        }, 800);
+    }
+
+    return lostBadges;
+}
+
+function checkAndAwardBadge(badgeId) {
+    if (!BADGE_DEFINITIONS || !BADGE_DEFINITIONS[badgeId]) return;
+    const def = BADGE_DEFINITIONS[badgeId];
+    if (!appData.badges) appData.badges = {};
+    if (!appData.badges[badgeId]) {
+        appData.badges[badgeId] = { count: 0, lastEarned: 0, lastEarnedDate: '' };
+    }
+    const b = appData.badges[badgeId];
+    const today = new Date().toDateString();
+
+    // Limite diário estrito: no máximo 1 conquista de cada tipo de badge/medalha por dia
+    if (b.lastEarnedDate === today) return;
+
+    // Incrementa contagem de conquistas (Nível do Badge)
+    b.count = (b.count || 0) + 1;
+    b.lastEarned = Date.now();
+    b.lastEarnedDate = today;
+
+    const level = b.count;
+    // Recompensa com escala progressiva em XP: quanto maior o nível, maior o prêmio
+    const xpReward = def.baseXP + ((level - 1) * def.scalingXP);
+
+    appData.badgeBonusXP = (appData.badgeBonusXP || 0) + xpReward;
+
+    saveData(appData);
+
+    // 1. Exibe a janela de celebração do Badge conquistado em primeiro lugar
+    showBadgeCelebrationModal(def, level, xpReward);
+
+    // 2. Credita o XP na liga semanal (se houver ultrapassagem, a janela é enfileirada para logo após o badge)
+    addLeagueXP(xpReward);
+
+    // 3. Atualiza o nível global (se houver subida de nível, o Level Up é enfileirado)
+    updateGlobalLevel();
+    renderBadgesUI();
+}
+
+function showBadgeCelebrationModal(badgeDef, level, xpReward) {
+    if ($('badgeModalIcon')) $('badgeModalIcon').textContent = badgeDef.icon;
+    if ($('badgeModalLevelBadge')) $('badgeModalLevelBadge').textContent = `⭐ NÍVEL ${level} (${level}ª conquista)`;
+    if ($('badgeModalTitle')) $('badgeModalTitle').textContent = `${badgeDef.name} Conquistado!`;
+    if ($('badgeModalDesc')) $('badgeModalDesc').textContent = badgeDef.description;
+    if ($('badgeModalXPText')) $('badgeModalXPText').textContent = `+${xpReward} XP Bônus ⚡`;
+    const nextReward = badgeDef.baseXP + (level * badgeDef.scalingXP);
+    if ($('badgeModalNextReward')) $('badgeModalNextReward').textContent = `Limite diário atingido! Próximo nível (+${nextReward} XP) disponível amanhã (faça diariamente para não perder)`;
+
+    openCelebrationModal('badgeCelebrationModal', () => {
+        if (typeof confetti === 'function') {
+            try {
+                confetti({ particleCount: 120, spread: 75, origin: { y: 0.6 } });
+            } catch (e) { }
+        }
+        const soundCorrect = $('soundCorrect');
+        if (soundCorrect) soundCorrect.play().catch(() => {});
+    });
+}
+
+function showLevelUpModal(newLevel, oldLevel, totalXP, xpForNext) {
+    if ($('levelUpNumberBadge')) $('levelUpNumberBadge').textContent = newLevel;
+    if ($('levelUpTitle')) $('levelUpTitle').textContent = `Nível ${newLevel} Alcançado!`;
+    if ($('levelUpSubtitle')) $('levelUpSubtitle').textContent = `Sensacional! Você avançou do Nível ${oldLevel} para o Nível ${newLevel}!`;
+    if ($('levelUpXPText')) $('levelUpXPText').textContent = `${Math.floor(totalXP).toLocaleString()} Total XP ⚡`;
+    if ($('levelUpNextStepText')) $('levelUpNextStepText').textContent = `Próximo nível em ${xpForNext} XP`;
+
+    openCelebrationModal('levelUpModal', () => {
+        if (typeof confetti === 'function') {
+            try {
+                confetti({ particleCount: 160, spread: 85, origin: { y: 0.5 } });
+            } catch (e) { }
+        }
+        const soundFinish = $('soundFinish');
+        if (soundFinish) soundFinish.play().catch(() => {});
+    });
+}
+
+function showDailyGoalCelebrationModal(goal, reviewsToday, freezeAwarded) {
+    if ($('dailyGoalModalTitle')) $('dailyGoalModalTitle').textContent = `Meta de ${goal} Frases Conquistada!`;
+    if ($('dailyGoalModalSubtitle')) {
+        $('dailyGoalModalSubtitle').textContent = `Sensacional! Você completou ${reviewsToday} revisões hoje e manteve sua sequência firme!`;
+    }
+    if ($('dailyGoalStreakText')) {
+        const streak = appData.streak || 1;
+        $('dailyGoalStreakText').textContent = `🔥 Sequência Ativa: ${streak} dia${streak > 1 ? 's' : ''}!`;
+    }
+    if ($('dailyGoalFreezeRewardText')) {
+        if (freezeAwarded) {
+            $('dailyGoalFreezeRewardText').style.display = 'block';
+            $('dailyGoalFreezeRewardText').textContent = '🧊 +1 Gelo Protetor adicionado!';
+        } else {
+            const freezes = appData.streakFreezes !== undefined ? appData.streakFreezes : 1;
+            $('dailyGoalFreezeRewardText').style.display = 'block';
+            $('dailyGoalFreezeRewardText').textContent = `🧊 Seus Gelos Protetores: ${freezes} de reserva`;
+        }
+    }
+
+    openCelebrationModal('dailyGoalCelebrationModal', () => {
+        if (typeof confetti === 'function') {
+            try {
+                confetti({ particleCount: 150, spread: 80, origin: { y: 0.55 } });
+            } catch (e) { }
+        }
+        const soundFinish = $('soundFinish');
+        if (soundFinish) soundFinish.play().catch(() => {});
+    });
+}
+
+function showLeagueOvertakeModal(data) {
+    const { overtakenBots, prevRank, newRank } = data;
+    if (!overtakenBots || overtakenBots.length === 0) return;
+
+    const topBot = overtakenBots[0];
+    const totalPassed = overtakenBots.length;
+
+    if ($('overtakeBotAvatar')) $('overtakeBotAvatar').textContent = topBot.avatar || '🎓';
+    if ($('overtakeBotName')) $('overtakeBotName').textContent = (topBot.name || 'Competidor').split(' ')[0];
+    if ($('overtakeBotRank')) $('overtakeBotRank').textContent = `#${newRank + totalPassed - 1}`;
+
+    const userName = (appData.auth && appData.auth.username) ? appData.auth.username.split(' ')[0] : 'Você';
+    if ($('overtakeUserAvatar')) $('overtakeUserAvatar').textContent = '👤';
+    if ($('overtakeUserName')) $('overtakeUserName').textContent = userName;
+    if ($('overtakeUserRank')) $('overtakeUserRank').textContent = `#${newRank}`;
+
+    if ($('overtakeOldRankDisplay')) $('overtakeOldRankDisplay').textContent = `#${prevRank}`;
+    if ($('overtakeNewRankDisplay')) $('overtakeNewRankDisplay').textContent = `#${newRank} ⬆️`;
+
+    if ($('overtakeTitle')) {
+        $('overtakeTitle').textContent = totalPassed > 1
+            ? `Subiu ${totalPassed} posições na Liga! 🚀`
+            : `Você ultrapassou ${topBot.name.split(' ')[0]}! ⚡`;
+    }
+
+    if ($('overtakeSubtitle')) {
+        if (totalPassed > 1) {
+            $('overtakeSubtitle').innerHTML = `Incrível arrancada! Você ultrapassou <strong>${escapeHTML(topBot.name)}</strong> e mais ${totalPassed - 1} competidor(es), subindo para a <strong>#${newRank}ª posição</strong>!`;
+        } else {
+            $('overtakeSubtitle').innerHTML = `Ritmo forte! Você ultrapassou <strong>${escapeHTML(topBot.name)}</strong> e assumiu a <strong>#${newRank}ª posição</strong> da liga semanal!`;
+        }
+    }
+
+    openCelebrationModal('leagueOvertakeModal', () => {
+        if (typeof confetti === 'function') {
+            try {
+                confetti({ particleCount: 140, spread: 80, origin: { y: 0.55 } });
+            } catch (e) { }
+        }
+        const soundFinish = $('soundFinish');
+        if (soundFinish) soundFinish.play().catch(() => {});
+    });
+}
+
+let pendingLeagueDropData = null;
+
+function showLeagueDropModal(data) {
+    const { overtakingBots, prevRank, newRank } = data;
+    if (!overtakingBots || overtakingBots.length === 0) return;
+
+    const lostCount = newRank - prevRank;
+    const topBot = overtakingBots[0];
+
+    if ($('dropBotAvatar')) $('dropBotAvatar').textContent = topBot.avatar || '🎓';
+    if ($('dropBotName')) $('dropBotName').textContent = (topBot.name || 'Competidor').split(' ')[0];
+    if ($('dropBotRank')) $('dropBotRank').textContent = `#${topBot.newRank || (newRank - 1)}`;
+
+    const userName = (appData.auth && appData.auth.username) ? appData.auth.username.split(' ')[0] : 'Você';
+    if ($('dropUserAvatar')) $('dropUserAvatar').textContent = '👤';
+    if ($('dropUserName')) $('dropUserName').textContent = userName;
+    if ($('dropUserRank')) $('dropUserRank').textContent = `#${newRank} 🔻`;
+
+    if ($('dropOldRankDisplay')) $('dropOldRankDisplay').textContent = `#${prevRank}`;
+    if ($('dropNewRankDisplay')) $('dropNewRankDisplay').textContent = `#${newRank} 🔻`;
+
+    if ($('dropTitle')) {
+        $('dropTitle').textContent = lostCount > 1
+            ? `Você perdeu ${lostCount} posições! ⚠️`
+            : `Você perdeu 1 posição! ⚠️`;
+    }
+
+    if ($('dropSubtitle')) {
+        const botName = escapeHTML(topBot.name);
+        if (lostCount > 1) {
+            $('dropSubtitle').innerHTML = `A disputa na liga está fervendo! <strong>${botName}</strong> e mais ${lostCount - 1} competidor(es) pontuaram enquanto você esteve fora e ultrapassaram você.`;
+        } else {
+            $('dropSubtitle').innerHTML = `A disputa na liga está fervendo! <strong>${botName}</strong> pontuou enquanto você esteve fora e assumiu a <strong>#${topBot.newRank || (newRank - 1)}ª posição</strong>.`;
+        }
+    }
+
+    openCelebrationModal('leagueDropModal', () => {
+        if (document.activeElement && typeof document.activeElement.blur === 'function') {
+            try { document.activeElement.blur(); } catch (e) { }
+        }
+    });
+}
+
+function renderBadgesUI() {
+    checkBadgeExpirations(false);
+    if (!appData.badges) appData.badges = {};
+    const grid = $('badgesGrid');
+    if (!grid) return;
+
+    let totalConquests = 0;
+    const badgeIds = Object.keys(BADGE_DEFINITIONS);
+    const today = new Date().toDateString();
+
+    const cardsHtml = badgeIds.map(id => {
+        const def = BADGE_DEFINITIONS[id];
+        const record = appData.badges[id] || { count: 0, lastEarned: 0 };
+        const count = record.count || 0;
+        totalConquests += count;
+
+        const isUnlocked = count > 0;
+        const currentLevel = count;
+        const nextLevel = count + 1;
+        const nextXP = def.baseXP + ((nextLevel - 1) * def.scalingXP);
+        const totalXPEarnedFromThis = count > 0
+            ? ((count * def.baseXP) + (def.scalingXP * (count * (count - 1) / 2)))
+            : 0;
+
+        const earnedToday = record.lastEarnedDate === today;
+
+        return `
+            <div class="badge-item-card ${isUnlocked ? 'badge-unlocked' : 'badge-locked'}">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <div class="badge-icon-wrap" style="font-size: 2.4rem;">
+                        ${def.icon}
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                        ${isUnlocked
+                            ? `<span class="badge-level-pill"><span class="desktop-text">⭐ NÍVEL </span><span class="mobile-text">⭐ Lvl </span>${currentLevel}</span>`
+                            : `<span class="badge-locked-pill">🔒 Bloqueado</span>`
+                        }
+                        ${earnedToday
+                            ? `<span style="font-size: 0.7rem; color: var(--success); font-weight: 800; background: rgba(16, 185, 129, 0.12); padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.25);">✓ Mantido Hoje (1/1)</span>`
+                            : (isUnlocked
+                                ? `<span style="font-size: 0.7rem; color: #d97706; font-weight: 800; background: rgba(245, 158, 11, 0.12); padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.3);">⚠️ Pendente Hoje (Faça para não perder!)</span>`
+                                : `<span style="font-size: 0.7rem; color: var(--primary); font-weight: 700; background: var(--primary-soft); padding: 2px 7px; border-radius: 6px;">⚡ Disponível Hoje</span>`
+                            )
+                        }
+                        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">
+                            <span class="desktop-text">${count === 1 ? '1 conquista' : `${count} conquistas`}</span><span class="mobile-text">x${count}</span>
+                        </span>
+                    </div>
+                </div>
+                <div style="font-weight: 800; font-size: 1.05rem; margin-bottom: 4px; color: var(--text);">
+                    ${def.name}
+                </div>
+                <p class="badge-card-desc" style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.35; margin-bottom: 12px; min-height: 34px;">
+                    ${def.description}
+                </p>
+                <div class="badge-reward-footer">
+                    <div style="font-size: 0.75rem; color: var(--primary); font-weight: 800;">
+                        ${earnedToday
+                            ? `⏳ <span class="desktop-text">Próximo Nível: </span>+${nextXP} XP amanhã`
+                            : (isUnlocked
+                                ? `⚠️ <span class="desktop-text">Faça hoje para manter nível: </span>+${nextXP} XP`
+                                : `⚡ <span class="desktop-text">Próximo Nível: </span>+${nextXP} XP`
+                            )
+                        }
+                    </div>
+                    ${totalXPEarnedFromThis > 0
+                        ? `<div style="font-size: 0.7rem; color: var(--success); font-weight: 700;">+${totalXPEarnedFromThis} <span class="desktop-text">XP acumulados</span><span class="mobile-text">XP</span></div>`
+                        : ''
+                    }
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    grid.innerHTML = cardsHtml;
+    if ($('badgesTotalConquests')) $('badgesTotalConquests').textContent = totalConquests;
+    if ($('badgesTotalBonusXP')) $('badgesTotalBonusXP').textContent = appData.badgeBonusXP || 0;
+}
+
+// ==================== LIGA SEMANAL DE ALUNOS (BOTS) ====================
+
+function addLeagueXP(amount, isFromMissionClaim = false) {
+    if (!amount || amount <= 0) return;
+    if (!appData.league) {
+        appData.league = initLeagueData('bronze');
+    }
+    const league = appData.league;
+    const prevXP = league.userXP || 0;
+
+    // Calcula ranking antes do XP ser creditado
+    const preSort = [
+        { isUser: true, score: prevXP },
+        ...(league.bots || [])
+    ].sort((a, b) => b.score - a.score);
+    const prevRank = preSort.findIndex(c => c.isUser) + 1;
+
+    // Atualiza pontuação do usuário
+    const newXP = prevXP + amount;
+    league.userXP = newXP;
+
+    if (!isFromMissionClaim && typeof recordMissionProgress === 'function') {
+        recordMissionProgress('league_xp', amount);
+    }
+
+    // Calcula ranking depois do XP creditado
+    const postSort = [
+        { isUser: true, score: newXP },
+        ...(league.bots || [])
+    ].sort((a, b) => b.score - a.score);
+    const newRank = postSort.findIndex(c => c.isUser) + 1;
+
+    // Verifica se houve ultrapassagem (subiu de posição na liga)
+    if (newRank < prevRank) {
+        const overtakenBots = preSort.filter(c => !c.isUser && c.score >= prevXP && c.score < newXP);
+        if (overtakenBots.length > 0) {
+            showLeagueOvertakeModal({
+                overtakenBots,
+                prevRank,
+                newRank
+            });
+        }
+    }
+
+    renderLeagueCardHome();
+    if ($('leagueView') && $('leagueView').style.display !== 'none') {
+        renderLeague();
+    }
+}
+
+let lastBotSimExecutionTime = 0;
+
+function updateBotScoresOnAppEntry(isManualOrSystemEntry = false) {
+    if (!appData.league) {
+        appData.league = initLeagueData('bronze');
+    }
+    // Verifica primeiro se a semana virou
+    checkLeagueWeekTransition();
+
+    const now = Date.now();
+    // Previne disparo repetido em rajada (ex: visibilitychange e focus disparando simultaneamente no mesmo segundo)
+    if (now - lastBotSimExecutionTime < 2000) {
+        renderLeagueCardHome();
+        if ($('leagueView') && $('leagueView').style.display !== 'none') renderLeague();
+        return;
+    }
+    lastBotSimExecutionTime = now;
+
+    const league = appData.league;
+    const conf = LEAGUE_DIVISIONS[league.division] || LEAGUE_DIVISIONS.bronze;
+    const lastVisit = league.lastVisitTime || now;
+    league.lastVisitTime = now;
+
+    if (!Array.isArray(league.bots)) return;
+
+    // Sanitiza avatares salvos anteriormente que possam ter emojis compostos (ZWJ)
+    const emojiFixes = {
+        '🧑‍🎓': '🎓',
+        '👩‍💻': '💻',
+        '👩‍🔬': '🔬',
+        '👨‍🎓': '🎓',
+        '👨‍💻': '💻',
+        '👨‍🔬': '🔬'
+    };
+    let avatarFixed = false;
+    league.bots.forEach(bot => {
+        if (emojiFixes[bot.avatar]) {
+            bot.avatar = emojiFixes[bot.avatar];
+            avatarFixed = true;
+        }
+    });
+    if (avatarFixed) {
+        saveData(appData, { touch: false });
+    }
+
+    const elapsedMs = now - lastVisit;
+    const minutesElapsed = Math.floor(elapsedMs / (1000 * 60));
+
+    // Se menos de 3 segundos se passaram e não for entrada direta no app/aba, evita reprocessamento desnecessário
+    if (elapsedMs < 3000 && !isManualOrSystemEntry) {
+        renderLeagueCardHome();
+        if ($('leagueView') && $('leagueView').style.display !== 'none') renderLeague();
+        return;
+    }
+
+    // 1. Grava as posições anteriores antes de atualizar pontos (para mostrar quem subiu/caiu)
+    const preSort = [
+        { isUser: true, score: league.userXP || 0 },
+        ...league.bots
+    ].sort((a, b) => b.score - a.score);
+
+    const prevUserRank = preSort.findIndex(item => item.isUser) + 1;
+
+    preSort.forEach((item, idx) => {
+        if (item.isUser) {
+            league.userPrevRank = idx + 1;
+        } else {
+            item.prevRank = idx + 1;
+        }
+    });
+
+    // 2. Simula o avanço do tempo:
+    // Em minutos reais decorridos (1 bloco por minuto até 48h = 2880 passos)
+    let steps = Math.min(minutesElapsed, 2880);
+
+    // Se o usuário entrou no sistema (abriu o app / recarregou / voltou da aba) ou na aba da liga,
+    // garante pelo menos 1 rodada de simulação de disputa
+    if (steps <= 0 && isManualOrSystemEntry) {
+        steps = 1;
+    }
+
+    if (steps <= 0) {
+        renderLeagueCardHome();
+        if ($('leagueView') && $('leagueView').style.display !== 'none') renderLeague();
+        return;
+    }
+
+    let changed = false;
+    const stepMinutes = 1;
+    const botDifficulty = (league.botDifficulty != null) ? league.botDifficulty : 1.0;
+
+    league.bots.forEach(bot => {
+        const pace = bot.pace || 1.0;
+        let gainedXP = 0;
+
+        // Otimização de CPU: para períodos longos, agrupa em blocos de tempo maiores
+        // garantindo execução imediata (< 2ms) sem congelar a tela de abertura
+        const stepSize = steps > 180 ? 30 : (steps > 60 ? 10 : 1);
+        const iterations = Math.ceil(steps / stepSize);
+
+        for (let i = 0; i < iterations; i++) {
+            const simulatedMinute = i * stepSize;
+
+            // Decaimento suave com piso firme ajustado pelo tamanho do bloco:
+            const baseChance = 0.20 * pace;
+            const floorChance = 0.045 * pace;
+            const unitChance = floorChance + (baseChance - floorChance) * Math.exp(-simulatedMinute / 300);
+            const blockChance = Math.min(0.95, unitChance * stepSize);
+
+            if (Math.random() < blockChance) {
+                let sessionMultiplier = 0.7 + (Math.random() * 0.7);
+
+                // 12% de chance de "Maratona de Estudo" (o bot estuda muito e disputa posições)
+                if (Math.random() < 0.12) {
+                    sessionMultiplier *= (1.7 + Math.random() * 0.8);
+                }
+
+                const blockFactor = stepSize > 1 ? (0.75 + Math.random() * 0.5) * Math.min(stepSize, 4) : 1;
+                const baseInc = conf.incMin + (Math.random() * (conf.incMax - conf.incMin));
+                const add = Math.max(3, Math.round(baseInc * sessionMultiplier * botDifficulty * blockFactor));
+                gainedXP += add;
+            }
+        }
+
+        if (gainedXP > 0) {
+            bot.score = (bot.score || 0) + gainedXP;
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        // Verifica se o usuário perdeu posições para competidores
+        const postSort = [
+            { isUser: true, score: league.userXP || 0 },
+            ...league.bots
+        ].sort((a, b) => b.score - a.score);
+
+        const newUserRank = postSort.findIndex(item => item.isUser) + 1;
+
+        if (newUserRank > prevUserRank) {
+            const overtakingBots = [];
+            postSort.forEach((item, newIdx) => {
+                if (!item.isUser) {
+                    const newBotRank = newIdx + 1;
+                    if (newBotRank < newUserRank) {
+                        const oldIdx = preSort.findIndex(p => !p.isUser && p.id === item.id);
+                        const oldBotRank = oldIdx + 1;
+                        if (oldBotRank >= prevUserRank) {
+                            overtakingBots.push({
+                                ...item,
+                                newRank: newBotRank,
+                                oldRank: oldBotRank
+                            });
+                        }
+                    }
+                }
+            });
+
+            if (overtakingBots.length > 0) {
+                const dropData = {
+                    overtakingBots,
+                    prevRank: prevUserRank,
+                    newRank: newUserRank
+                };
+
+                const loadingScreen = $('loadingScreen');
+                if (loadingScreen && !loadingScreen.classList.contains('fade-out')) {
+                    pendingLeagueDropData = dropData;
+                } else {
+                    showLeagueDropModal(dropData);
+                }
+            }
+        }
+
+        saveData(appData);
+    }
+    renderLeagueCardHome();
+    if ($('leagueView') && $('leagueView').style.display !== 'none') {
+        renderLeague();
+    }
+}
+
+function calculateBotDifficultyShift(userRank) {
+    const shiftTable = {
+        1: 0.25,  // Campeão (#1): +25% de XP para os bots
+        2: 0.20,  // Vice (#2): +20%
+        3: 0.15,  // Top 3 (#3): +15%
+        4: 0.10,  // #4: +10%
+        5: 0.07,  // #5: +7%
+        6: 0.05,  // #6: +5%
+        7: 0.02,  // #7: +2%
+        8: 0.00,  // Exato meio da tabela (#8): 0% (mantém ritmo da última vez)
+        9: -0.02, // #9: -2%
+        10: -0.05,// #10: -5%
+        11: -0.08,// #11: -8%
+        12: -0.12,// #12 (rebaixamento): -12%
+        13: -0.16,// #13 (rebaixamento): -16%
+        14: -0.20,// #14 (rebaixamento): -20%
+        15: -0.25 // #15 (lanterna): -25% de XP para os bots
+    };
+    if (shiftTable[userRank] !== undefined) return shiftTable[userRank];
+    return Math.round(((8 - userRank) * 0.035) * 100) / 100;
+}
+
+function checkLeagueWeekTransition() {
+    if (!appData.league) {
+        appData.league = initLeagueData('bronze');
+        return;
+    }
+    const currentWeek = getCurrentWeekId();
+    if (appData.league.weekId === currentWeek) {
+        return; // Mesma semana
+    }
+
+    // Virada de semana: avalia ranking final
+    const divKey = appData.league.division || 'bronze';
+    const conf = LEAGUE_DIVISIONS[divKey] || LEAGUE_DIVISIONS.bronze;
+    const userXP = appData.league.userXP || 0;
+
+    const competitors = [
+        { isUser: true, name: (appData.auth?.username || 'Você'), score: userXP },
+        ...(appData.league.bots || [])
+    ].sort((a, b) => b.score - a.score);
+
+    const userRank = competitors.findIndex(c => c.isUser) + 1; // 1 a 15
+
+    let nextDivision = divKey;
+    let transitionType = 'stay';
+
+    if (userRank <= 3) {
+        checkAndAwardBadge('league_podium');
+        if (conf.nextDivision) {
+            nextDivision = conf.nextDivision;
+            transitionType = 'promoted';
+        } else {
+            // Liga Diamante: permanência no ápice como campeão supremo do pódio
+            nextDivision = divKey;
+            transitionType = 'champion';
+        }
+    } else {
+        // Se terminou a semana fora da zona do pódio (top 3), perde o badge Pódio da Liga!
+        if (appData.badges && appData.badges['league_podium'] && appData.badges['league_podium'].count > 0) {
+            appData.badges['league_podium'].count = 0;
+            appData.badges['league_podium'].lastEarnedDate = '';
+        }
+        if (userRank >= 12 && conf.prevDivision) {
+            nextDivision = conf.prevDivision;
+            transitionType = 'demoted';
+        }
+    }
+
+    // Ajuste dinâmico da dificuldade dos competidores para a nova semana
+    // Baseado na posição em que o usuário terminou em relação ao que os competidores ganhavam na última vez
+    const prevDifficulty = (appData.league.botDifficulty != null) ? appData.league.botDifficulty : 1.0;
+    const diffShift = calculateBotDifficultyShift(userRank);
+    let newDifficulty = Math.round((prevDifficulty + diffShift) * 100) / 100;
+    newDifficulty = Math.max(0.40, newDifficulty); // Sem limite máximo, apenas limite mínimo
+
+    // Inicia a nova semana preservando o novo nível de dificuldade e simulando rotação realista de competidores
+    const oldBots = (appData.league && Array.isArray(appData.league.bots)) ? appData.league.bots : [];
+    appData.league = {
+        division: nextDivision,
+        weekId: currentWeek,
+        userXP: 0,
+        bots: generateNextWeekBots(oldBots, userRank, divKey, nextDivision, newDifficulty),
+        botDifficulty: newDifficulty,
+        lastFinishedRank: userRank,
+        lastVisitTime: Date.now()
+    };
+    saveData(appData);
+
+    // Exibe celebração ou notificação de virada de semana com a mudança de dificuldade
+    setTimeout(() => {
+        showLeagueTransitionModal(transitionType, userRank, divKey, nextDivision, userXP, newDifficulty, prevDifficulty);
+    }, 1000);
+}
+
+function showLeagueTransitionModal(type, rank, oldDiv, newDiv, userXP, newDiff, prevDiff) {
+    const oldConf = LEAGUE_DIVISIONS[oldDiv] || LEAGUE_DIVISIONS.bronze;
+    const newConf = LEAGUE_DIVISIONS[newDiv] || LEAGUE_DIVISIONS.bronze;
+
+    if (type === 'champion') {
+        if ($('leagueTransIcon')) $('leagueTransIcon').textContent = '👑';
+        if ($('leagueTransTitle')) $('leagueTransTitle').textContent = 'Glória dos Campeões! 🏆';
+        if ($('leagueTransDesc')) $('leagueTransDesc').textContent = `Sensacional! Você terminou a temporada em #${rank}º lugar com ${userXP} XP e conquistou o Pódio da Liga Diamante!`;
+        if ($('leagueTransDivisionName')) $('leagueTransDivisionName').textContent = `${newConf.icon} ${newConf.name} • Campeão Supremo`;
+        if ($('leagueTransSub')) $('leagueTransSub').textContent = 'Você está no ápice absoluto do MemoEnglish! Mantenha a coroa!';
+        if (typeof confetti === 'function') {
+            try { confetti({ particleCount: 180, spread: 90, origin: { y: 0.5 } }); } catch (e) { }
+        }
+    } else if (type === 'promoted') {
+        if ($('leagueTransIcon')) $('leagueTransIcon').textContent = '🎉';
+        if ($('leagueTransTitle')) $('leagueTransTitle').textContent = 'Promoção Conquistada! 🚀';
+        if ($('leagueTransDesc')) $('leagueTransDesc').textContent = `Você terminou a semana em #${rank}º lugar com ${userXP} XP e subiu para a divisão superior!`;
+        if ($('leagueTransDivisionName')) $('leagueTransDivisionName').textContent = `${newConf.icon} ${newConf.name}`;
+        if ($('leagueTransSub')) $('leagueTransSub').textContent = 'Excelente desempenho! Novos competidores esperam por você!';
+        if (typeof confetti === 'function') {
+            try { confetti({ particleCount: 150, spread: 80, origin: { y: 0.5 } }); } catch (e) { }
+        }
+    } else if (type === 'demoted') {
+        if ($('leagueTransIcon')) $('leagueTransIcon').textContent = '⚠️';
+        if ($('leagueTransTitle')) $('leagueTransTitle').textContent = 'Zona de Rebaixamento';
+        if ($('leagueTransDesc')) $('leagueTransDesc').textContent = `Você terminou em #${rank}º lugar com ${userXP} XP e caiu para a ${newConf.name}. Pratique forte nesta nova semana para subir de volta!`;
+        if ($('leagueTransDivisionName')) $('leagueTransDivisionName').textContent = `${newConf.icon} ${newConf.name}`;
+        if ($('leagueTransSub')) $('leagueTransSub').textContent = 'Não desanime! Toda semana é uma nova chance!';
+    } else {
+        if ($('leagueTransIcon')) $('leagueTransIcon').textContent = '🛡️';
+        if ($('leagueTransTitle')) $('leagueTransTitle').textContent = 'Permanência na Liga!';
+        if ($('leagueTransDesc')) $('leagueTransDesc').textContent = `Você terminou em #${rank}º lugar com ${userXP} XP e manteve seu lugar na ${newConf.name}!`;
+        if ($('leagueTransDivisionName')) $('leagueTransDivisionName').textContent = `${newConf.icon} ${newConf.name}`;
+        if ($('leagueTransSub')) $('leagueTransSub').textContent = 'Bora buscar o Top 3 nesta semana!';
+    }
+
+    const diffInfo = $('leagueTransDifficultyInfo');
+    if (diffInfo && newDiff != null && prevDiff != null) {
+        diffInfo.style.display = 'block';
+        const changePct = Math.round((newDiff - prevDiff) * 100);
+        const totalPct = Math.round(newDiff * 100);
+        if (changePct > 0) {
+            diffInfo.style.background = 'rgba(239, 68, 68, 0.12)';
+            diffInfo.style.color = '#ef4444';
+            diffInfo.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+            diffInfo.innerHTML = `⚔️ Intensidade da Liga: +${changePct}% (${totalPct}% do padrão)<br><span style="font-size: 0.8rem; font-weight: 600;">Como você terminou em #${rank}º, a disputa nesta semana estará mais intensa e acelerada!</span>`;
+        } else if (changePct < 0) {
+            diffInfo.style.background = 'rgba(16, 185, 129, 0.12)';
+            diffInfo.style.color = '#10b981';
+            diffInfo.style.border = '1px solid rgba(16, 185, 129, 0.25)';
+            diffInfo.innerHTML = `🛡️ Intensidade da Liga: ${changePct}% (${totalPct}% do padrão)<br><span style="font-size: 0.8rem; font-weight: 600;">Como você terminou em #${rank}º, o ritmo da rodada será mais brando para você recuperar posições!</span>`;
+        } else {
+            diffInfo.style.background = 'var(--surface)';
+            diffInfo.style.color = 'var(--text-muted)';
+            diffInfo.style.border = '1px solid var(--border)';
+            diffInfo.innerHTML = `⚖️ Intensidade da Liga: Mantida em ${totalPct}% (Ritmo equilibrado)`;
+        }
+    } else if (diffInfo) {
+        diffInfo.style.display = 'none';
+    }
+
+    openCelebrationModal('leagueTransitionModal');
+}
+
+function getLeagueCountdown() {
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = Domingo
+    const daysUntilSunday = (7 - dayOfWeek) % 7;
+    const endOfWeek = new Date(now);
+    endOfWeek.setDate(now.getDate() + daysUntilSunday);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    const diff = endOfWeek.getTime() - now.getTime();
+    if (diff <= 0) return "Fechando rodada...";
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (days > 0) {
+        return `Termina em ${days}d ${hours}h`;
+    } else {
+        return `Termina em ${hours}h ${mins}m`;
+    }
+}
+
+function renderLeagueCardHome() {
+    if (!appData.league) {
+        appData.league = initLeagueData('bronze');
+    }
+    const league = appData.league;
+    const conf = LEAGUE_DIVISIONS[league.division] || LEAGUE_DIVISIONS.bronze;
+    const userXP = league.userXP || 0;
+
+    const competitors = [
+        { isUser: true, score: userXP },
+        ...(league.bots || [])
+    ].sort((a, b) => b.score - a.score);
+
+    const userRank = competitors.findIndex(c => c.isUser) + 1;
+
+    if ($('homeLeagueIcon')) $('homeLeagueIcon').textContent = conf.icon;
+    if ($('homeLeagueTitle')) $('homeLeagueTitle').textContent = conf.name;
+    if ($('homeLeagueRankText')) $('homeLeagueRankText').innerHTML = `<span class="desktop-text">#${userRank} de 15</span><span class="mobile-text">#${userRank}/15</span>`;
+    if ($('homeLeagueXPText')) $('homeLeagueXPText').innerHTML = `${userXP} XP <span class="desktop-text">esta semana</span>`;
+
+    const badgeEl = $('homeLeagueZoneBadge');
+    if (badgeEl) {
+        if (userRank <= 3) {
+            badgeEl.className = 'zone-tag zone-tag-promo';
+            if (conf.nextDivision) {
+                badgeEl.style.background = '';
+                badgeEl.style.color = '';
+                badgeEl.style.border = '';
+                badgeEl.innerHTML = '⬆️ <span class="desktop-text">Zona de Promoção</span><span class="mobile-text">Promoção</span>';
+            } else {
+                badgeEl.style.background = 'rgba(234, 179, 8, 0.15)';
+                badgeEl.style.color = '#eab308';
+                badgeEl.style.border = '1px solid rgba(234, 179, 8, 0.3)';
+                badgeEl.innerHTML = '👑 <span class="desktop-text">Zona dos Campeões</span><span class="mobile-text">Campeões</span>';
+            }
+        } else if (userRank >= 12 && conf.prevDivision) {
+            badgeEl.className = 'zone-tag zone-tag-demo';
+            badgeEl.style.background = '';
+            badgeEl.style.color = '';
+            badgeEl.style.border = '';
+            badgeEl.innerHTML = '⬇️ <span class="desktop-text">Zona de Rebaixamento</span><span class="mobile-text">Rebaixamento</span>';
+        } else {
+            badgeEl.className = 'zone-tag';
+            badgeEl.style.background = 'var(--border)';
+            badgeEl.style.color = 'var(--text-muted)';
+            badgeEl.style.border = '';
+            badgeEl.innerHTML = '🛡️ <span class="desktop-text">Zona Segura</span><span class="mobile-text">Segura</span>';
+        }
+    }
+}
+
+function renderLeague() {
+    if (!appData.league) {
+        appData.league = initLeagueData('bronze');
+    }
+    const league = appData.league;
+    const conf = LEAGUE_DIVISIONS[league.division] || LEAGUE_DIVISIONS.bronze;
+    const userXP = league.userXP || 0;
+    const userName = (appData.auth && appData.auth.username) ? appData.auth.username : 'Você';
+
+    const competitors = [
+        { id: 'user_self', name: userName, avatar: '👤', score: userXP, isUser: true },
+        ...(league.bots || [])
+    ].sort((a, b) => b.score - a.score);
+
+    const userRank = competitors.findIndex(c => c.isUser) + 1;
+
+    // Cabeçalho da Liga
+    if ($('leagueHeaderIcon')) $('leagueHeaderIcon').textContent = conf.icon;
+    if ($('leagueHeaderTitle')) $('leagueHeaderTitle').textContent = conf.name;
+    if ($('leagueCountdownText')) $('leagueCountdownText').textContent = getLeagueCountdown();
+
+    // Banner da Divisão
+    if ($('leagueDivisionBadgeIcon')) $('leagueDivisionBadgeIcon').textContent = conf.icon;
+    if ($('leagueDivisionName')) $('leagueDivisionName').textContent = conf.name;
+    if ($('leagueDivisionRule')) $('leagueDivisionRule').textContent = conf.ruleText;
+    if ($('leagueUserWeeklyXPDisplay')) $('leagueUserWeeklyXPDisplay').textContent = `${userXP} XP`;
+    if ($('leagueUserRankBadge')) $('leagueUserRankBadge').innerHTML = `<span class="desktop-text">Sua Posição: </span>#${userRank} de 15`;
+
+    // Indicador dinâmico de ritmo/intensidade da liga
+    const diff = (league.botDifficulty != null) ? league.botDifficulty : 1.0;
+    const diffBadge = $('leagueDifficultyBadge');
+    if (diffBadge) {
+        const pct = Math.round(diff * 100);
+        if (diff > 1.04) {
+            diffBadge.style.background = 'rgba(239, 68, 68, 0.12)';
+            diffBadge.style.color = '#ef4444';
+            diffBadge.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+            diffBadge.innerHTML = `⚔️ Ritmo da Liga: ${pct}% (Disputa Intensa)`;
+            diffBadge.title = 'A disputa está mais acirrada devido ao seu ótimo desempenho anterior!';
+        } else if (diff < 0.96) {
+            diffBadge.style.background = 'rgba(16, 185, 129, 0.12)';
+            diffBadge.style.color = '#10b981';
+            diffBadge.style.border = '1px solid rgba(16, 185, 129, 0.25)';
+            diffBadge.innerHTML = `🛡️ Ritmo da Liga: ${pct}% (Disputa Moderada)`;
+            diffBadge.title = 'O ritmo da rodada está mais brando para você recuperar posições com tranquilidade!';
+        } else {
+            diffBadge.style.background = 'var(--primary-soft)';
+            diffBadge.style.color = 'var(--text-muted)';
+            diffBadge.style.border = '1px solid var(--border)';
+            diffBadge.innerHTML = `⚖️ Ritmo da Liga: 100% (Equilibrada)`;
+            diffBadge.title = 'Ritmo padrão da rodada semanal.';
+        }
+    }
+
+    // Lista de Competidores
+    const listContainer = $('leagueLeaderboardList');
+    if (!listContainer) return;
+
+    listContainer.innerHTML = competitors.map((c, index) => {
+        const rank = index + 1;
+        const isUser = !!c.isUser;
+        const prevRank = isUser ? (league.userPrevRank || rank) : (c.prevRank || rank);
+
+        let rankShiftHtml = '';
+        if (prevRank > rank) {
+            const diff = prevRank - rank;
+            rankShiftHtml = `<span class="rank-shift-up" title="Subiu ${diff} posições">▲${diff}</span>`;
+        } else if (prevRank < rank) {
+            const diff = rank - prevRank;
+            rankShiftHtml = `<span class="rank-shift-down" title="Caiu ${diff} posições">▼${diff}</span>`;
+        } else {
+            rankShiftHtml = `<span class="rank-shift-same">•</span>`;
+        }
+
+        let rankBadgeClass = 'rank-badge';
+        let rankContent = rank;
+        if (rank === 1) { rankBadgeClass += ' rank-top-1'; rankContent = '🥇'; }
+        else if (rank === 2) { rankBadgeClass += ' rank-top-2'; rankContent = '🥈'; }
+        else if (rank === 3) { rankBadgeClass += ' rank-top-3'; rankContent = '🥉'; }
+
+        let rowClass = 'league-row';
+        if (isUser) rowClass += ' current-user';
+        if (rank <= 3) rowClass += ' zone-promotion';
+        else if (rank >= 12 && conf.prevDivision) rowClass += ' zone-demotion';
+
+        let zonePill = '';
+        if (rank <= 3) {
+            if (conf.nextDivision) {
+                zonePill = `<span class="zone-tag zone-tag-promo" style="flex-shrink: 0; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap;">⬆️<span class="desktop-text"> Promoção</span></span>`;
+            } else {
+                zonePill = `<span class="zone-tag zone-tag-promo" style="background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); flex-shrink: 0; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap;">👑<span class="desktop-text"> Pódio</span></span>`;
+            }
+        } else if (rank >= 12 && conf.prevDivision) {
+            zonePill = `<span class="zone-tag zone-tag-demo" style="flex-shrink: 0; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap;">⬇️<span class="desktop-text"> Rebaixamento</span></span>`;
+        }
+
+        return `
+            <div class="${rowClass}">
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 32px; flex-shrink: 0;">
+                        <div class="${rankBadgeClass}">${rankContent}</div>
+                        <div style="line-height: 1; margin-top: 2px;">${rankShiftHtml}</div>
+                    </div>
+                    <div class="league-avatar-badge">${c.avatar || '👤'}</div>
+                    <div style="min-width: 0; flex: 1; display: flex; align-items: center; gap: 6px;">
+                        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto; font-weight: ${isUser ? '800' : '700'}; font-size: 0.95rem; color: var(--text);">
+                            ${escapeHTML(c.name)}
+                        </span>
+                        ${isUser ? `<span class="badge" style="background: var(--primary); color: white; font-size: 0.7rem; padding: 2px 6px; border-radius: 6px; flex-shrink: 0;">VOCÊ</span>` : ''}
+                        ${zonePill}
+                    </div>
+                </div>
+                <div style="font-weight: 800; font-size: 1rem; color: ${isUser ? 'var(--primary)' : 'var(--text)'}; flex-shrink: 0; white-space: nowrap; text-align: right; margin-left: 8px;">
+                    ${(c.score || 0).toLocaleString()} XP
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 function getTroublesomePhrases() {
@@ -1721,31 +4491,7 @@ function startTroublesomeReview() {
 }
 
 function updateGlobalLevel() {
-    // New XP Weights: Quiz=5, Write=10, Listen=12, Pronounce=15, Speak=20 + Speed Run XP + Streak Bonus XP
-    let totalXP = (appData.speedRunXP || 0) + (appData.streakBonusXP || 0);
-    appData.lists.forEach(l => {
-        l.phrases.forEach(p => {
-            if (p.levels) {
-                // Formula: Sum of (Base + Mult*i) for i from 1 to L
-                // Sum = Base*L + Mult * (L*(L+1)/2)
-
-                const lq = p.levels.quiz || 0;
-                totalXP += (5 * lq) + (1 * (lq * (lq + 1) / 2));
-
-                const lw = p.levels.write || 0;
-                totalXP += (10 * lw) + (2 * (lw * (lw + 1) / 2));
-
-                const ll = p.levels.listen || 0;
-                totalXP += (12 * ll) + (2.5 * (ll * (ll + 1) / 2));
-
-                const lp = p.levels.pronounce || 0;
-                totalXP += (15 * lp) + (3 * (lp * (lp + 1) / 2));
-
-                const ls = p.levels.speak || 0;
-                totalXP += (20 * ls) + (4 * (ls * (ls + 1) / 2));
-            }
-        });
-    });
+    let totalXP = calculateTotalProgress(appData);
 
     // Dynamic Leveling: Level 1->2 (50XP), 2->3 (100XP), 3->4 (150XP)...
     // Total XP required to REACH level L: 25 * (L^2 - L)
@@ -1770,24 +4516,34 @@ function updateGlobalLevel() {
     document.querySelectorAll('.nextLevelXPGoal').forEach(el => el.textContent = xpStep);
 
     if ($('totalXP')) $('totalXP').textContent = Math.floor(totalXP);
+
+    // Checagem de Subida de Nível (Level Up)
+    if (!appData.lastCelebratedLevel) {
+        appData.lastCelebratedLevel = globalLevel;
+    } else if (globalLevel > appData.lastCelebratedLevel) {
+        const oldLvl = appData.lastCelebratedLevel;
+        appData.lastCelebratedLevel = globalLevel;
+        saveData(appData, { touch: false });
+        showLevelUpModal(globalLevel, oldLvl, totalXP, xpStep);
+    }
 }
 
 function renderLists() {
     const container = $('listsContainer');
+    if (!container) return;
     if (appData.lists.length === 0) {
         container.innerHTML = '<div class="card" style="grid-column: 1/-1; text-align:center;">Você ainda não tem listas. Crie uma para começar!</div>';
         return;
     }
 
-    container.innerHTML = '';
-    appData.lists.forEach(l => {
-        const dueCount = l.phrases.filter(p => isPhraseDue(p)).length;
-        $('listsContainer').innerHTML += `
+    const listsHtml = appData.lists.map(l => {
+        const dueCount = (l.phrases || []).filter(p => isPhraseDue(p)).length;
+        return `
             <div class="card" style="display: flex; flex-direction: column; gap: 16px;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
                     <div style="flex: 1; min-width: 0;">
                         <h3 style="cursor: pointer; margin-bottom: 4px; overflow-wrap: break-word; line-height: 1.3;" onclick="selectList('${l.id}')">${escapeHTML(l.name)}</h3>
-                        <div style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">${l.phrases.length} frases • <span style="color: var(--danger)">${dueCount} revisões</span></div>
+                        <div style="color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">${l.phrases ? l.phrases.length : 0} frases • <span style="color: var(--danger)">${dueCount} revisões</span></div>
                     </div>
                     <div style="display: flex; flex-direction: column; gap: 6px; flex-shrink: 0;">
                         <button class="btn btn-outline btn-sm" onclick="showEditListModal('${l.id}')" title="Renomear Lista">✏️</button>
@@ -1798,7 +4554,8 @@ function renderLists() {
                 <button class="btn btn-primary btn-sm" onclick="selectList('${l.id}')">Abrir Lista</button>
             </div>
         `;
-    });
+    }).join('');
+    container.innerHTML = listsHtml;
 }
 
 function selectList(id) {
@@ -1811,8 +4568,29 @@ function selectList(id) {
 
 async function lookupWord(rawWord) {
     if (!rawWord) return;
+
+    // Se estiver no Speed Run e clicou em uma palavra para ver o significado, pausa o avanço automático:
+    if (typeof isSpeedRunSuccessActive !== 'undefined' && isSpeedRunSuccessActive) {
+        srSuccessPausedByLookup = true;
+        cancelSpeedRunSuccessAutoAdvance();
+        const notice = $('srSuccessTimerNotice');
+        if (notice) {
+            notice.textContent = "⏸️ Pausado para você ver o significado com calma. Toque em 'Continuar ➔' quando terminar.";
+            notice.style.color = "var(--warning)";
+        }
+    }
     const cleanWord = rawWord.replace(/[^a-zA-Z'\-]/g, '').trim();
     if (!cleanWord || cleanWord.length < 2) return;
+
+    // Rastreamento para Badge "Explorador de Vocabulário" (5 consultas no dia)
+    const today = new Date().toDateString();
+    if (appData.lastDictLookupDate !== today) {
+        appData.lastDictLookupDate = today;
+        appData.dictLookupsToday = 0;
+    }
+    appData.dictLookupsToday = (appData.dictLookupsToday || 0) + 1;
+    appData.dictLookupsCount = (appData.dictLookupsCount || 0) + 1;
+    const qualifiesForExplorer = appData.dictLookupsToday >= 5;
 
     if ($('lookupWordTitle')) $('lookupWordTitle').textContent = cleanWord;
     if ($('lookupWordPhonetic')) $('lookupWordPhonetic').textContent = `[ ${getPhoneticGuide(cleanWord)} ]`;
@@ -1845,6 +4623,11 @@ async function lookupWord(rawWord) {
     }
 
     openModal('wordDetailModal');
+
+    // Se atingiu o requisito de 5 consultas no dia, dispara o badge (será enfileirado e exibido com confetes assim que fechar a consulta da palavra)
+    if (qualifiesForExplorer) {
+        checkAndAwardBadge('word_explorer');
+    }
 
     // Tradução com cache
     if (appData.translationCache && appData.translationCache[cleanWord.toLowerCase()]) {
@@ -1882,9 +4665,9 @@ function renderPhrases(filter = "") {
     const list = appData.lists.find(l => l.id === appData.currentListId);
     if (!list) return;
 
-    $('currentListTitle').textContent = list.name;
+    if ($('currentListTitle')) $('currentListTitle').textContent = list.name;
     const container = $('phrasesContainer');
-    container.innerHTML = '';
+    if (!container) return;
 
     const query = filter.toLowerCase().trim();
     let phrasesToRender = list.phrases.filter(p =>
@@ -1919,12 +4702,12 @@ function renderPhrases(filter = "") {
     }
 
     const now = Date.now();
-    phrasesToRender.forEach(p => {
+    const cardsHtml = phrasesToRender.map(p => {
         const diff = (p.nextReview || 0) - now;
         const dueText = diff <= 0 ? 'Agora' : formatRelativeTime(diff);
         const dueClass = diff <= 0 ? 'color: var(--danger); font-weight: 800;' : 'color: var(--text-muted); font-size: 0.8rem;';
 
-        container.innerHTML += `
+        return `
             <div class="card phrase-card" id="phrase-${p.id}">
                 <div class="phrase-content">
                     <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 4px;">${makeWordsClickable(p.english)}</div>
@@ -1951,32 +4734,48 @@ function renderPhrases(filter = "") {
                 </div>
             </div>
         `;
-    });
+    }).join('');
+    container.innerHTML = cardsHtml;
 }
 
+let globalSearchDebounceTimer = null;
+
 function handleGlobalSearch(query) {
-    const q = query.toLowerCase().trim();
+    if (globalSearchDebounceTimer) {
+        clearTimeout(globalSearchDebounceTimer);
+    }
+    const q = (query || '').toLowerCase().trim();
     const resultsContainer = $('searchResultsContainer');
     const resultsList = $('searchResultsList');
     const clearBtn = $('clearGlobalSearch');
 
     if (!q) {
-        resultsContainer.style.display = 'none';
-        clearBtn.style.display = 'none';
+        if (resultsContainer) resultsContainer.style.display = 'none';
+        if (clearBtn) clearBtn.style.display = 'none';
         renderLists(); // Refresh lists to show all
         return;
     }
 
-    clearBtn.style.display = 'block';
-    resultsContainer.style.display = 'block';
-    resultsList.innerHTML = '';
+    if (clearBtn) clearBtn.style.display = 'block';
+    if (resultsContainer) resultsContainer.style.display = 'block';
+
+    globalSearchDebounceTimer = setTimeout(() => {
+        globalSearchDebounceTimer = null;
+        executeGlobalSearch(q);
+    }, 180);
+}
+
+function executeGlobalSearch(q) {
+    const resultsList = $('searchResultsList');
+    if (!resultsList) return;
 
     let foundAny = false;
     const now = Date.now();
+    const matchesHtml = [];
 
     // Search phrases in all lists
     appData.lists.forEach(l => {
-        const matches = l.phrases.filter(p =>
+        const matches = (l.phrases || []).filter(p =>
             p.english.toLowerCase().includes(q) ||
             p.portuguese.toLowerCase().includes(q)
         );
@@ -1987,7 +4786,7 @@ function handleGlobalSearch(query) {
             const dueText = diff <= 0 ? 'Agora' : formatRelativeTime(diff);
             const dueClass = diff <= 0 ? 'color: var(--danger); font-weight: 800;' : 'color: var(--text-muted); font-size: 0.8rem;';
 
-            resultsList.innerHTML += `
+            matchesHtml.push(`
                 <div class="card phrase-card" style="border-left: 4px solid var(--primary);">
                     <div class="phrase-content">
                         <div style="font-size: 0.7rem; font-weight: 800; color: var(--primary); text-transform: uppercase; margin-bottom: 4px;">LISTA: ${escapeHTML(l.name)}</div>
@@ -1999,22 +4798,24 @@ function handleGlobalSearch(query) {
                         <button class="btn btn-primary btn-sm" onclick="selectListAndScroll('${l.id}', '${p.id}')">Ir para Lista</button>
                     </div>
                 </div>
-            `;
+            `);
         });
     });
 
     if (!foundAny) {
         resultsList.innerHTML = '<div class="card" style="text-align:center; color:var(--text-muted);">Nenhuma frase encontrada em nenhuma lista.</div>';
+    } else {
+        resultsList.innerHTML = matchesHtml.join('');
     }
 
     // Also filter lists by name
-    const listCards = $('listsContainer').children;
+    const listCards = $('listsContainer')?.children || [];
     Array.from(listCards).forEach(card => {
         const title = card.querySelector('h3')?.textContent.toLowerCase() || '';
         if (title.includes(q)) {
             card.style.display = 'flex';
         } else if (foundAny) {
-            // If we found phrases, we might want to hide lists that don't match the name to focus on results
+            // If we found phrases, we hide lists that don't match the name to focus on results
             card.style.display = 'none';
         } else {
             card.style.display = 'flex';
@@ -2077,8 +4878,10 @@ function renderMetrics() {
     });
     $('statTotalPoints').textContent = totalPoints;
 
-    // Atualiza estatísticas da Galeria de Troféus
+    // Atualiza estatísticas da Galeria de Troféus, Pirâmide de Fluência e Badges
     renderTrophiesUI();
+    renderFluencyPyramid();
+    renderBadgesUI();
 
     // 2. SKILL BREAKDOWN
     const skillData = [
@@ -2568,6 +5371,22 @@ function startMultiModeReview() {
         allDue = allDue.concat(l.phrases.filter(p => isPhraseDue(p)));
     });
 
+    // Se não há frases com revisão geral vencida, mas o usuário escolheu um treino combinado:
+    // Prioriza as próprias frases existentes do usuário que ainda não foram dominadas em pelo menos um dos modos selecionados
+    if (allDue.length === 0 && Array.isArray(selectedMultiModes) && selectedMultiModes.length > 0) {
+        const unmasteredPhrases = [];
+        appData.lists.forEach(l => {
+            if (!l.phrases) return;
+            l.phrases.forEach(p => {
+                const needsWork = selectedMultiModes.some(m => ((p.levels && p.levels[m] !== undefined) ? p.levels[m] : 0) < 5);
+                if (needsWork) unmasteredPhrases.push(p);
+            });
+        });
+        if (unmasteredPhrases.length > 0) {
+            allDue = unmasteredPhrases;
+        }
+    }
+
     if (allDue.length === 0) {
         window.confirm(
             "Você não tem frases para revisar no momento. Deseja que eu crie 10 frases gerais automaticamente para você praticar nos modos selecionados?",
@@ -2634,6 +5453,22 @@ function startReview(mode = 'standard') {
         allDue = allDue.concat(l.phrases.filter(p => isPhraseDue(p)));
     });
 
+    // Se não há frases com revisão geral vencida, mas o usuário escolheu um treino focado (Fala, Escrita, Escuta, Quiz):
+    // Prioriza as próprias frases existentes do usuário que ainda não foram dominadas nessa habilidade
+    if (allDue.length === 0 && mode !== 'standard') {
+        const unmasteredPhrases = [];
+        appData.lists.forEach(l => {
+            if (!l.phrases) return;
+            l.phrases.forEach(p => {
+                const lvl = (p.levels && p.levels[mode] !== undefined) ? p.levels[mode] : 0;
+                if (lvl < 5) unmasteredPhrases.push(p);
+            });
+        });
+        if (unmasteredPhrases.length > 0) {
+            allDue = unmasteredPhrases;
+        }
+    }
+
     if (allDue.length === 0) {
         if (mode === 'standard') {
             // No modo padrão (Iniciar), cria as frases automaticamente sem perguntar
@@ -2696,6 +5531,13 @@ function scheduleAutoAdvance(delayMs = 1500) {
     clearAutoAdvanceTimer();
     if (!appData.settings || !appData.settings.autoAdvanceSpeech) return;
     if (session.mode !== 'speak' && session.mode !== 'pronounce') return;
+
+    // Se houver qualquer modal aberto ou celebrações na fila, não agenda avanço automático
+    const modalBg = $('modalBg');
+    const isModalOpen = modalBg && modalBg.style.display === 'flex';
+    if (isModalOpen || (typeof celebrationQueue !== 'undefined' && celebrationQueue.length > 0)) {
+        return;
+    }
 
     if ($('btnContinue')) {
         $('btnContinue').textContent = 'Continuar → (Avançando...)';
@@ -2823,12 +5665,13 @@ function handleTimeUpDontRemember() {
 }
 
 function nextPhrase() {
-    // Reset mic state, audio, and timers for the new phrase
+    // Reset mic state, audio, timers and feedback for the new phrase
     isRecognitionActive = false;
     stopListening();
     stopAllAudio();
     clearExerciseTimer();
     clearAutoAdvanceTimer();
+    if ($('feedbackXPBadge')) $('feedbackXPBadge').style.display = 'none';
 
     if (session.queue.length === 0) {
         endSession();
@@ -2908,7 +5751,9 @@ function renderExercise() {
         startExerciseTimer(getExerciseTimeForPhrase(p, 'write'));
         setTimeout(() => {
             $('writeInput').value = '';
-            $('writeInput').focus();
+            if (!$('modalBg') || $('modalBg').style.display !== 'flex') {
+                $('writeInput').focus();
+            }
         }, 100);
     } else if (session.mode === 'listen') {
         $('listenArea').style.display = 'block';
@@ -2918,7 +5763,9 @@ function renderExercise() {
         setTimeout(() => playAudio(p.english), 500); // Play audio automatically
         setTimeout(() => {
             $('listenInput').value = '';
-            $('listenInput').focus();
+            if (!$('modalBg') || $('modalBg').style.display !== 'flex') {
+                $('listenInput').focus();
+            }
         }, 1000);
     } else if (session.mode === 'pronounce') {
         $('pronounceArea').style.display = 'block';
@@ -3421,6 +6268,12 @@ function processAnswer(isCorrect, userVal) {
     }
     const mode = session.trainingMode;
 
+    // Snapshot para cálculo preciso de XP ganho/perdido de acordo com nível, tipo de teste, palavras e se é nova
+    const prevPhraseXP = calculatePhraseXP(session.current);
+    const prevStandardLevel = session.current.levels ? (session.current.levels.standard || 0) : 0;
+    const wasNewWord = (!session.current.levels.quiz && !session.current.levels.write && !session.current.levels.listen && !session.current.levels.pronounce && !session.current.levels.speak);
+    const wordsCount = getPhraseWordCount(session.current.english);
+
     if (isCorrect) {
         title.textContent = "🎉 Excelente!";
 
@@ -3451,17 +6304,17 @@ function processAnswer(isCorrect, userVal) {
         if (mode === 'troublesome' || mode === 'multi') {
             const subMode = session.mode;
             if (session.current.levels[subMode] !== undefined) {
-                session.current.levels[subMode]++;
+                session.current.levels[subMode] = Math.min(10, (session.current.levels[subMode] || 0) + 1);
             }
         } else {
-            // Update level for the specific mode
-            session.current.levels[mode]++;
+            // Update level for the specific mode (teto de maestria no nível 10)
+            session.current.levels[mode] = Math.min(10, (session.current.levels[mode] || 0) + 1);
 
             // If in standard mode, also update the specific sub-mode performed to ensure XP is gained
             if (mode === 'standard') {
                 const subMode = session.mode; // e.g., 'quiz', 'write', 'speak'
                 if (session.current.levels[subMode] !== undefined) {
-                    session.current.levels[subMode]++;
+                    session.current.levels[subMode] = Math.min(10, (session.current.levels[subMode] || 0) + 1);
                 }
                 // Cap standard level at 4 so it possa ir de 0 a 4
                 session.current.levels.standard = Math.min(4, session.current.levels.standard);
@@ -3576,7 +6429,9 @@ function processAnswer(isCorrect, userVal) {
             $('correctionInput').style.borderColor = 'rgba(239, 68, 68, 0.5)';
             $('correctionHint').textContent = "✍️ Digite a resposta correta para fixar:";
             $('correctionHint').style.color = 'var(--danger)';
-            $('correctionInput').focus();
+            if (!$('modalBg') || $('modalBg').style.display !== 'flex') {
+                $('correctionInput').focus();
+            }
 
             $('correctionInput').oninput = () => {
                 if (normalizeText($('correctionInput').value) === normalizeText(session.current.english)) {
@@ -3698,6 +6553,137 @@ function processAnswer(isCorrect, userVal) {
     saveData(appData);
     updateGlobalLevel();
     updateTroublesomeCount();
+
+    // Atualização visual do XP ganho ou perdido no teste (levando em conta nível, tipo de teste, palavras e novidade)
+    const newPhraseXP = calculatePhraseXP(session.current);
+    let xpDelta = newPhraseXP - prevPhraseXP;
+    if (xpDelta > 0) {
+        if (typeof isXPBoostActive === 'function' && isXPBoostActive()) {
+            const mult = getXPBoostMultiplier();
+            const boostedDelta = Math.round(xpDelta * mult);
+            const extraXP = boostedDelta - xpDelta;
+            if (extraXP > 0) {
+                if (!appData.missions) appData.missions = initMissionsData();
+                appData.missions.bonusXP = (appData.missions.bonusXP || 0) + extraXP;
+            }
+            xpDelta = boostedDelta;
+        }
+        addLeagueXP(xpDelta);
+    }
+
+    // Registro de progresso nas Missões Diárias e Semanais
+    if (typeof recordMissionProgress === 'function') {
+        recordMissionProgress('reviews', 1);
+        if (appData.currentListId) {
+            recordMissionProgress('list_reviewed', 1, { listId: appData.currentListId });
+        }
+        if (isCorrect) {
+            const newStandardLevel = session.current.levels ? (session.current.levels.standard || 0) : 0;
+            if (newStandardLevel > prevStandardLevel) {
+                recordMissionProgress('phrase_leveled', 1);
+                if (newStandardLevel >= 5 && prevStandardLevel < 5) {
+                    recordMissionProgress('phrase_mastered', 1);
+                }
+            }
+            if (session.trainingMode === 'troublesome') {
+                recordMissionProgress('troublesome_correct', 1);
+            }
+            if (session.trainingMode === 'multi') {
+                recordMissionProgress('multimode_complete', 1);
+            }
+            if (session.mode) {
+                recordMissionProgress('mode_correct', 1, { mode: session.mode });
+            }
+            if (session.correctStreak > 0) {
+                recordMissionProgress('clean_streak', session.correctStreak);
+                if (session.correctStreak >= 10 && session.correctStreak % 10 === 0) {
+                    recordMissionProgress('perfect_combo', 1);
+                }
+            }
+        }
+    }
+
+    // Rastreamento para Badges em tempo real
+    if (isCorrect) {
+        session.correctStreak = (session.correctStreak || 0) + 1;
+        if (session.correctStreak > 0 && session.correctStreak % 10 === 0) {
+            checkAndAwardBadge('perfect_streak');
+        }
+        if (session.mode === 'speak' || session.mode === 'pronounce') {
+            session.speakCorrect = (session.speakCorrect || 0) + 1;
+            if (session.speakCorrect > 0 && session.speakCorrect % 10 === 0) {
+                checkAndAwardBadge('master_speaker');
+            }
+        }
+        if (session.mode === 'write') {
+            session.writeCorrect = (session.writeCorrect || 0) + 1;
+            if (session.writeCorrect > 0 && session.writeCorrect % 10 === 0) {
+                checkAndAwardBadge('typing_master');
+            }
+        }
+    } else {
+        session.correctStreak = 0;
+    }
+
+    // Checagem de Badges de Horário (Madrugador / Coruja Noturna) e Maratonista
+    const currentHour = new Date().getHours();
+    if (currentHour < 8) {
+        checkAndAwardBadge('early_bird');
+    } else if (currentHour >= 22) {
+        checkAndAwardBadge('night_owl');
+    }
+
+    const today = new Date().toDateString();
+    const todayReviews = getTodayReviewsCount(appData.history);
+    if (todayReviews >= 30) {
+        checkAndAwardBadge('marathoner');
+    }
+
+    const goal = (appData.settings && appData.settings.dailyGoal) ? parseInt(appData.settings.dailyGoal) : 50;
+
+    // Checagem de Meta Diária batida em tempo real durante o teste
+    if (todayReviews >= goal && appData.lastDailyGoalCelebratedDate !== today) {
+        appData.lastDailyGoalCelebratedDate = today;
+        if (typeof recordMissionProgress === 'function') {
+            recordMissionProgress('daily_goal_met', 1);
+        }
+        let freezeAwarded = false;
+        const freezes = appData.streakFreezes !== undefined ? appData.streakFreezes : 1;
+        if (appData.lastStreakFreezeRewardDate !== today && freezes < 2) {
+            appData.streakFreezes = freezes + 1;
+            appData.lastStreakFreezeRewardDate = today;
+            freezeAwarded = true;
+            if ($('freezeCountSpan')) $('freezeCountSpan').textContent = appData.streakFreezes;
+            if ($('freezeCountSpanSettings')) $('freezeCountSpanSettings').textContent = appData.streakFreezes;
+            checkAndAwardBadge('streak_protector');
+        } else if (freezes >= 2) {
+            // Estoque de gelo já no máximo de 2: protegeu a sequência com escudo intacto e ganha/renova o badge!
+            checkAndAwardBadge('streak_protector');
+        }
+        saveData(appData);
+        showDailyGoalCelebrationModal(goal, todayReviews, freezeAwarded);
+    }
+
+    // Checagem de Marcos de Sequência & Troféus em tempo real durante o teste (Ferro, Bronze, Prata, Ouro)
+    checkStreakMilestones(todayReviews, goal, today);
+
+    const xpBadge = $('feedbackXPBadge');
+    if (xpBadge) {
+        xpBadge.style.display = 'inline-flex';
+        const wordLabel = wordsCount === 1 ? '1 palavra' : `${wordsCount} palavras`;
+        if (xpDelta > 0) {
+            xpBadge.className = 'feedback-xp-badge gain';
+            const newTag = wasNewWord ? '🌟 Palavra Nova • ' : '';
+            const boostTag = (typeof isXPBoostActive === 'function' && isXPBoostActive()) ? ` ⚡x${getXPBoostMultiplier()}` : '';
+            xpBadge.textContent = `+${xpDelta} XP (${newTag}${wordLabel}${boostTag})`;
+        } else if (xpDelta < 0) {
+            xpBadge.className = 'feedback-xp-badge loss';
+            xpBadge.textContent = `${xpDelta} XP (${wordLabel})`;
+        } else {
+            xpBadge.className = 'feedback-xp-badge neutral';
+            xpBadge.textContent = `0 XP (${wordLabel} • Nível 0)`;
+        }
+    }
 }
 
 function handleSpeakDontRemember() {
@@ -3728,22 +6714,30 @@ function updateStreak() {
         const lastDate = new Date(appData.lastReviewDate);
         const currDate = new Date(today);
         const diffDays = Math.round((currDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
-        const daysMissed = diffDays - 1; // Quantidade de dias consecutivos sem estudar
 
-        if (daysMissed > 0 && appData.streakFreezes && appData.streakFreezes >= daysMissed) {
-            // Possui gelos suficientes para cobrir todos os dias em que não praticou
-            appData.streakFreezes -= daysMissed;
-            saveData(appData);
-            if ($('freezeCountSpan')) $('freezeCountSpan').textContent = appData.streakFreezes;
-            if ($('freezeCountSpanSettings')) $('freezeCountSpanSettings').textContent = appData.streakFreezes;
-            const freezeText = daysMissed === 1 ? "1 Gelo Protetor foi utilizado" : `${daysMissed} Gelos Protetores foram utilizados`;
-            setTimeout(() => {
-                alert(`🧊 Ufa! Seu ${freezeText} para proteger sua sequência de ${appData.streak} dias de estudo!`);
-            }, 600);
+        if (diffDays <= 1) {
+            // Estudo no dia seguinte consecutivo
+            appData.streak++;
         } else {
-            // Dias perdidos excederam os gelos disponíveis (reinicia sequência e ciclo de troféu atual)
-            appData.streak = 1;
-            appData.streakMilestoneProgress = 0;
+            const daysMissed = diffDays - 1; // Quantidade de dias consecutivos sem estudar
+
+            if (daysMissed > 0 && appData.streakFreezes && appData.streakFreezes >= daysMissed) {
+                // Possui gelos suficientes para cobrir todos os dias em que não praticou
+                appData.streakFreezes -= daysMissed;
+                // O gelo protegeu os dias perdidos, então a prática de hoje soma à sequência!
+                appData.streak++;
+                saveData(appData);
+                if ($('freezeCountSpan')) $('freezeCountSpan').textContent = appData.streakFreezes;
+                if ($('freezeCountSpanSettings')) $('freezeCountSpanSettings').textContent = appData.streakFreezes;
+                const freezeText = daysMissed === 1 ? "1 Gelo Protetor foi utilizado" : `${daysMissed} Gelos Protetores foram utilizados`;
+                setTimeout(() => {
+                    alert(`🧊 Ufa! Seu ${freezeText} para proteger sua sequência de ${appData.streak} dias de estudo!`);
+                }, 600);
+            } else {
+                // Dias perdidos excederam os gelos disponíveis (reinicia sequência e ciclo de troféu atual)
+                appData.streak = 1;
+                appData.streakMilestoneProgress = 0;
+            }
         }
     } else {
         appData.streak = 1;
@@ -3768,12 +6762,16 @@ function endSession() {
     const pct = Math.round((correct / total) * 100);
 
     if (pct >= 70) {
-        confetti({
-            particleCount: 150,
-            spread: 70,
-            origin: { y: 0.6 },
-            colors: ['#6366f1', '#ec4899', '#10b981']
-        });
+        if (typeof confetti === 'function') {
+            try {
+                confetti({
+                    particleCount: 150,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    colors: ['#6366f1', '#ec4899', '#10b981']
+                });
+            } catch (e) { }
+        }
         $('soundFinish').play().catch(() => { });
     }
 
@@ -4013,7 +7011,15 @@ function editDistance(s1, s2) {
 }
 
 function escapeHTML(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-function escapeJS(s) { return s.replace(/'/g, "\\'"); }
+function escapeJS(s) {
+    if (!s) return '';
+    return String(s)
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '&quot;')
+        .replace(/\n/g, ' ')
+        .replace(/\r/g, '');
+}
 
 let currentUtterance = null;
 let playAudioTimer = null;
@@ -4290,6 +7296,7 @@ function renderHeatmap() {
     let totalWindowReviews = 0;
 
     const monthsNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const fragment = document.createDocumentFragment();
 
     for (let i = 0; i < totalDays; i++) {
         const curDate = new Date(startDate);
@@ -4329,8 +7336,10 @@ function renderHeatmap() {
             });
         }
 
-        grid.appendChild(cell);
+        fragment.appendChild(cell);
     }
+
+    grid.appendChild(fragment);
 
     if ($('heatmapActiveDays')) $('heatmapActiveDays').textContent = activeDays;
     if ($('heatmapTotalReviews')) $('heatmapTotalReviews').textContent = totalWindowReviews;
@@ -4348,6 +7357,16 @@ function showHeatmapCellInfo(dateStr, count) {
 
 // ==================== SPEED RUN MODE (5 min) ====================
 let isSkippingPhrase = false;
+let isSpeedRunSuccessActive = false;
+let srSuccessTimer = null;
+let srSuccessPausedByLookup = false;
+
+function cancelSpeedRunSuccessAutoAdvance() {
+    if (srSuccessTimer) {
+        clearTimeout(srSuccessTimer);
+        srSuccessTimer = null;
+    }
+}
 
 let speedRunSession = {
     active: false,
@@ -4393,6 +7412,11 @@ function startSpeedRun() {
     const shuffled = [...pool].sort(() => Math.random() - 0.5);
 
     isSkippingPhrase = false;
+    isSpeedRunSuccessActive = false;
+    srSuccessPausedByLookup = false;
+    cancelSpeedRunSuccessAutoAdvance();
+
+    if ($('srSuccessArea')) $('srSuccessArea').style.display = 'none';
     if ($('srContinueControls')) $('srContinueControls').style.display = 'none';
     if ($('srDefaultControls')) $('srDefaultControls').style.display = 'flex';
     if ($('srTilesPool')) {
@@ -4424,6 +7448,10 @@ function startSpeedRun() {
 }
 
 function exitSpeedRun() {
+    cancelSpeedRunSuccessAutoAdvance();
+    isSpeedRunSuccessActive = false;
+    srSuccessPausedByLookup = false;
+
     if (speedRunSession.timer) {
         clearInterval(speedRunSession.timer);
         speedRunSession.timer = null;
@@ -4431,6 +7459,7 @@ function exitSpeedRun() {
     speedRunSession.active = false;
     speedRunSession.isLastPhrase = false;
     isSkippingPhrase = false;
+    if ($('srSuccessArea')) $('srSuccessArea').style.display = 'none';
     if ($('srContinueControls')) $('srContinueControls').style.display = 'none';
     if ($('srDefaultControls')) $('srDefaultControls').style.display = 'flex';
     if ($('srTilesPool')) {
@@ -4503,6 +7532,24 @@ function updateSpeedRunHeader() {
 
 function loadNextSpeedRunPhrase() {
     if (!speedRunSession.active) return;
+
+    cancelSpeedRunSuccessAutoAdvance();
+    isSpeedRunSuccessActive = false;
+    isSkippingPhrase = false;
+    srSuccessPausedByLookup = false;
+
+    if ($('srSuccessArea')) $('srSuccessArea').style.display = 'none';
+    if ($('srPhrasePt')) $('srPhrasePt').style.display = 'inline-block';
+    if ($('srPhraseValueBadge')) $('srPhraseValueBadge').style.display = 'inline-block';
+    if ($('srPhonetic')) $('srPhonetic').style.display = 'block';
+    if ($('srSlotsContainer')) $('srSlotsContainer').style.display = 'flex';
+    if ($('srTilesPool')) {
+        $('srTilesPool').style.display = 'flex';
+        $('srTilesPool').style.pointerEvents = 'auto';
+        $('srTilesPool').style.opacity = '1';
+    }
+    if ($('srDefaultControls')) $('srDefaultControls').style.display = 'flex';
+    if ($('srContinueControls')) $('srContinueControls').style.display = 'none';
 
     if (!speedRunSession.queue || speedRunSession.queue.length === 0) {
         let phrases = [];
@@ -4620,7 +7667,7 @@ function loadNextSpeedRunPhrase() {
             tileBtn.id = tile.id;
             tileBtn.dataset.tileId = tile.id;
             tileBtn.className = 'speedrun-letter-tile';
-            tileBtn.innerHTML = `<span>${tile.char}</span>` + (tile.totalCount > 1 ? `<span class="speedrun-tile-badge">${tile.totalCount}</span>` : '');
+            tileBtn.innerHTML = `<span>${tile.char}</span><span class="speedrun-tile-badge">${tile.totalCount}</span>`;
             tileBtn.addEventListener('click', () => srPickTile(tile.id));
             tilesPool.appendChild(tileBtn);
         });
@@ -4630,15 +7677,17 @@ function loadNextSpeedRunPhrase() {
 function updateTileBadge(tile, tileEl) {
     if (!tileEl) return;
     let badge = tileEl.querySelector('.speedrun-tile-badge');
-    if (tile.remainingCount > 1) {
-        if (!badge) {
-            badge = document.createElement('span');
-            badge.className = 'speedrun-tile-badge';
-            tileEl.appendChild(badge);
-        }
-        badge.textContent = tile.remainingCount;
-    } else if (badge) {
-        badge.remove();
+    if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'speedrun-tile-badge';
+        tileEl.appendChild(badge);
+    }
+    const count = Math.max(0, tile.remainingCount);
+    badge.textContent = count;
+    if (count === 0) {
+        badge.classList.add('empty');
+    } else {
+        badge.classList.remove('empty');
     }
 }
 
@@ -4673,13 +7722,14 @@ function srPickTile(tileId) {
         slotEl.classList.add('filled');
     }
 
-    // Atualiza a tela: tile (desaparece quando esgota o tanto de vezes na frase)
+    // Atualiza a tela: tile (NÃO desaparece mais, apenas fica esgotada com contador 0)
     const tileEl = $(tile.id);
     if (tileEl) {
+        updateTileBadge(tile, tileEl);
         if (tile.used) {
             tileEl.classList.add('used');
         } else {
-            updateTileBadge(tile, tileEl);
+            tileEl.classList.remove('used');
         }
     }
 
@@ -4878,6 +7928,84 @@ function srPlayCurrentAudio() {
     }
 }
 
+function showSpeedRunSuccessScreen(bonusText) {
+    isSpeedRunSuccessActive = true;
+    srSuccessPausedByLookup = false;
+
+    // Pausa imediatamente o cronômetro do jogo para não gastar tempo na tela de sucesso
+    if (speedRunSession.timer) {
+        clearInterval(speedRunSession.timer);
+        speedRunSession.timer = null;
+    }
+
+    // Oculta área de digitação e controles normais
+    if ($('srSlotsContainer')) $('srSlotsContainer').style.display = 'none';
+    if ($('srTilesPool')) $('srTilesPool').style.display = 'none';
+    if ($('srDefaultControls')) $('srDefaultControls').style.display = 'none';
+    if ($('srContinueControls')) $('srContinueControls').style.display = 'none';
+    if ($('srPhrasePt')) $('srPhrasePt').style.display = 'none';
+    if ($('srPhraseValueBadge')) $('srPhraseValueBadge').style.display = 'none';
+    if ($('srPhonetic')) $('srPhonetic').style.display = 'none';
+
+    // Exibe tela de sucesso
+    const successArea = $('srSuccessArea');
+    if (successArea) {
+        successArea.style.display = 'flex';
+    }
+
+    const phrase = speedRunSession.currentPhrase;
+    if (phrase) {
+        if ($('srSuccessEng')) $('srSuccessEng').innerHTML = makeWordsClickable(phrase.english);
+        if ($('srSuccessPt')) $('srSuccessPt').textContent = phrase.portuguese || '';
+        if ($('srSuccessPhonetic')) {
+            const phon = getPhoneticGuide(phrase.english);
+            $('srSuccessPhonetic').textContent = phon ? `🗣️ [ ${phon} ]` : '';
+        }
+    }
+
+    if ($('srSuccessRewards')) {
+        $('srSuccessRewards').innerHTML = bonusText || '🎉 Excelente!';
+    }
+
+    const timerNotice = $('srSuccessTimerNotice');
+    if (timerNotice) {
+        timerNotice.textContent = "Avançando para a próxima frase... (toque em uma palavra para ver significado com calma)";
+        timerNotice.style.color = "var(--text-muted)";
+    }
+
+    const contBtn = $('srSuccessContinueBtn');
+    if (contBtn) {
+        if (speedRunSession.isLastPhrase || speedRunSession.timeLeft <= 0) {
+            contBtn.textContent = 'Ver Pontuação ➔';
+        } else {
+            contBtn.textContent = 'Continuar ➔';
+        }
+        contBtn.focus();
+    }
+}
+
+function srContinueAfterSuccess() {
+    if (!speedRunSession.active || !isSpeedRunSuccessActive) return;
+    isSpeedRunSuccessActive = false;
+    srSuccessPausedByLookup = false;
+    cancelSpeedRunSuccessAutoAdvance();
+
+    if ($('srSuccessArea')) $('srSuccessArea').style.display = 'none';
+
+    // Se o tempo acabou ou era a última pergunta, finaliza e mostra o resultado
+    if (speedRunSession.isLastPhrase || speedRunSession.timeLeft <= 0) {
+        finishSpeedRun();
+        return;
+    }
+
+    loadNextSpeedRunPhrase();
+
+    // Retoma o cronômetro do jogo
+    if (!speedRunSession.timer) {
+        speedRunSession.timer = setInterval(speedRunTick, 1000);
+    }
+}
+
 function checkSpeedRunAnswer() {
     if (!speedRunSession.active) return;
 
@@ -4893,11 +8021,6 @@ function checkSpeedRunAnswer() {
 
         const soundCorrect = $('soundCorrect');
         if (soundCorrect) soundCorrect.play().catch(() => {});
-
-        // Reproduz o áudio da frase em inglês no final ao acertar
-        if (speedRunSession.currentPhrase && speedRunSession.currentPhrase.english) {
-            playAudio(speedRunSession.currentPhrase.english);
-        }
 
         // Quanto maior for a frase, maior a pontuação ganha:
         const letterCount = letterSlots.length;
@@ -4953,20 +8076,32 @@ function checkSpeedRunAnswer() {
         if (!appData.history) appData.history = [];
         appData.history.push({ date: Date.now(), correct: true });
         appData.totalReviews = (appData.totalReviews || 0) + 1;
-
-        if (speedRunSession.score > (appData.speedRunHighScore || 0)) {
-            appData.speedRunHighScore = speedRunSession.score;
-        }
         saveData(appData);
 
-        setTimeout(() => {
-            // Se o tempo já havia esgotado (era a última pergunta permitida), finaliza e mostra o placar
-            if (speedRunSession.isLastPhrase || speedRunSession.timeLeft <= 0) {
-                finishSpeedRun();
-            } else if (speedRunSession.active) {
-                loadNextSpeedRunPhrase();
+        // Exibe tela de sucesso e toca o áudio da frase com calma
+        showSpeedRunSuccessScreen(bonusText);
+
+        if (speedRunSession.currentPhrase && speedRunSession.currentPhrase.english) {
+            playAudio(speedRunSession.currentPhrase.english, 'en-US', () => {
+                // Ao terminar o áudio, aguarda 1.8 segundos antes de ir para a próxima (se não pausado por consulta de vocabulário)
+                if (isSpeedRunSuccessActive && !srSuccessPausedByLookup) {
+                    cancelSpeedRunSuccessAutoAdvance();
+                    srSuccessTimer = setTimeout(() => {
+                        if (isSpeedRunSuccessActive && !srSuccessPausedByLookup) {
+                            srContinueAfterSuccess();
+                        }
+                    }, 1800);
+                }
+            });
+        }
+
+        // Temporizador de avanço automático seguro caso o áudio não dispare
+        cancelSpeedRunSuccessAutoAdvance();
+        srSuccessTimer = setTimeout(() => {
+            if (isSpeedRunSuccessActive && !srSuccessPausedByLookup) {
+                srContinueAfterSuccess();
             }
-        }, 400);
+        }, 5000);
     } else {
         letterSlots.forEach(s => {
             const el = $(s.id);
@@ -5009,6 +8144,11 @@ function showSpeedRunBonus(text, isError = false) {
 }
 
 function finishSpeedRun() {
+    cancelSpeedRunSuccessAutoAdvance();
+    isSpeedRunSuccessActive = false;
+    srSuccessPausedByLookup = false;
+    if ($('srSuccessArea')) $('srSuccessArea').style.display = 'none';
+
     if (speedRunSession.timer) {
         clearInterval(speedRunSession.timer);
         speedRunSession.timer = null;
@@ -5037,12 +8177,22 @@ function finishSpeedRun() {
             earnedXP += 10; // Ótimo Desempenho
         }
 
+        if (typeof isXPBoostActive === 'function' && isXPBoostActive()) {
+            earnedXP = Math.round(earnedXP * getXPBoostMultiplier());
+        }
+
         appData.speedRunXP = (appData.speedRunXP || 0) + earnedXP;
+        addLeagueXP(earnedXP);
     }
 
-    const isNewRecord = speedRunSession.score > 0 && speedRunSession.score >= (appData.speedRunHighScore || 0);
+    if (typeof recordMissionProgress === 'function') {
+        recordMissionProgress('speedrun_score', speedRunSession.score || 0);
+    }
 
-    if (speedRunSession.score > (appData.speedRunHighScore || 0)) {
+    const prevHighScore = appData.speedRunHighScore || 0;
+    const isNewRecord = speedRunSession.score > 0 && speedRunSession.score > prevHighScore;
+
+    if (isNewRecord) {
         appData.speedRunHighScore = speedRunSession.score;
     }
     saveData(appData);
@@ -5069,6 +8219,17 @@ function finishSpeedRun() {
     showView('homeView');
     openModal('speedRunResultModal');
 
+    // Rastreamento para Badges no fim do Speed Run (enfileiradas de forma limpa para celebrar após o resultado)
+    if (speedRunSession.score >= 500) {
+        checkAndAwardBadge('speed_runner');
+    }
+    const currentHour = new Date().getHours();
+    if (currentHour < 8) {
+        checkAndAwardBadge('early_bird');
+    } else if (currentHour >= 22) {
+        checkAndAwardBadge('night_owl');
+    }
+
     // Proteção contra cliques acidentais rápidos no botão de Jogar Novamente
     const playAgainBtn = $('srPlayAgainBtn');
     if (playAgainBtn) {
@@ -5083,6 +8244,18 @@ function finishSpeedRun() {
     }
 
     renderStats();
+}
+
+let pendingSpeedRunRestart = false;
+
+function handleSpeedRunPlayAgain() {
+    if (typeof celebrationQueue !== 'undefined' && celebrationQueue.length > 0) {
+        pendingSpeedRunRestart = true;
+        closeModal();
+    } else {
+        closeModal();
+        startSpeedRun();
+    }
 }
 
 function isPhraseDuplicate(english, ignorePhraseId = null) {
@@ -5140,50 +8313,193 @@ function highlightDifferences(user, correct) {
     return html.trim();
 }
 
-// Centralized Modal Management
+// Centralized Modal Management & Celebration Queue
+let celebrationQueue = [];
+let isExerciseTimerPaused = false;
+let isSpeedRunPaused = false;
+
+function pauseExerciseTimer() {
+    if (typeof exerciseTimerInterval !== 'undefined' && exerciseTimerInterval) {
+        clearInterval(exerciseTimerInterval);
+        exerciseTimerInterval = null;
+        isExerciseTimerPaused = true;
+    }
+}
+
+function resumeExerciseTimer() {
+    if (isExerciseTimerPaused && typeof exerciseTimeRemaining === 'number' && exerciseTimeRemaining > 0 && typeof session !== 'undefined' && session.active && !$('feedbackBar')?.classList.contains('active')) {
+        isExerciseTimerPaused = false;
+        exerciseTimerInterval = setInterval(() => {
+            if (!session.active || $('feedbackBar')?.classList.contains('active')) {
+                clearExerciseTimer();
+                return;
+            }
+            exerciseTimeRemaining--;
+            updateExerciseTimerUI();
+            if (exerciseTimeRemaining <= 0) {
+                clearExerciseTimer();
+                handleExerciseTimeout();
+            }
+        }, 1000);
+    } else {
+        isExerciseTimerPaused = false;
+    }
+}
+
+function pauseSpeedRunTimer() {
+    if (typeof speedRunSession !== 'undefined' && speedRunSession.active && speedRunSession.timer) {
+        clearInterval(speedRunSession.timer);
+        speedRunSession.timer = null;
+        isSpeedRunPaused = true;
+    }
+}
+
+function resumeSpeedRunTimer() {
+    if (isSpeedRunPaused && typeof speedRunSession !== 'undefined' && speedRunSession.active && speedRunSession.timeLeft > 0) {
+        isSpeedRunPaused = false;
+        if (typeof startSpeedRunTimer === 'function') {
+            startSpeedRunTimer();
+        }
+    } else {
+        isSpeedRunPaused = false;
+    }
+}
+
+function openCelebrationModal(modalId, setupFn) {
+    const modalBg = $('modalBg');
+    const isModalVisible = modalBg && modalBg.style.display === 'flex';
+
+    if (isModalVisible || (typeof speedRunSession !== 'undefined' && speedRunSession.active)) {
+        celebrationQueue.push({ modalId, setupFn });
+        return;
+    }
+
+    if (setupFn) {
+        try { setupFn(); } catch (e) { console.error('Erro ao configurar modal de celebração:', e); }
+    }
+    openModal(modalId);
+}
+
 function openModal(modalId) {
+    // 1. Fecha teclado imediatamente no celular (remove foco de qualquer input ativo)
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        try { document.activeElement.blur(); } catch (e) { }
+    }
+
+    // 2. Cancela qualquer auto-avanço agendado para não pular de frase debaixo do modal
+    if (typeof clearAutoAdvanceTimer === 'function') clearAutoAdvanceTimer();
+    if (typeof cancelSpeedRunSuccessAutoAdvance === 'function') cancelSpeedRunSuccessAutoAdvance();
+
+    // 3. Pausa microfone se estiver ouvindo
+    if (typeof isRecognitionActive !== 'undefined' && isRecognitionActive) {
+        isRecognitionActive = false;
+        if (typeof stopListening === 'function') stopListening();
+    }
+
+    // 4. Pausa cronômetros dos testes
+    pauseExerciseTimer();
+    pauseSpeedRunTimer();
+
+    const modalBg = $('modalBg');
+    if (!modalBg) return;
     // Hide all children of modalBg
-    const modals = $('modalBg').children;
+    const modals = modalBg.children;
     for (let m of modals) {
         m.style.display = 'none';
     }
     // Show background and the specific modal
-    $('modalBg').style.display = 'flex';
-    $(modalId).style.display = 'block';
+    modalBg.style.display = 'flex';
+    if ($(modalId)) $(modalId).style.display = 'block';
 
     // Scroll Lock
     document.body.classList.add('modal-open');
+
+    // Autofocus suave no primeiro input visível do modal aberto (desktop)
+    setTimeout(() => {
+        const modal = $(modalId);
+        if (modal) {
+            const firstInput = modal.querySelector('input:not([type="hidden"]):not([disabled]), textarea:not([disabled])');
+            if (firstInput && typeof firstInput.focus === 'function' && window.innerWidth > 600) {
+                firstInput.focus();
+            }
+        }
+    }, 60);
 }
 
 function closeModal() {
-    $('modalBg').style.display = 'none';
+    // Garante que o teclado fique fechado
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        try { document.activeElement.blur(); } catch (e) { }
+    }
+
+    // Verifica se há outra celebração na fila (ex: Badge ganho + Level Up + Ultrapassagem na Liga)
+    if (celebrationQueue.length > 0) {
+        const next = celebrationQueue.shift();
+        if (next.setupFn) {
+            try { next.setupFn(); } catch (e) { console.error(e); }
+        }
+        openModal(next.modalId);
+        return;
+    }
+
+    if ($('modalBg')) $('modalBg').style.display = 'none';
     document.body.classList.remove('modal-open');
+
+    // Retoma cronômetros apenas se todos os modais forem fechados
+    resumeExerciseTimer();
+    resumeSpeedRunTimer();
+
+    // Se havia um reinício do Speed Run agendado para após os modais de celebração:
+    if (typeof pendingSpeedRunRestart !== 'undefined' && pendingSpeedRunRestart) {
+        pendingSpeedRunRestart = false;
+        startSpeedRun();
+        return;
+    }
+
+    // Se o usuário estava no meio de uma pergunta ativa (sem feedback ativo na tela):
+    if (typeof session !== 'undefined' && session.active && !$('feedbackBar')?.classList.contains('active')) {
+        const isVoiceMode = session.mode === 'speak' || session.mode === 'pronounce';
+        if (isVoiceMode && !isRecognitionActive && typeof startListening === 'function') {
+            startListening();
+        } else if (session.mode === 'write') {
+            const writeInput = $('writeInput');
+            if (writeInput && typeof writeInput.focus === 'function') {
+                setTimeout(() => writeInput.focus(), 60);
+            }
+        }
+    }
 }
 
 // Override default alert/confirm with premium system dialog
 window.alert = function (msg, title = "Aviso", icon = "ℹ️", onConfirm = null) {
-    $('dialogTitle').textContent = title;
-    $('dialogMessage').textContent = msg;
-    $('dialogIcon').textContent = icon;
-    $('dialogCancel').style.display = 'none';
-    $('dialogConfirm').onclick = () => {
-        closeDialog();
-        if (onConfirm) onConfirm();
-    };
+    if ($('dialogTitle')) $('dialogTitle').textContent = title;
+    if ($('dialogMessage')) $('dialogMessage').textContent = msg;
+    if ($('dialogIcon')) $('dialogIcon').textContent = icon;
+    if ($('dialogCancel')) $('dialogCancel').style.display = 'none';
+    if ($('dialogConfirm')) {
+        $('dialogConfirm').onclick = () => {
+            closeDialog();
+            if (onConfirm) onConfirm();
+        };
+    }
 
     openModal('systemDialog');
 };
 
 window.confirm = function (msg, onConfirm, title = "Confirmação") {
-    $('dialogTitle').textContent = title;
-    $('dialogMessage').textContent = msg;
-    $('dialogIcon').textContent = "❓";
-    $('dialogCancel').style.display = 'block';
-    $('dialogCancel').onclick = closeDialog;
-    $('dialogConfirm').onclick = () => {
-        closeDialog();
-        if (onConfirm) onConfirm();
-    };
+    if ($('dialogTitle')) $('dialogTitle').textContent = title;
+    if ($('dialogMessage')) $('dialogMessage').textContent = msg;
+    if ($('dialogIcon')) $('dialogIcon').textContent = "❓";
+    if ($('dialogCancel')) {
+        $('dialogCancel').style.display = 'block';
+        $('dialogCancel').onclick = closeDialog;
+    }
+    if ($('dialogConfirm')) {
+        $('dialogConfirm').onclick = () => {
+            closeDialog();
+            if (onConfirm) onConfirm();
+        };
+    }
 
     openModal('systemDialog');
 };
@@ -5266,8 +8582,11 @@ function importData(input) {
                 if (data.lists && Array.isArray(data.lists)) {
                     appData = migrateData(data);
                     saveData(appData);
-                    renderLists();
-                    renderStats();
+                    updateUI();
+                    renderTrophiesUI();
+                    renderBadgesUI();
+                    renderLeagueCardHome();
+                    if (typeof renderMissionsUI === 'function') renderMissionsUI();
                     alert("Backup restaurado com sucesso!");
                 } else {
                     alert("Arquivo de backup inválido!");
@@ -5630,14 +8949,33 @@ window.onload = () => {
 
     document.onkeydown = (e) => {
         const isModalOpen = $('modalBg').style.display === 'flex';
-        if (isModalOpen && e.key === 'Enter') return; // Let the modal handle Enter
+        if (isModalOpen && e.key === 'Escape') {
+            e.preventDefault();
+            closeModal();
+            return;
+        }
+        if (isModalOpen && (e.key === 'Enter' || e.key === ' ' || e.code === 'Space')) {
+            // Se for um modal sem campos de texto (ex: celebração de badges, troféus, subida de nível), Enter ou Espaço avança/fecha suavemente
+            const activeCard = $('modalBg').querySelector('.card:not([style*="display: none"])');
+            const hasInput = activeCard && activeCard.querySelector('input:not([type="hidden"]), textarea');
+            if (activeCard && !hasInput) {
+                e.preventDefault();
+                closeModal();
+                return;
+            }
+            if (e.key === 'Enter') return; // Deixa o modal com input tratar o Enter
+        }
 
         // Atalhos de teclado no modo Speed Run
         if (typeof speedRunSession !== 'undefined' && speedRunSession.active && !isModalOpen) {
-            if (isSkippingPhrase) {
+            if (isSkippingPhrase || (typeof isSpeedRunSuccessActive !== 'undefined' && isSpeedRunSuccessActive)) {
                 if (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') {
                     e.preventDefault();
-                    srContinueAfterSkip();
+                    if (isSkippingPhrase) {
+                        srContinueAfterSkip();
+                    } else if (isSpeedRunSuccessActive) {
+                        srContinueAfterSuccess();
+                    }
                     return;
                 }
                 if (e.key === 'Escape') {
@@ -5739,16 +9077,24 @@ window.onload = () => {
         }, 400);
     }
 
+    checkBadgeExpirations(true);
     applyDarkMode();
     showView('homeView');
 
-    // Stop mic if user leaves the tab, and check for updates when returning
+    // Stop mic if user leaves the tab, and check for updates and league when returning
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
             stopListening();
         } else {
             checkVersionAndUpdateAutomatically();
+            updateBotScoresOnAppEntry(true);
+            checkBadgeExpirations(true);
         }
+    });
+
+    window.addEventListener('focus', () => {
+        updateBotScoresOnAppEntry(true);
+        checkBadgeExpirations(true);
     });
 };
 
@@ -5980,7 +9326,15 @@ function startListening() {
 
     rec.onerror = (e) => {
         if (e.error === 'no-speech' || e.error === 'aborted') return;
-        console.error('Speech error:', e.error);
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') {
+            isRecognitionActive = false;
+            if (btn) btn.classList.remove('listening');
+            if (status) {
+                status.textContent = "⚠️ Microfone bloqueado ou sem permissão";
+                status.style.color = "var(--danger)";
+            }
+        }
+        console.warn('Speech error:', e.error);
     };
 
     rec.onend = () => {
@@ -6137,9 +9491,19 @@ function startListeningCorrection() {
 
 function deletePhrase(id) {
     confirm("Deseja apagar esta frase?", () => {
+        let deletedXP = 0;
         appData.lists.forEach(l => {
+            if (!l.phrases) return;
+            const target = l.phrases.find(p => p.id === id);
+            if (target) {
+                deletedXP += calculatePhraseXP(target);
+            }
             l.phrases = l.phrases.filter(p => p.id !== id);
         });
+        // Preserva o XP conquistado para o usuário não regredir de nível
+        if (deletedXP > 0) {
+            appData.archivedPhraseXP = (appData.archivedPhraseXP || 0) + deletedXP;
+        }
         saveData(appData);
         renderPhrases();
         renderStats();
@@ -6148,6 +9512,16 @@ function deletePhrase(id) {
 
 function deleteList(id) {
     confirm("Tem certeza que deseja apagar esta lista e todas as suas frases?", () => {
+        const listToDelete = appData.lists.find(l => l.id === id);
+        if (listToDelete && listToDelete.phrases) {
+            let deletedXP = 0;
+            listToDelete.phrases.forEach(p => {
+                deletedXP += calculatePhraseXP(p);
+            });
+            if (deletedXP > 0) {
+                appData.archivedPhraseXP = (appData.archivedPhraseXP || 0) + deletedXP;
+            }
+        }
         appData.lists = appData.lists.filter(l => l.id !== id);
 
         // Safety check: if deleted list was the active one, reset it
@@ -6302,10 +9676,13 @@ const SENTENCE_POOL = [
 function showAutoListModal() {
     // Populate target selector
     const targetSelect = $('autoListTarget');
-    targetSelect.innerHTML = '<option value="new">✨ Criar Nova Lista</option>';
-    appData.lists.forEach(l => {
-        targetSelect.innerHTML += `<option value="${l.id}">📁 Adicionar em: ${escapeHTML(l.name)}</option>`;
-    });
+    if (targetSelect) {
+        const optionsHtml = ['<option value="new">✨ Criar Nova Lista</option>'];
+        (appData.lists || []).forEach(l => {
+            optionsHtml.push(`<option value="${l.id}">📁 Adicionar em: ${escapeHTML(l.name)}</option>`);
+        });
+        targetSelect.innerHTML = optionsHtml.join('');
+    }
 
     openModal('autoListModal');
 }
@@ -6477,11 +9854,15 @@ function saveGeneratedList(phrases, topic, forceNew = false, customMessage = nul
     renderStats();
 
     // Success feedback
-    confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-    });
+    if (typeof confetti === 'function') {
+        try {
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+        } catch (e) { }
+    }
 
     if (customMessage) {
         alert(customMessage, "Sucesso", "✅", onComplete);
@@ -6647,7 +10028,10 @@ async function initializeApp() {
         isDismissed = true;
 
         try {
+            updateBotScoresOnAppEntry(true);
             renderStats();
+            renderLeagueCardHome();
+            if (typeof renderMissionsUI === 'function') renderMissionsUI();
             startCountdownInterval();
         } catch (uiErr) {
             console.error("Erro ao inicializar stats na UI:", uiErr);
@@ -6662,11 +10046,17 @@ async function initializeApp() {
             setTimeout(() => {
                 appContainer.style.opacity = '1';
 
+                // Se houver aviso pendente de queda de posição na liga semanal, exibe logo na entrada
+                if (pendingLeagueDropData) {
+                    showLeagueDropModal(pendingLeagueDropData);
+                    pendingLeagueDropData = null;
+                }
+
                 // Iniciar Tutorial se for a primeira vez
                 if (appData.settings && !appData.settings.tutorialCompleted) {
                     setTimeout(startTutorial, 1200);
                 }
-            }, 50);
+            }, 300);
         }
 
         // Remover o splash do DOM após a animação para liberar recursos

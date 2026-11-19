@@ -1,4 +1,4 @@
-const CACHE_NAME = 'memoenglish-v5.0.6';
+const CACHE_NAME = 'memoenglish-v5.3.0';
 
 // Recursos essenciais para funcionarem offline
 const urlsToCache = [
@@ -10,7 +10,8 @@ const urlsToCache = [
   './manifest.json',
   './assets/logo.png',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js'
 ];
 
 self.addEventListener('install', event => {
@@ -54,8 +55,19 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Não intercepta chamadas para APIs externas ou CDNs
+  // Permite servir a biblioteca de confetes em cache quando offline
   if (url.origin !== self.location.origin) {
+    if (url.hostname.includes('cdn.jsdelivr.net') && url.pathname.includes('canvas-confetti')) {
+      event.respondWith(
+        caches.match(event.request).then(cached => cached || fetch(event.request).then(res => {
+          if (res && res.status === 200) {
+            const cloned = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put(event.request, cloned));
+          }
+          return res;
+        }).catch(() => null))
+      );
+    }
     return;
   }
 
