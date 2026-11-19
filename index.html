@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MemoEnglish - Premium</title>
-    <link rel="stylesheet" href="style.css?v=5.3.0">
+    <link rel="stylesheet" href="style.css?v=5.4.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -842,6 +842,110 @@
                 </div>
             </div>
 
+            <!-- CARD LGPD - CENTRAL DE PRIVACIDADE E DIREITOS DO TITULAR (LEI Nº 13.709/2018) -->
+            <div class="card" id="privacyLgpdCard" style="margin-bottom: 24px; border-left: 4px solid var(--primary);">
+                <div class="lgpd-card-header">
+                    <div>
+                        <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                            <span>🛡️</span> Central de Privacidade & Direitos do Titular (LGPD)
+                        </h3>
+                        <p style="color: var(--text-muted); font-size: 0.88rem; margin: 4px 0 0 0;">
+                            Em conformidade integral com a Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018).
+                        </p>
+                    </div>
+                    <div id="lgpdCardStatusContainer">
+                        <span id="lgpdStatusBadge" class="lgpd-status-pill">🛡️ Consentimento Válido</span>
+                    </div>
+                </div>
+
+                <div style="background: var(--surface-hover); padding: 14px 16px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: 0.84rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                    <div>
+                        <span style="font-weight: 700; color: var(--text);">Titular dos Dados: </span>
+                        <span id="lgpdUserIdentityDisplay" style="color: var(--primary); font-weight: 700;">Local (Não Identificado)</span>
+                        <span style="color: var(--text-muted); margin: 0 6px;">•</span>
+                        <span id="lgpdConsentDateDisplay" style="color: var(--text-muted);">Consentimento: Registrado</span>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="openLGPDPreferencesModal()" style="padding: 4px 10px; font-size: 0.8rem;">
+                        ⚙️ Alterar Preferências
+                    </button>
+                </div>
+
+                <div style="font-size: 0.82rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">
+                    Seus Direitos como Titular de Dados (Art. 18 da LGPD)
+                </div>
+
+                <div class="lgpd-actions-grid">
+                    <button type="button" class="lgpd-btn-action" onclick="showLGPDDataReport()">
+                        <span class="lgpd-btn-icon">📊</span>
+                        <div>
+                            <div class="lgpd-btn-title">Consultar Meus Dados</div>
+                            <div class="lgpd-btn-desc">Raio-X completo e em tempo real de todas as informações pessoais tratadas (Art. 18, I e II).</div>
+                        </div>
+                    </button>
+
+                    <button type="button" class="lgpd-btn-action" onclick="showLGPDDeclaration()">
+                        <span class="lgpd-btn-icon">📜</span>
+                        <div>
+                            <div class="lgpd-btn-title">Declaração Completa</div>
+                            <div class="lgpd-btn-desc">Certidão formal com finalidades, bases legais, retenção e segurança para salvar ou imprimir (Art. 19, II).</div>
+                        </div>
+                    </button>
+
+                    <button type="button" class="lgpd-btn-action" onclick="exportLGPDPortability()">
+                        <span class="lgpd-btn-icon">📦</span>
+                        <div>
+                            <div class="lgpd-btn-title">Portabilidade de Dados</div>
+                            <div class="lgpd-btn-desc">Exportação oficial dos seus dados em formato aberto e estruturado JSON (Art. 18, V).</div>
+                        </div>
+                    </button>
+
+                    <button type="button" class="lgpd-btn-action" onclick="anonymizeLGPDProfile()">
+                        <span class="lgpd-btn-icon">🎭</span>
+                        <div>
+                            <div class="lgpd-btn-title">Anonimizar Perfil</div>
+                            <div class="lgpd-btn-desc">Substitui seu nome por pseudônimo aleatório na liga e métricas sem perder seu progresso (Art. 18, IV).</div>
+                        </div>
+                    </button>
+
+                    <button type="button" class="lgpd-btn-action" onclick="openLGPDPreferencesModal()">
+                        <span class="lgpd-btn-icon">⚙️</span>
+                        <div>
+                            <div class="lgpd-btn-title">Gerenciar Consentimentos</div>
+                            <div class="lgpd-btn-desc">Ajuste, desative ou revogue o consentimento de microfone ou sincronização (Art. 18, IX).</div>
+                        </div>
+                    </button>
+
+                    <button type="button" class="lgpd-btn-action" onclick="showLGPDThirdPartyInfo()">
+                        <span class="lgpd-btn-icon">🤝</span>
+                        <div>
+                            <div class="lgpd-btn-title">Uso Compartilhado</div>
+                            <div class="lgpd-btn-desc">Informações transparentes sobre entidades parceiras e integrações de API (Art. 18, VII).</div>
+                        </div>
+                    </button>
+
+                    <button type="button" class="lgpd-btn-action" onclick="showLGPDAutomatedDecisionsInfo()">
+                        <span class="lgpd-btn-icon">🤖</span>
+                        <div>
+                            <div class="lgpd-btn-title">Decisões Automatizadas</div>
+                            <div class="lgpd-btn-desc">Transparência dos algoritmos de repetição espaçada (SRS), cálculo de XP e Liga (Art. 20).</div>
+                        </div>
+                    </button>
+
+                    <button type="button" class="lgpd-btn-action danger" onclick="deleteAccountTotalLGPD()">
+                        <span class="lgpd-btn-icon">🗑️</span>
+                        <div>
+                            <div class="lgpd-btn-title" style="color: var(--danger);">Eliminação Total (Esquecimento)</div>
+                            <div class="lgpd-btn-desc">Exclui permanentemente todos os dados locais e na nuvem, revogando autorizações (Art. 18, VI).</div>
+                        </div>
+                    </button>
+                </div>
+
+                <div style="margin-top: 20px; padding: 14px 16px; background: rgba(59, 130, 246, 0.08); border-radius: var(--radius-md); border: 1px solid rgba(59, 130, 246, 0.2); font-size: 0.82rem; color: var(--text-muted); line-height: 1.5;">
+                    <strong style="color: var(--text);">Encarregado pelo Tratamento de Dados Pessoais (DPO - Art. 41):</strong><br>
+                    Para exercer quaisquer direitos previstos em lei ou esclarecer dúvidas de privacidade, o titular pode utilizar os botões automáticos acima ou contatar diretamente nosso Encarregado através do e-mail: <strong style="color: var(--primary);">systemmemoenglish@gmail.com</strong>. Você também possui o direito de peticionar perante a Autoridade Nacional de Proteção de Dados (ANPD - Art. 18, § 1º).
+                </div>
+            </div>
+
             <div class="card" style="margin-bottom: 24px;">
                 <h3 style="margin-bottom: 20px;">Backup e Dados</h3>
 
@@ -894,7 +998,7 @@
                     style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); text-align: center;">
                     <p style="font-size: 0.9rem; font-weight: 700; color: var(--primary); margin-bottom: 8px;">📧
                         Contato: systemmemoenglish@gmail.com</p>
-                    <p id="settingsAppVersionDisplay" style="font-size: 0.8rem; color: var(--text-muted);">MemoEnglish Premium v5.3.0<br>© 2026 Todos
+                    <p id="settingsAppVersionDisplay" style="font-size: 0.8rem; color: var(--text-muted);">MemoEnglish Premium v5.4.0 (Conformidade Integral LGPD)<br>© 2026 Todos
                         os direitos reservados.</p>
                 </div>
             </div>
@@ -1963,121 +2067,452 @@
         </div>
 
         <!-- Terms of Use Modal -->
-        <div id="termsModal" class="card modal-legal" style="width: 100%; max-width: 700px; display: none;">
+        <div id="termsModal" class="card modal-legal" style="width: 100%; max-width: 780px; display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                <h2 style="font-weight: 800; font-size: 1.5rem;">Termos de Uso</h2>
+                <h2 style="font-weight: 800; font-size: 1.5rem; display: flex; align-items: center; gap: 8px;">
+                    <span>📜</span> Termos de Uso do MemoEnglish
+                </h2>
                 <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
             </div>
             <div class="legal-content">
+                <p style="font-style: italic; color: var(--text-muted); margin-bottom: 20px;">
+                    Versão atualizada em conformidade com o Marco Civil da Internet (Lei nº 12.965/2014) e a Lei Geral de Proteção de Dados Pessoais (LGPD - Lei nº 13.709/2018).
+                </p>
+
                 <h3>1. Aceitação dos Termos</h3>
-                <p>Ao acessar e utilizar o MemoEnglish, você concorda em cumprir e estar vinculado a estes Termos de
-                    Uso. Se você não concordar com qualquer parte destes termos, não deverá utilizar o aplicativo.</p>
+                <p>Ao acessar, registrar-se ou utilizar o <strong>MemoEnglish</strong> ("Aplicativo" ou "Plataforma"), você expressa concordância voluntária e integral com estes Termos de Uso e com a nossa Política de Privacidade. Caso não concorde com qualquer cláusula, solicitamos a interrupção imediata do uso do serviço.</p>
 
-                <h3>2. Descrição do Serviço</h3>
-                <p>O MemoEnglish é uma ferramenta de auxílio ao aprendizado da língua inglesa, utilizando técnicas de
-                    Repetição Espaçada (SRS). O serviço é fornecido "como está" e o progresso depende exclusivamente do
-                    empenho do usuário.</p>
+                <h3>2. Descrição e Finalidade do Serviço</h3>
+                <p>O MemoEnglish é uma aplicação progressiva (PWA) educacional voltada ao aprendizado e retenção de vocabulário e frases da língua inglesa, utilizando metodologia científica de Repetição Espaçada (SRS - <em>Spaced Repetition System</em>), treinos de áudio/escuta, escrita e desafios de velocidade (Speed Run).</p>
 
-                <h3>3. Integridade e Respeito</h3>
-                <p>Cada detalhe do MemoEnglish foi construído com muito esforço. Pedimos que utilize a ferramenta de
-                    forma íntegra, respeitando o trabalho investido no design e na lógica do sistema, utilizando-o
-                    apenas para fins de aprendizado pessoal.</p>
+                <h3>3. Proteção de Dados e Privacidade (LGPD)</h3>
+                <p>Garantimos a inviolabilidade da sua privacidade, a autodeterminação informativa e o livre acesso aos seus dados conforme os Arts. 2º, 6º e 18 da Lei nº 13.709/2018. O tratamento de seus dados pessoais limita-se estritamente ao necessário para a execução do contrato de aprendizado e cálculo pedagógico de revisões.</p>
 
-                <h3>4. Bom Uso do Sistema</h3>
-                <p>O foco aqui é o seu crescimento. Para manter a melhor experiência para todos, pedimos que:</p>
+                <h3>4. Responsabilidades do Usuário</h3>
                 <ul>
-                    <li>Utilize a ferramenta de forma humana, sem o uso de robôs ou scripts automatizados.</li>
-                    <li>Mantenha a integridade da plataforma, evitando qualquer forma de uso que não seja o estudo de
-                        idiomas.</li>
-                    <li>Não utilize o serviço para qualquer finalidade que possa ser considerada ilegal.</li>
+                    <li><strong>Proibição de Dados Sensíveis ou Ilícitos:</strong> É expressamente vedado inserir nas listas de estudo dados de cartões bancários, senhas de outros serviços, dados de saúde ou documentos confidenciais. O sistema destina-se única e exclusivamente a frases e vocabulário pedagógico.</li>
+                    <li><strong>Uso Humano e Ético:</strong> Não é permitido o uso de robôs, scrapers, automações abusivas ou tentativas de engenharia reversa que degradem os serviços ou a experiência coletiva.</li>
+                    <li><strong>Guarda de Credenciais:</strong> Caso opte por sincronizar dados em nuvem, o usuário é responsável por manter a confidencialidade de sua senha.</li>
                 </ul>
 
-                <h3>5. Limitação de Responsabilidade</h3>
-                <p>Não garantimos que o serviço será ininterrupto ou livre de erros. Não nos responsabilizamos por
-                    perdas de dados decorrentes de falhas no navegador ou limpeza de cache por parte do usuário
-                    (recomenda-se o uso da sincronização em nuvem).</p>
+                <h3>5. Propriedade Intelectual e Licença de Uso</h3>
+                <p>O software, interfaces visuais, algoritmos de agendamento e elementos gráficos são protegidos pelas leis de propriedade intelectual. O usuário recebe uma licença pessoal, não exclusiva, intransferível e gratuita para seus estudos pessoais.</p>
 
-                <h3>6. Alterações nos Termos</h3>
-                <p>Reservamo-nos o direito de modificar estes termos a qualquer momento. O uso continuado do aplicativo
-                    após alterações constitui aceitação dos novos termos.</p>
+                <h3>6. Limitação de Responsabilidade</h3>
+                <p>O serviço é fornecido "como está" e nos limites da tecnologia. Disponibilizamos ferramentas nativas de backup local (JSON) e sincronização em nuvem para mitigar riscos de perda de dados provocados por limpeza involuntária de cache do navegador.</p>
+
+                <h3>7. Alterações destes Termos</h3>
+                <p>Estes termos podem ser atualizados periodicamente para refletir evoluções legislativas ou funcionais. Qualquer modificação substancial será informada com destaque na plataforma.</p>
             </div>
             <div style="margin-top: 32px; text-align: right;">
-                <button class="btn btn-primary" onclick="closeModal()">Entendido</button>
+                <button class="btn btn-primary" onclick="closeModal()">Compreendi e Concordo</button>
             </div>
         </div>
 
-        <!-- Privacy Policy Modal -->
-        <div id="privacyModal" class="card modal-legal" style="width: 100%; max-width: 700px; display: none;">
+        <!-- Privacy Policy Modal (LGPD Compliant) -->
+        <div id="privacyModal" class="card modal-legal" style="width: 100%; max-width: 850px; display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                <h2 style="font-weight: 800; font-size: 1.5rem;">Política de Privacidade</h2>
+                <h2 style="font-weight: 800; font-size: 1.5rem; display: flex; align-items: center; gap: 8px;">
+                    <span>🛡️</span> Política de Privacidade & Proteção de Dados (LGPD)
+                </h2>
                 <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
             </div>
             <div class="legal-content">
-                <p style="font-style: italic; color: var(--text-muted); margin-bottom: 20px;">Esta política está em
-                    conformidade com a Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018).</p>
-
-                <h3>1. Coleta de Dados</h3>
-                <p>O MemoEnglish coleta o mínimo de dados necessários para seu funcionamento:</p>
-                <ul>
-                    <li><strong>Dados Locais:</strong> Suas listas, frases e progresso são armazenados no
-                        <em>LocalStorage</em> do seu navegador.
-                    </li>
-                    <li><strong>Sincronização (Opcional):</strong> Caso utilize a conta de sincronização, seu nome de
-                        usuário, senha e progresso são enviados para um servidor seguro.</li>
-                </ul>
-
-                <div
-                    style="background: #fff3f3; border: 1px solid #ffcccc; padding: 16px; border-radius: 12px; margin: 20px 0; color: #cc0000;">
-                    <h4 style="margin-bottom: 8px; font-weight: 800;">⚠️ IMPORTANTE: Segurança de Dados</h4>
-                    <p style="font-size: 0.9rem; margin: 0; line-height: 1.4;"><strong>Nunca adicione informações
-                            sensíveis</strong> como senhas de outros sites, números de cartões, documentos ou endereços
-                        em suas frases. O sistema foi feito exclusivamente para estudo de idiomas e não deve ser usado
-                        para armazenar dados pessoais ou financeiros.</p>
+                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px;">
+                    <strong style="color: var(--success); font-size: 0.95rem;">Conformidade Integral com a Lei Federal nº 13.709/2018 (LGPD - Edição Atualizada)</strong>
+                    <p style="margin: 4px 0 0 0; font-size: 0.82rem; color: var(--text-muted); line-height: 1.45;">
+                        Esta política estabelece os compromissos de transparência, segurança e respeito aos direitos fundamentais de liberdade, privacidade e livre desenvolvimento da personalidade da pessoa natural (Art. 1º da LGPD).
+                    </p>
                 </div>
 
-                <h3>2. Finalidade e Base Legal</h3>
-                <p>Seus dados são utilizados exclusivamente para o fornecimento do serviço de aprendizado (SRS),
-                    métricas de desempenho e recuperação de dados. O tratamento é baseado na execução de contrato
-                    (Termos de Uso).</p>
+                <h3>1. Princípios e Fundamentos (Arts. 2º e 6º)</h3>
+                <p>Nossas atividades de tratamento de dados são orientadas pela boa-fé e pelos princípios fundamentais da LGPD: <strong>finalidade</strong> (propósitos educacionais legítimos), <strong>adequação</strong>, <strong>necessidade</strong> (coleta mínima e proporcional), <strong>livre acesso</strong>, <strong>transparência</strong>, <strong>segurança</strong>, <strong>prevenção</strong> e <strong>responsabilização</strong>.</p>
 
-                <h3>3. Transferência Internacional</h3>
-                <p>Para viabilizar a sincronização em nuvem, seus dados podem ser processados e armazenados em
-                    servidores localizados fora do Brasil (infraestrutura Google), mantendo os padrões de segurança e
-                    privacidade exigidos pela LGPD.</p>
+                <h3>2. Agentes de Tratamento e Canal do Encarregado / DPO (Arts. 5º, 9º e 41)</h3>
+                <p>
+                    <strong>Controlador:</strong> MemoEnglish Plataforma de Aprendizado.<br>
+                    <strong>Encarregado pelo Tratamento de Dados Pessoais (DPO):</strong> Daniel Berg Fernandes.<br>
+                    <strong>Canal de Comunicação Direto do Titular (Art. 41, § 1º):</strong> <strong style="color: var(--primary);">systemmemoenglish@gmail.com</strong>.<br>
+                    O Encarregado atua como canal oficial de comunicação entre o controlador, os titulares de dados e a Autoridade Nacional de Proteção de Dados (ANPD).
+                </p>
 
-                <h3>4. Cookies e Armazenamento</h3>
-                <p>Utilizamos tecnologias de armazenamento local para manter sua sessão ativa e salvar suas
-                    preferências. Não utilizamos cookies de rastreamento de terceiros para fins publicitários.</p>
-
-                <h3>5. Seus Direitos (LGPD)</h3>
-                <p>Você possui total controle sobre seus dados conforme o Art. 18 da LGPD:</p>
+                <h3>3. Categorias de Dados Coletados e Minimização (Art. 5º e 6º, III)</h3>
+                <p>O MemoEnglish adota o princípio de <em>Privacy by Default</em> e coleta apenas o estritamente necessário para o aprendizado:</p>
                 <ul>
-                    <li><strong>Acesso e Portabilidade:</strong> Você pode exportar todos os seus dados a qualquer
-                        momento usando a função "Exportar Tudo" nas configurações.</li>
-                    <li><strong>Exclusão:</strong> Você pode apagar seus dados locais limpando o cache do navegador.
-                        Para apagar seus dados da nuvem, utilize o botão "Excluir Conta" nas configurações de
-                        sincronização.</li>
-                    <li><strong>Revogação de Consentimento:</strong> Você pode interromper a sincronização a qualquer
-                        momento saindo da sua conta.</li>
+                    <li><strong>Dados de Estudo (Locais):</strong> Listas de frases em inglês/português, nível de retenção (0 a 5), datas e intervalos de repetição espaçada (SRS), acertos e erros, pontuação de gamificação, troféus e badges. Estes dados são mantidos no armazenamento local (<em>localStorage</em>) do próprio dispositivo do usuário.</li>
+                    <li><strong>Dados de Cadastro de Sincronização (Opcionais):</strong> Nome de usuário e senha mascarada, estritamente quando o usuário opta voluntariamente por criar uma conta para sincronizar o progresso entre múltiplos aparelhos.</li>
+                    <li><strong>Dados Técnicos de Navegação:</strong> Informações de estado offline armazenadas pelo Service Worker para garantir o funcionamento ininterrupto da aplicação sem internet.</li>
+                    <li><strong>Não Coleta de Dados Sensíveis:</strong> Não coletamos raça, religião, posicionamento político, dados de saúde, vida sexual, biometria facial, dados de cartão de crédito ou quaisquer dados excessivos.</li>
                 </ul>
 
-                <h3>6. Menores de Idade</h3>
-                <p>O MemoEnglish é destinado a usuários com 13 anos ou mais. O uso por menores de idade deve ser
-                    supervisionado pelos pais ou responsáveis legais.</p>
+                <h3>4. Tratamento de Dados de Voz e Reconhecimento de Fala (Art. 11)</h3>
+                <p>
+                    Nos exercícios de fala e pronúncia (<em>Speak</em> e <em>Pronounce</em>), utilizamos a <em>Web Speech API</em> disponibilizada pelo navegador do usuário.
+                    <strong>Importante:</strong> Nenhum arquivo de áudio ou gravação da sua voz é arquivado ou gravado em servidores pelo MemoEnglish. A fala é processada em memória temporária para comparação de acerto fonético e imediatamente descartada após a geração do feedback pedagógico.
+                </p>
 
-                <h3>7. Segurança</h3>
-                <p>Implementamos medidas técnicas para proteger seus dados. Recomendamos o uso de senhas exclusivas para
-                    este serviço.</p>
+                <h3>5. Bases Legais para o Tratamento (Arts. 7º, 8º e 11)</h3>
+                <p>O tratamento de seus dados ampara-se nas seguintes hipóteses legais:</p>
+                <ul>
+                    <li><strong>Execução de Contrato e Procedimentos Preliminares (Art. 7º, V):</strong> Necessário para o fornecimento do serviço de aprendizado, cálculo de repetição espaçada e histórico de estudo requisitado pelo usuário.</li>
+                    <li><strong>Consentimento do Titular (Art. 7º, I e Art. 8º):</strong> Para o acesso ao microfone no treino de pronúncia e para a sincronização opcional com a nuvem, manifestado de forma livre, inequívoca e revogável.</li>
+                </ul>
 
-                <h3>8. Contato</h3>
-                <p>Para dúvidas sobre sua privacidade ou suporte técnico, entre em contato através do e-mail: <strong
-                        style="color: var(--primary);">systemmemoenglish@gmail.com</strong></p>
+                <h3>6. Compartilhamento de Dados com Terceiros e Transferência Internacional (Arts. 7º, § 5º, 18, VII e 33)</h3>
+                <p>O MemoEnglish <strong>não comercializa, não aluga e não compartilha</strong> dados com corretoras de dados ou redes de publicidade direcionada. O uso compartilhado restringe-se aos seguintes provedores técnicos:</p>
+                <ul>
+                    <li><strong>Google Apps Script / Cloud (Se ativado login):</strong> Hospedagem do banco de dados remoto da sincronização entre dispositivos, observando protocolos seguros TLS/HTTPS.</li>
+                    <li><strong>APIs Públicas de Linguística (Free Dictionary e MyMemory):</strong> Consultas de vocabulário e tradução fonética abertas, nas quais são transmitidas unicamente as palavras do idioma inglês pesquisadas, sem qualquer identificador pessoal do titular.</li>
+                </ul>
+
+                <h3>7. Armazenamento, Segurança e Retenção (Arts. 15, 16 e 46)</h3>
+                <p>
+                    Adotamos medidas técnicas e administrativas aptas a proteger seus dados contra acessos não autorizados ou destruição ilícita. Os dados locais permanecem no dispositivo enquanto o usuário desejar utilizá-los. Os dados de nuvem podem ser eliminados a qualquer momento mediante o exercício do Direito ao Esquecimento na Central de Privacidade.
+                </p>
+
+                <h3>8. Seus Direitos como Titular de Dados Pessoais (Arts. 17 a 22 da LGPD)</h3>
+                <p>Conforme o Art. 18 da LGPD, você pode exercer os seguintes direitos a qualquer momento, de forma facilitada e gratuita:</p>
+                <ol>
+                    <li><strong>Confirmação e Acesso (Art. 18, I e II):</strong> Acessar todos os seus dados em formato simplificado imediatamente ou em declaração completa (Art. 19, I e II).</li>
+                    <li><strong>Correção de Dados (Art. 18, III):</strong> Atualizar dados incompletos ou inexatos.</li>
+                    <li><strong>Anonimização ou Bloqueio (Art. 18, IV):</strong> Desvincular seu nome real transformando seu perfil em pseudônimo anônimo na Central de Privacidade.</li>
+                    <li><strong>Portabilidade (Art. 18, V):</strong> Exportar seus dados em formato aberto estruturado (JSON) para migração a outros sistemas.</li>
+                    <li><strong>Eliminação Total de Dados (Art. 18, VI):</strong> Apagar permanentemente todas as suas informações locais e da nuvem.</li>
+                    <li><strong>Informação sobre Compartilhamento (Art. 18, VII):</strong> Saber com quais entidades há integração técnica.</li>
+                    <li><strong>Informação sobre Negativa de Consentimento (Art. 18, VIII):</strong> Ser informado das consequências de não consentir com itens opcionais (ex: desativação do microfone desabilita apenas o modo fala).</li>
+                    <li><strong>Revogação do Consentimento (Art. 18, IX):</strong> Revogar permissões a qualquer momento de forma simples e imediata.</li>
+                    <li><strong>Revisão de Decisões Automatizadas (Art. 20):</strong> Obter informações claras sobre como o algoritmo SRS calcula seus intervalos e como a Liga Semanal simula oponentes didáticos.</li>
+                </ol>
+
+                <h3>9. Tratamento de Dados de Crianças e Adolescentes (Art. 14)</h3>
+                <p>O tratamento de dados de menores é realizado no seu melhor interesse (Art. 14, caput). Para crianças e adolescentes menores de 18 anos, exigimos o consentimento ou supervisão de ao menos um dos pais ou responsável legal, assegurando interface didática e segura.</p>
+
+                <h3>10. Canal de Atendimento e Peticionamento perante a ANPD (Art. 18, § 1º)</h3>
+                <p>Para exercer qualquer direito ou sanar dúvidas, utilize a Central de Privacidade nas Configurações ou escreva para: <strong style="color: var(--primary);">systemmemoenglish@gmail.com</strong>. Caso entenda que suas solicitações não foram devidamente solucionadas, você possui o direito de peticionar perante a <strong>Autoridade Nacional de Proteção de Dados (ANPD)</strong> em <em>gov.br/anpd</em>.</p>
             </div>
             <div style="margin-top: 32px; text-align: right;">
-                <button class="btn btn-primary" onclick="closeModal()">Entendido</button>
+                <button class="btn btn-primary" onclick="closeModal()">Entendido e Ciente</button>
+            </div>
+        </div>
+
+        <!-- LGPD Modal: Gestão de Preferências e Consentimentos (Art. 8º e 18, IX) -->
+        <div id="lgpdPreferencesModal" class="card modal-legal" style="width: 100%; max-width: 650px; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; font-size: 1.4rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    <span>⚙️</span> Gestão de Consentimento & Privacidade
+                </h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+            </div>
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 20px; line-height: 1.45;">
+                Controle individualmente as finalidades de tratamento de dados conforme a LGPD. Você pode alterar ou revogar estas escolhas a qualquer momento de forma gratuita.
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
+                <!-- 1. Armazenamento Local -->
+                <div style="background: var(--surface-hover); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: 700; color: var(--text); font-size: 0.95rem;">💾 Armazenamento Local de Frases e Progresso</div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                                Essencial para salvar suas listas de estudo e cálculos do algoritmo de repetição espaçada no navegador.
+                            </div>
+                        </div>
+                        <span style="font-size: 0.75rem; font-weight: 800; color: var(--primary); background: var(--primary-soft); padding: 4px 8px; border-radius: 6px;">OBRIGATÓRIO</span>
+                    </div>
+                </div>
+
+                <!-- 2. Microfone e Reconhecimento de Voz -->
+                <div style="background: var(--surface-hover); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 700; color: var(--text); font-size: 0.95rem;">🎙️ Reconhecimento de Voz e Microfone (Art. 11)</div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                                Permite o uso do microfone nos modos Falar e Pronúncia via navegador. A voz é processada em tempo real e não é arquivada.
+                            </div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="lgpdPrefVoiceInput">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 3. Sincronização em Nuvem -->
+                <div style="background: var(--surface-hover); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 700; color: var(--text); font-size: 0.95rem;">☁️ Sincronização em Nuvem (Google Apps Script)</div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                                Transfere suas listas e pontuação para um servidor seguro para restauração em múltiplos dispositivos.
+                            </div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" id="lgpdPrefCloudInput">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 4. Declaração Etária Art. 14 -->
+                <div style="background: rgba(99, 102, 241, 0.08); padding: 14px 16px; border-radius: var(--radius-md); border: 1px solid rgba(99, 102, 241, 0.25);">
+                    <div style="display: flex; align-items: flex-start; gap: 10px;">
+                        <input type="checkbox" id="lgpdPrefAgeInput" style="width: 20px; height: 20px; margin-top: 2px; cursor: pointer;">
+                        <label for="lgpdPrefAgeInput" style="font-size: 0.82rem; color: var(--text); cursor: pointer; line-height: 1.45;">
+                            <strong>Declaração Etária (Art. 14 da LGPD):</strong> Declaro ter 18 anos ou mais, ou possuir autorização expressa dos meus pais ou responsáveis legais para utilização desta ferramenta pedagógica.
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="revokeLGPDConsent()" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.3);">
+                    🚫 Revogar Todos os Opcionais
+                </button>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="saveLGPDPreferences()">Salvar Preferências</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- LGPD Modal: Relatório Instantâneo de Dados Pessoais (Art. 18, I e II; Art. 19, I) -->
+        <div id="lgpdDataReportModal" class="card modal-legal" style="width: 100%; max-width: 720px; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; font-size: 1.4rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    <span>📊</span> Relatório de Dados Pessoais do Titular
+                </h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+            </div>
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px;">
+                Consulta facilitada, imediata e gratuita aos dados pessoais tratados pelo sistema, em estrito atendimento ao Art. 18, incisos I e II e Art. 19, inciso I da Lei nº 13.709/2018.
+            </p>
+
+            <div id="lgpdReportContent" style="max-height: 400px; overflow-y: auto; padding-right: 4px;">
+                <!-- Preenchido dinamicamente por showLGPDDataReport() -->
+            </div>
+
+            <div style="margin-top: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <button type="button" class="btn btn-outline" onclick="showLGPDDeclaration()">
+                    📜 Ver Declaração Completa (Art. 19, II)
+                </button>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" class="btn btn-outline" onclick="exportLGPDPortability()">
+                        📦 Baixar Portabilidade (JSON)
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="closeModal()">Fechar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- LGPD Modal: Declaração Completa de Dados Pessoais (Art. 19, II) -->
+        <div id="lgpdDeclarationModal" class="card modal-legal" style="width: 100%; max-width: 800px; display: none;">
+            <div class="btn-print-hide" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; font-size: 1.4rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    <span>📜</span> Certidão de Tratamento de Dados Pessoais
+                </h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+            </div>
+
+            <div class="declaration-sheet" id="lgpdDeclarationSheet">
+                <div class="declaration-header">
+                    <h2 class="declaration-title">CERTIDÃO DE DADOS PESSOAIS DO TITULAR</h2>
+                    <p class="declaration-subtitle">Emitida nos termos do Art. 19, inciso II da Lei Federal nº 13.709/2018 (LGPD)</p>
+                    <p style="font-size: 0.75rem; color: #9ca3af; margin-top: 4px;" id="declEmissionTimestamp">Data de Emissão: --/--/----</p>
+                </div>
+
+                <div class="declaration-section">
+                    <div class="declaration-section-title">1. IDENTIFICAÇÃO DO TITULAR E DO CONTROLADOR</div>
+                    <div class="declaration-item">
+                        <span>Titular dos Dados:</span>
+                        <strong id="declUserNameDisplay">Não Identificado / Usuário Local</strong>
+                    </div>
+                    <div class="declaration-item">
+                        <span>Classificação do Titular:</span>
+                        <strong id="declUserStatusDisplay">Perfil Anônimo / Pseudonimizado</strong>
+                    </div>
+                    <div class="declaration-item">
+                        <span>Controlador:</span>
+                        <strong>MemoEnglish Plataforma de Aprendizado</strong>
+                    </div>
+                    <div class="declaration-item">
+                        <span>Encarregado pelo Tratamento (DPO):</span>
+                        <strong>systemmemoenglish@gmail.com (Art. 41)</strong>
+                    </div>
+                </div>
+
+                <div class="declaration-section">
+                    <div class="declaration-section-title">2. BASES LEGAIS E FINALIDADES ESPECÍFICAS</div>
+                    <div class="declaration-item">
+                        <span>Finalidade Primária:</span>
+                        <strong>Execução de treinamento em língua inglesa via Repetição Espaçada (SRS)</strong>
+                    </div>
+                    <div class="declaration-item">
+                        <span>Base Legal Principal:</span>
+                        <strong>Execução de Contrato de Aprendizado (Art. 7º, V da LGPD)</strong>
+                    </div>
+                    <div class="declaration-item">
+                        <span>Base Legal Secundária:</span>
+                        <strong>Consentimento para Microfone/Voz e Nuvem (Art. 7º, I e Art. 11, I)</strong>
+                    </div>
+                </div>
+
+                <div class="declaration-section">
+                    <div class="declaration-section-title">3. CRITÉRIOS DE RETENÇÃO E ARMAZENAMENTO</div>
+                    <div class="declaration-item">
+                        <span>Local de Guarda Primário:</span>
+                        <strong>Armazenamento Local no Dispositivo do Usuário (Navegador)</strong>
+                    </div>
+                    <div class="declaration-item">
+                        <span>Prazo de Retenção:</span>
+                        <strong>Até requisição de eliminação pelo titular ou limpeza do cache (Art. 15 e 16)</strong>
+                    </div>
+                    <div class="declaration-item">
+                        <span>Armazenamento de Voz:</span>
+                        <strong>Inexistente (Processamento estritamente transitório em memória)</strong>
+                    </div>
+                </div>
+
+                <div class="declaration-section">
+                    <div class="declaration-section-title">4. COMPROMISSO DE NÃO COMPARTILHAMENTO COMERCIAL</div>
+                    <p style="font-size: 0.85rem; color: #4b5563; margin: 0; line-height: 1.5;">
+                        Certifica-se formalmente que o MemoEnglish <strong>não comercializa, não cede e não compartilha</strong> dados do titular para fins publicitários ou com corretores de dados. Toda e qualquer integração técnica limita-se a serviços estritamente requeridos para o aprendizado do idioma.
+                    </p>
+                </div>
+
+                <div class="declaration-footer">
+                    <div>Documento digital autêntico gerado eletronicamente para fins de atendimento ao Art. 19 da LGPD.</div>
+                    <div>Canal oficial de atendimento a petições de privacidade: <strong>systemmemoenglish@gmail.com</strong></div>
+                </div>
+            </div>
+
+            <div class="btn-print-hide" style="margin-top: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <button type="button" class="btn btn-primary" onclick="printLGPDDeclaration()">
+                    🖨️ Imprimir / Salvar PDF
+                </button>
+                <button type="button" class="btn btn-outline" onclick="closeModal()">Fechar</button>
+            </div>
+        </div>
+
+        <!-- LGPD Modal: Uso Compartilhado e Terceiros (Art. 18, VII) -->
+        <div id="lgpdThirdPartyModal" class="card modal-legal" style="width: 100%; max-width: 750px; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; font-size: 1.4rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    <span>🤝</span> Uso Compartilhado e Terceiros (Art. 18, VII)
+                </h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+            </div>
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px;">
+                Relação ostensiva das entidades com as quais ocorrem operações estritamente técnicas e fundamentais para a prestação do serviço:
+            </p>
+
+            <table class="lgpd-table">
+                <thead>
+                    <tr>
+                        <th>Parceiro Técnico</th>
+                        <th>Finalidade Específica</th>
+                        <th>Dados Envolvidos</th>
+                        <th>Garantias & Segurança</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Google Apps Script</strong><br><span style="font-size: 0.75rem; color: var(--text-muted);">Serviço de Nuvem</span></td>
+                        <td>Sincronização opcional de backup entre dispositivos autorizados.</td>
+                        <td>Nome de usuário, senha mascarada e listas de frases.</td>
+                        <td>Criptografia em trânsito (HTTPS/TLS 1.3), acesso restrito por credenciais.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Web Speech API</strong><br><span style="font-size: 0.75rem; color: var(--text-muted);">Navegador Web</span></td>
+                        <td>Reconhecimento de pronúncia e reprodução de áudio TTS/STT.</td>
+                        <td>Áudio da frase falada (processamento em memória temporária).</td>
+                        <td>Nenhum arquivo gravado ou mantido em servidores pelo MemoEnglish.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Free Dictionary API</strong><br><span style="font-size: 0.75rem; color: var(--text-muted);">Linguística Aberta</span></td>
+                        <td>Consulta de transcrição fonética IPA e definições em inglês.</td>
+                        <td>Palavra em inglês consultada individualmente.</td>
+                        <td>Apenas texto linguístico sem qualquer identificador do usuário.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>MyMemory API</strong><br><span style="font-size: 0.75rem; color: var(--text-muted);">Tradução de Apoio</span></td>
+                        <td>Tradução automática de apoio para novas frases criadas.</td>
+                        <td>Frase em inglês a ser traduzida.</td>
+                        <td>Comunicação anônima por requisição HTTP sem dados cadastrais.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div style="margin-top: 24px; text-align: right;">
+                <button type="button" class="btn btn-primary" onclick="closeModal()">Entendido</button>
+            </div>
+        </div>
+
+        <!-- LGPD Modal: Decisões Automatizadas (Art. 20) -->
+        <div id="lgpdAutomatedDecisionsModal" class="card modal-legal" style="width: 100%; max-width: 680px; display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; font-size: 1.4rem; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                    <span>🤖</span> Transparência em Decisões Automatizadas (Art. 20)
+                </h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+            </div>
+            <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.5;">
+                O Art. 20 da LGPD confere ao titular o direito a informações claras sobre os critérios e procedimentos utilizados para decisões baseadas em tratamento automatizado de dados.
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 24px;">
+                <div style="background: var(--surface-hover); padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                    <div style="font-weight: 700; color: var(--primary); margin-bottom: 4px;">1. Algoritmo de Repetição Espaçada (SRS)</div>
+                    <div style="font-size: 0.84rem; color: var(--text); line-height: 1.45;">
+                        Os agendamentos das próximas revisões utilizam intervalos matemáticos baseados na Curva de Esquecimento de Ebbinghaus (0 min, 10 min, 1 hora, 4 horas, 1 dia, 2 dias, 4 dias, 7 dias, 14 dias, 30 dias). O algoritmo eleva ou reduz o nível exclusivamente com base no acerto ou erro técnico do exercício.
+                    </div>
+                </div>
+
+                <div style="background: var(--surface-hover); padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                    <div style="font-weight: 700; color: var(--primary); margin-bottom: 4px;">2. Cálculo de Fluência e Pontuação de XP</div>
+                    <div style="font-size: 0.84rem; color: var(--text); line-height: 1.45;">
+                        A pontuação global e os níveis de fluência são derivados do número de palavras aprendidas, comprimento de frases e precisão demonstrada nos 5 modos de habilidade (Quiz, Escrita, Escuta, Pronúncia e Fala).
+                    </div>
+                </div>
+
+                <div style="background: var(--surface-hover); padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                    <div style="font-weight: 700; color: var(--primary); margin-bottom: 4px;">3. Competidores da Liga Semanal (Bots Pedagógicos)</div>
+                    <div style="font-size: 0.84rem; color: var(--text); line-height: 1.45;">
+                        Para preservar a privacidade absoluta e não expor dados de alunos reais em tempo real, os colegas de turma na Liga Semanal são personas artificiais (bots) com pontuações simuladas com o objetivo estrito de engajar o estudo diário. Nenhuma informação de terceiros reais é tratada de forma automatizada.
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 24px; text-align: right;">
+                <button type="button" class="btn btn-primary" onclick="closeModal()">Ciente das Informações</button>
             </div>
         </div>
     </div>
+
+</div>
+
+<!-- BANNER FLUTUANTE DE CONSENTIMENTO LGPD (COOKIES & PRIVACIDADE) -->
+<div id="lgpdConsentBanner" class="lgpd-banner">
+    <div class="lgpd-banner-header">
+        <div class="lgpd-banner-title">
+            <span>🛡️</span> Sua Privacidade e Proteção de Dados (LGPD)
+        </div>
+        <button type="button" class="btn btn-outline btn-sm" onclick="acceptAllLGPDConsent()" style="border: none; font-size: 1.1rem; padding: 2px 6px;">✕</button>
+    </div>
+    <p class="lgpd-banner-text">
+        O <strong>MemoEnglish</strong> valoriza a sua privacidade. Utilizamos armazenamento local estritamente necessário para salvar suas listas, frases e progresso de estudo offline. O reconhecimento de voz é processado pelo navegador apenas durante seus exercícios de fala. Nenhum dado pessoal é vendido ou compartilhado para fins publicitários (Lei nº 13.709/2018).
+    </p>
+    <div class="lgpd-banner-actions">
+        <button type="button" class="btn btn-outline btn-sm" onclick="openModal('privacyModal')">
+            📜 Ler Política
+        </button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="openLGPDPreferencesModal()">
+            ⚙️ Personalizar
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="acceptAllLGPDConsent()" style="padding: 10px 18px; font-weight: 800;">
+            ✓ Concordar e Continuar
+        </button>
+    </div>
+</div>
 
 </div>
 
@@ -2093,8 +2528,8 @@
 <audio id="soundCorrect" src="https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3"></audio>
 <audio id="soundFinish" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"></audio>
 
-<script src="phonetics.js?v=5.3.0"></script>
-<script src="app.js?v=5.3.0"></script>
+<script src="phonetics.js?v=5.4.0"></script>
+<script src="app.js?v=5.4.0"></script>
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {

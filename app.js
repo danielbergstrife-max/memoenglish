@@ -1,4 +1,4 @@
-const APP_VERSION = '5.3.0';
+const APP_VERSION = '5.4.0';
 // ==================== PWA INSTALLATION ====================
 let deferredPrompt;
 
@@ -1483,6 +1483,421 @@ function renderMissionsUI() {
     updateMissionsCountdown();
 }
 
+// ==================== SUÍTE DE CONFORMIDADE LGPD (LEI Nº 13.709/2018) ====================
+
+function ensurePrivacyData() {
+    if (!appData) return;
+    if (!appData.privacy) {
+        appData.privacy = {
+            consentGiven: false,
+            consentDate: null,
+            consentVersion: '2024.1',
+            isMinor: false,
+            parentalConsent: false,
+            preferences: {
+                localStorage: true,
+                voiceRecognition: true,
+                cloudSync: false
+            },
+            isPseudonymized: false,
+            pseudonymId: null,
+            auditLog: []
+        };
+    }
+    if (!appData.privacy.preferences) {
+        appData.privacy.preferences = { localStorage: true, voiceRecognition: true, cloudSync: false };
+    }
+    if (!Array.isArray(appData.privacy.auditLog)) {
+        appData.privacy.auditLog = [];
+    }
+}
+
+function logPrivacyAudit(action, details = '') {
+    ensurePrivacyData();
+    const entry = {
+        action,
+        details,
+        timestamp: Date.now(),
+        dateStr: new Date().toISOString()
+    };
+    appData.privacy.auditLog.unshift(entry);
+    if (appData.privacy.auditLog.length > 50) {
+        appData.privacy.auditLog = appData.privacy.auditLog.slice(0, 50);
+    }
+    saveData(appData, { touch: false });
+}
+
+function checkLGPDConsent() {
+    ensurePrivacyData();
+    const banner = document.getElementById('lgpdConsentBanner');
+    if (!banner) return;
+    if (!appData.privacy.consentGiven) {
+        banner.style.display = 'flex';
+    } else {
+        banner.style.display = 'none';
+    }
+}
+
+function acceptAllLGPDConsent() {
+    ensurePrivacyData();
+    appData.privacy.consentGiven = true;
+    appData.privacy.consentDate = new Date().toISOString();
+    appData.privacy.consentVersion = '2024.1';
+    appData.privacy.preferences = {
+        localStorage: true,
+        voiceRecognition: true,
+        cloudSync: (appData.auth && appData.auth.isLoggedIn) ? true : false
+    };
+    logPrivacyAudit('consent_granted', 'Consentimento integral registrado via banner LGPD.');
+    saveData(appData);
+
+    const banner = document.getElementById('lgpdConsentBanner');
+    if (banner) banner.style.display = 'none';
+
+    renderLGPDCard();
+    if (typeof showMissionToast === 'function') {
+        showMissionToast("🛡️ Privacidade Protegida", "Consentimento registrado em conformidade com a LGPD.", "🛡️");
+    }
+}
+
+function openLGPDPreferencesModal() {
+    ensurePrivacyData();
+    const voiceInput = document.getElementById('lgpdPrefVoiceInput');
+    const cloudInput = document.getElementById('lgpdPrefCloudInput');
+    const ageInput = document.getElementById('lgpdPrefAgeInput');
+
+    if (voiceInput) voiceInput.checked = appData.privacy.preferences.voiceRecognition !== false;
+    if (cloudInput) cloudInput.checked = appData.privacy.preferences.cloudSync !== false;
+    if (ageInput) ageInput.checked = !appData.privacy.isMinor || appData.privacy.parentalConsent;
+
+    openModal('lgpdPreferencesModal');
+}
+
+function saveLGPDPreferences() {
+    ensurePrivacyData();
+    const voiceInput = document.getElementById('lgpdPrefVoiceInput');
+    const cloudInput = document.getElementById('lgpdPrefCloudInput');
+    const ageInput = document.getElementById('lgpdPrefAgeInput');
+
+    appData.privacy.consentGiven = true;
+    appData.privacy.consentDate = appData.privacy.consentDate || new Date().toISOString();
+    appData.privacy.preferences.voiceRecognition = voiceInput ? voiceInput.checked : true;
+    appData.privacy.preferences.cloudSync = cloudInput ? cloudInput.checked : false;
+
+    if (ageInput) {
+        appData.privacy.parentalConsent = ageInput.checked;
+        appData.privacy.isMinor = !ageInput.checked;
+    }
+
+    logPrivacyAudit('preferences_updated', `Preferências salvas: Voz=${appData.privacy.preferences.voiceRecognition}, Nuvem=${appData.privacy.preferences.cloudSync}`);
+    saveData(appData);
+    closeModal();
+
+    const banner = document.getElementById('lgpdConsentBanner');
+    if (banner) banner.style.display = 'none';
+
+    renderLGPDCard();
+    alert("Suas preferências de privacidade foram salvas com sucesso!", "Privacidade Atualizada", "🛡️");
+}
+
+function revokeLGPDConsent() {
+    confirm("Deseja realmente revogar os consentimentos opcionais (microfone e sincronização)? Seus dados locais de estudo continuarão preservados no seu aparelho.", () => {
+        ensurePrivacyData();
+        appData.privacy.preferences.voiceRecognition = false;
+        appData.privacy.preferences.cloudSync = false;
+        logPrivacyAudit('consent_revoked', 'Consentimentos opcionais revogados pelo titular (Art. 18, IX).');
+        saveData(appData);
+        closeModal();
+        renderLGPDCard();
+        alert("Consentimentos opcionais revogados com sucesso. Você pode reativá-los quando desejar.", "Consentimento Revogado", "🛡️");
+    });
+}
+
+function renderLGPDCard() {
+    ensurePrivacyData();
+    const statusBadge = document.getElementById('lgpdStatusBadge');
+    const identityDisplay = document.getElementById('lgpdUserIdentityDisplay');
+    const consentDateDisplay = document.getElementById('lgpdConsentDateDisplay');
+
+    if (statusBadge) {
+        if (!appData.privacy.consentGiven) {
+            statusBadge.className = 'lgpd-status-pill pending';
+            statusBadge.textContent = '⚠️ Consentimento Pendente';
+        } else if (appData.privacy.isPseudonymized) {
+            statusBadge.className = 'lgpd-status-pill pseudonymized';
+            statusBadge.textContent = '🎭 Perfil Pseudonimizado (Art. 13, §4º)';
+        } else {
+            statusBadge.className = 'lgpd-status-pill';
+            statusBadge.textContent = '🛡️ Conformidade Ativa (LGPD)';
+        }
+    }
+
+    if (identityDisplay) {
+        if (appData.privacy.isPseudonymized) {
+            identityDisplay.textContent = `Pseudônimo: ${appData.privacy.pseudonymId || 'Aluno_#Anônimo'}`;
+        } else if (appData.auth && appData.auth.isLoggedIn && appData.auth.username) {
+            identityDisplay.textContent = `Conta: ${escapeHTML(appData.auth.username)}`;
+        } else {
+            identityDisplay.textContent = 'Usuário Local Offline';
+        }
+    }
+
+    if (consentDateDisplay) {
+        if (appData.privacy.consentDate) {
+            const dt = new Date(appData.privacy.consentDate);
+            consentDateDisplay.textContent = `Consentimento: ${dt.toLocaleDateString('pt-BR')} ${dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+        } else {
+            consentDateDisplay.textContent = 'Consentimento: Não formalizado';
+        }
+    }
+}
+
+function showLGPDDataReport() {
+    ensurePrivacyData();
+    const content = document.getElementById('lgpdReportContent');
+    if (!content) return;
+
+    const totalPhrases = (appData.lists || []).reduce((acc, l) => acc + (l.phrases ? l.phrases.length : 0), 0);
+    const totalReviews = appData.totalReviews || 0;
+    const listsCount = (appData.lists || []).length;
+    const globalXP = typeof calculateTotalProgress === 'function' ? calculateTotalProgress(appData) : 0;
+    const storageApproxKB = (JSON.stringify(appData).length / 1024).toFixed(2);
+    const isLogged = appData.auth && appData.auth.isLoggedIn;
+    const userName = appData.privacy.isPseudonymized
+        ? (appData.privacy.pseudonymId || 'Aluno_#Pseudônimo')
+        : (isLogged ? appData.auth.username : 'Não identificado (Perfil Local)');
+
+    const auditItems = (appData.privacy.auditLog || []).slice(0, 5).map(log => {
+        const timeStr = log.timestamp ? new Date(log.timestamp).toLocaleString('pt-BR') : '';
+        return `
+            <div style="font-size: 0.78rem; padding: 6px 0; border-bottom: 1px dashed var(--border); display: flex; justify-content: space-between; gap: 8px;">
+                <span style="color: var(--text-muted);">${timeStr}</span>
+                <span style="font-weight: 700; color: var(--text);">${escapeHTML(log.action)}: ${escapeHTML(log.details)}</span>
+            </div>
+        `;
+    }).join('') || '<div style="font-size: 0.8rem; color: var(--text-muted); padding: 8px 0;">Nenhuma operação auditada até o momento.</div>';
+
+    content.innerHTML = `
+        <table class="lgpd-table">
+            <thead>
+                <tr>
+                    <th>Item de Dado Pessoal</th>
+                    <th>Valor Tratado pelo Sistema</th>
+                    <th>Classificação LGPD</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Identificador / Usuário</strong></td>
+                    <td><strong style="color: var(--primary);">${escapeHTML(userName)}</strong></td>
+                    <td>${appData.privacy.isPseudonymized ? 'Pseudonimizado (Art. 13, §4º)' : 'Dado Pessoal (Art. 5º, I)'}</td>
+                </tr>
+                <tr>
+                    <td><strong>Status de Sincronização</strong></td>
+                    <td>${isLogged ? '☁️ Sincronização em Nuvem Ativa' : '💾 Exclusivamente Local (Offline)'}</td>
+                    <td>Finalidade Contratual (Art. 7º, V)</td>
+                </tr>
+                <tr>
+                    <td><strong>Listas de Estudo</strong></td>
+                    <td>${listsCount} listas personalizadas</td>
+                    <td>Conteúdo Pedagógico</td>
+                </tr>
+                <tr>
+                    <td><strong>Frases Cadastradas</strong></td>
+                    <td>${totalPhrases} frases em inglês/português</td>
+                    <td>Conteúdo Pedagógico</td>
+                </tr>
+                <tr>
+                    <td><strong>Total de Revisões</strong></td>
+                    <td>${totalReviews} avaliações realizadas</td>
+                    <td>Métrica de Aprendizado</td>
+                </tr>
+                <tr>
+                    <td><strong>Pontuação Global</strong></td>
+                    <td>${globalXP.toLocaleString('pt-BR')} XP acumulados</td>
+                    <td>Progresso e Gamificação</td>
+                </tr>
+                <tr>
+                    <td><strong>Liga Semanal</strong></td>
+                    <td>Divisão: ${(appData.league && appData.league.tier) || 'Bronze'} (${(appData.league && appData.league.userXP) || 0} XP)</td>
+                    <td>Métrica Educacional</td>
+                </tr>
+                <tr>
+                    <td><strong>Gravações de Voz / Microfone</strong></td>
+                    <td><span style="color: var(--success); font-weight: 700;">Zero arquivos retidos</span> (Processamento temporário)</td>
+                    <td>Dado Biométrico / Voz (Art. 11)</td>
+                </tr>
+                <tr>
+                    <td><strong>Espaço Local Ocupado</strong></td>
+                    <td>Aproximadamente ${storageApproxKB} KB no navegador</td>
+                    <td>Armazenamento Local (HTML5)</td>
+                </tr>
+                <tr>
+                    <td><strong>Data do Consentimento</strong></td>
+                    <td>${appData.privacy.consentDate ? new Date(appData.privacy.consentDate).toLocaleString('pt-BR') : 'Pendente'}</td>
+                    <td>Registro de Consentimento (Art. 8º)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div style="margin-top: 16px;">
+            <div style="font-weight: 800; font-size: 0.82rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">
+                📋 Últimos Registros da Trilha de Auditoria (Art. 37 & 50)
+            </div>
+            <div style="background: var(--surface-hover); padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+                ${auditItems}
+            </div>
+        </div>
+    `;
+
+    logPrivacyAudit('data_consulted', 'Relatório de dados pessoais emitido pelo titular (Art. 18, I e II).');
+    openModal('lgpdDataReportModal');
+}
+
+function showLGPDDeclaration() {
+    ensurePrivacyData();
+    const declUser = document.getElementById('declUserNameDisplay');
+    const declStatus = document.getElementById('declUserStatusDisplay');
+    const declTimestamp = document.getElementById('declEmissionTimestamp');
+
+    const isLogged = appData.auth && appData.auth.isLoggedIn;
+    const userName = appData.privacy.isPseudonymized
+        ? (appData.privacy.pseudonymId || 'Aluno_#Anônimo')
+        : (isLogged ? appData.auth.username : 'Usuário Local Não Identificado');
+
+    if (declUser) declUser.textContent = userName;
+    if (declStatus) {
+        declStatus.textContent = appData.privacy.isPseudonymized
+            ? 'Perfil Anonimizado / Pseudonimizado (Art. 13, §4º)'
+            : (isLogged ? 'Perfil Registrado e Identificado' : 'Usuário Não Identificado (Armazenamento Local)');
+    }
+    if (declTimestamp) {
+        const now = new Date();
+        declTimestamp.textContent = `Data e Hora de Emissão: ${now.toLocaleDateString('pt-BR')} às ${now.toLocaleTimeString('pt-BR')}`;
+    }
+
+    logPrivacyAudit('declaration_viewed', 'Certidão e declaração completa gerada conforme Art. 19, II.');
+    openModal('lgpdDeclarationModal');
+}
+
+function printLGPDDeclaration() {
+    logPrivacyAudit('declaration_printed', 'Certidão impressa/exportada em documento pelo titular.');
+    window.print();
+}
+
+function exportLGPDPortability() {
+    ensurePrivacyData();
+    logPrivacyAudit('portability_exported', 'Portabilidade completa dos dados exportada em formato JSON aberto (Art. 18, V).');
+
+    const totalPhrases = (appData.lists || []).reduce((acc, l) => acc + (l.phrases ? l.phrases.length : 0), 0);
+    const portabilityManifest = {
+        _manifesto_lgpd: {
+            legislacao: "Lei Geral de Proteção de Dados Pessoais (Lei Federal nº 13.709/2018)",
+            artigo: "Artigo 18, Inciso V (Direito à Portabilidade dos Dados)",
+            data_extracao: new Date().toISOString(),
+            versao_sistema: APP_VERSION,
+            controlador: "MemoEnglish Plataforma de Aprendizado",
+            encarregado_dpo: "systemmemoenglish@gmail.com",
+            finalidade: "Portabilidade integral dos dados pessoais para interoperabilidade entre fornecedores de serviços educacionais",
+            formato: "application/json (Formato aberto e interoperável)"
+        },
+        titular: {
+            identificador: appData.privacy.isPseudonymized ? appData.privacy.pseudonymId : (appData.auth?.username || "usuario_local"),
+            status_identificacao: appData.privacy.isPseudonymized ? "pseudonimizado" : (appData.auth?.isLoggedIn ? "identificado" : "local"),
+            consentimento_registrado: appData.privacy.consentDate,
+            versao_consentimento: appData.privacy.consentVersion,
+            preferencias_privacidade: appData.privacy.preferences
+        },
+        estatisticas: {
+            total_listas: (appData.lists || []).length,
+            total_frases: totalPhrases,
+            total_revisoes: appData.totalReviews || 0,
+            xp_global: typeof calculateTotalProgress === 'function' ? calculateTotalProgress(appData) : 0,
+            sequencia_dias: appData.streak || 0
+        },
+        dados_completos: appData
+    };
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(portabilityManifest, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `memoenglish-portabilidade-lgpd-${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+
+    if (typeof showMissionToast === 'function') {
+        showMissionToast("📦 Portabilidade LGPD", "Arquivo oficial JSON exportado com sucesso!", "📦");
+    }
+}
+
+function anonymizeLGPDProfile() {
+    ensurePrivacyData();
+    confirm("Deseja anonimizar seu perfil? Seu nome real e usuário serão substituídos por um pseudônimo aleatório (ex: Aluno_#7492) em todas as métricas e na Liga Semanal, mantendo todas as suas frases e progresso intactos. (Art. 18, IV da LGPD)", () => {
+        const randomNum = Math.floor(1000 + Math.random() * 9000);
+        const pseudonym = `Aluno_#${randomNum}`;
+
+        appData.privacy.isPseudonymized = true;
+        appData.privacy.pseudonymId = pseudonym;
+
+        if (appData.auth && appData.auth.username) {
+            appData.auth.username = pseudonym;
+        }
+
+        logPrivacyAudit('profile_anonymized', `Perfil anonimizado com o pseudônimo ${pseudonym} (Art. 18, IV).`);
+        saveData(appData);
+
+        renderLGPDCard();
+        renderLeagueCardHome();
+        if (typeof renderLeague === 'function') renderLeague();
+
+        alert(`Seu perfil foi anonimizado com sucesso! Seu novo identificador público é ${pseudonym}. Seus dados de estudo continuam preservados.`, "Perfil Anonimizado", "🎭");
+    });
+}
+
+async function deleteAccountTotalLGPD() {
+    ensurePrivacyData();
+    confirm("🚨 DIREITO AO ESQUECIMENTO (Art. 18, VI da LGPD):\n\nEsta ação apagará DEFINITIVAMENTE todos os seus dados pessoais, listas de frases, histórico de revisões e conta na nuvem (se existente). Esta operação é IRREVERSÍVEL. Deseja realmente prosseguir com a eliminação total?", async () => {
+        confirm("CONFIRMAÇÃO FINAL: Tem certeza absoluta? Todos os seus dados serão eliminados agora.", async () => {
+            logPrivacyAudit('total_elimination_requested', 'Eliminação total de dados e revogação de consentimento executada pelo titular.');
+
+            if (appData.auth && appData.auth.isLoggedIn && appData.auth.username) {
+                try {
+                    await callGas({
+                        action: 'delete',
+                        username: appData.auth.username,
+                        password: appData.auth.password
+                    });
+                } catch (e) {
+                    console.warn("Falha ao comunicar exclusão remota:", e);
+                }
+            }
+
+            localStorage.clear();
+
+            if ('caches' in window) {
+                try {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(k => caches.delete(k)));
+                } catch (e) {}
+            }
+
+            alert("Todos os seus dados foram definitivamente eliminados do sistema em cumprimento ao Art. 18, inciso VI da LGPD. A página será recarregada.", "Dados Eliminados", "🗑️");
+            window.location.reload();
+        });
+    });
+}
+
+function showLGPDThirdPartyInfo() {
+    logPrivacyAudit('third_party_info_viewed', 'Tabela de uso compartilhado com terceiros consultada (Art. 18, VII).');
+    openModal('lgpdThirdPartyModal');
+}
+
+function showLGPDAutomatedDecisionsInfo() {
+    logPrivacyAudit('automated_decisions_viewed', 'Critérios de decisões automatizadas consultados (Art. 20).');
+    openModal('lgpdAutomatedDecisionsModal');
+}
+
 function getDefaultData() {
     return {
         lists: [],
@@ -1537,6 +1952,21 @@ function getDefaultData() {
         },
         syncSettings: {
             gasUrl: ""
+        },
+        privacy: {
+            consentGiven: false,
+            consentDate: null,
+            consentVersion: '2024.1',
+            isMinor: false,
+            parentalConsent: false,
+            preferences: {
+                localStorage: true,
+                voiceRecognition: true,
+                cloudSync: false
+            },
+            isPseudonymized: false,
+            pseudonymId: null,
+            auditLog: []
         },
         lastUpdated: 0
     };
@@ -1698,6 +2128,33 @@ function migrateData(data) {
     if (!data.activeXPBoost) {
         data.activeXPBoost = { multiplier: 1.0, type: null, expiresAt: null };
         modified = true;
+    }
+    if (!data.privacy) {
+        data.privacy = {
+            consentGiven: false,
+            consentDate: null,
+            consentVersion: '2024.1',
+            isMinor: false,
+            parentalConsent: false,
+            preferences: {
+                localStorage: true,
+                voiceRecognition: true,
+                cloudSync: false
+            },
+            isPseudonymized: false,
+            pseudonymId: null,
+            auditLog: []
+        };
+        modified = true;
+    } else {
+        if (!data.privacy.preferences) {
+            data.privacy.preferences = { localStorage: true, voiceRecognition: true, cloudSync: false };
+            modified = true;
+        }
+        if (!Array.isArray(data.privacy.auditLog)) {
+            data.privacy.auditLog = [];
+            modified = true;
+        }
     }
     // Limpeza de caches vazios ou invlidos para forar nova busca
     if (data.definitionCache) {
@@ -2346,6 +2803,29 @@ function mergeAppData(local, remote) {
         merged.missions = local.missions || remote.missions || initMissionsData();
     }
 
+    // Mescla dados de privacidade e consentimento LGPD
+    const localPriv = local.privacy || {};
+    const remotePriv = remote.privacy || {};
+    const localConsentTime = localPriv.consentDate ? new Date(localPriv.consentDate).getTime() : 0;
+    const remoteConsentTime = remotePriv.consentDate ? new Date(remotePriv.consentDate).getTime() : 0;
+    const basePriv = (remoteConsentTime >= localConsentTime) ? remotePriv : localPriv;
+
+    merged.privacy = {
+        consentGiven: localPriv.consentGiven || remotePriv.consentGiven || false,
+        consentDate: basePriv.consentDate || localPriv.consentDate || remotePriv.consentDate || null,
+        consentVersion: basePriv.consentVersion || '2024.1',
+        isMinor: !!basePriv.isMinor,
+        parentalConsent: !!basePriv.parentalConsent,
+        preferences: {
+            localStorage: true,
+            voiceRecognition: basePriv.preferences ? basePriv.preferences.voiceRecognition !== false : true,
+            cloudSync: basePriv.preferences ? !!basePriv.preferences.cloudSync : (!!merged.auth && merged.auth.isLoggedIn)
+        },
+        isPseudonymized: !!basePriv.isPseudonymized,
+        pseudonymId: basePriv.pseudonymId || null,
+        auditLog: Array.from(new Set([...(localPriv.auditLog || []), ...(remotePriv.auditLog || [])].map(item => JSON.stringify(item)))).map(s => JSON.parse(s))
+    };
+
     merged.lastUpdated = Math.max(remote.lastUpdated || 0, local.lastUpdated || 0, Date.now());
     return merged;
 }
@@ -2361,6 +2841,7 @@ function refreshMainUI() {
     if (typeof renderFluencyPyramid === 'function') renderFluencyPyramid();
     if (typeof renderBadgesUI === 'function') renderBadgesUI();
     if (typeof renderMissionsUI === 'function') renderMissionsUI();
+    if (typeof renderLGPDCard === 'function') renderLGPDCard();
 }
 
 let isSyncInProgress = false;
@@ -2719,6 +3200,11 @@ async function handleLoginSubmit(mode) {
                 appData.auth.username = user;
                 appData.auth.password = pass;
                 appData.auth.lastSync = Date.now();
+                ensurePrivacyData();
+                appData.privacy.consentGiven = true;
+                appData.privacy.consentDate = new Date().toISOString();
+                appData.privacy.preferences.cloudSync = true;
+                logPrivacyAudit('account_created', `Conta de sincronização criada com sucesso para usuário: ${user}`);
                 saveData(appData);
 
                 // Envia os dados locais iniciais para a nuvem
@@ -2789,10 +3275,16 @@ async function handleLoginSubmit(mode) {
                 }
 
                 appData.auth = authInfo;
+                ensurePrivacyData();
+                if (appData.privacy && appData.privacy.preferences) {
+                    appData.privacy.preferences.cloudSync = true;
+                }
+                logPrivacyAudit('login', `Autenticação de usuário na nuvem realizada com sucesso (${user}).`);
                 appData = migrateData(appData);
                 saveData(appData, { touch: false });
                 cloudCheckedThisSession = true;
                 refreshMainUI();
+                renderLGPDCard();
 
                 // Atualiza a nuvem somente se os dados locais forem os mais recentes (ou a nuvem estiver vazia)
                 if (!remotePayload || !remotePayload.lists || remotePayload.lists.length === 0 || compareCloudFreshness(appData, remotePayload) === 'local') {
@@ -2834,22 +3326,25 @@ async function handleLoginSubmit(mode) {
 }
 
 function handleLogout() {
+    const doLogout = () => {
+        appData.auth.isLoggedIn = false;
+        appData.auth.username = "";
+        appData.auth.password = "";
+        if (appData.privacy && appData.privacy.preferences) {
+            appData.privacy.preferences.cloudSync = false;
+        }
+        logPrivacyAudit('logout', 'Sessão na nuvem encerrada pelo titular.');
+        saveData(appData);
+        renderSyncStatus();
+        renderLGPDCard();
+    };
+
     if (window.confirm) {
-        window.confirm("Deseja realmente sair? Os dados locais permanecerão, mas a sincronização será desativada.", () => {
-            appData.auth.isLoggedIn = false;
-            appData.auth.username = "";
-            appData.auth.password = "";
-            saveData(appData);
-            renderSyncStatus();
-        });
+        window.confirm("Deseja realmente sair? Os dados locais permanecerão, mas a sincronização será desativada.", doLogout);
     } else {
         // Fallback for native confirm if custom one fails to load
         if (confirm("Deseja realmente sair?")) {
-            appData.auth.isLoggedIn = false;
-            appData.auth.username = "";
-            appData.auth.password = "";
-            saveData(appData);
-            renderSyncStatus();
+            doLogout();
         }
     }
 }
@@ -2870,8 +3365,13 @@ async function deleteAccountCloud() {
                 appData.auth.isLoggedIn = false;
                 appData.auth.username = "";
                 appData.auth.password = "";
+                if (appData.privacy && appData.privacy.preferences) {
+                    appData.privacy.preferences.cloudSync = false;
+                }
+                logPrivacyAudit('cloud_account_deleted', 'Dados e conta em nuvem excluídos permanentemente pelo titular (Art. 18, VI da LGPD).');
                 saveData(appData);
                 renderSyncStatus();
+                renderLGPDCard();
                 alert("Sua conta e dados na nuvem foram excluídos com sucesso.", "Conta Excluída", "🗑️");
             } else {
                 alert("Erro ao excluir conta: " + (res.error || "Servidor não respondeu adequadamente."), "Erro");
@@ -2977,6 +3477,7 @@ function showView(viewId) {
     if (viewId === 'settingsView') {
         populateSettings();
         updateStorageUsage();
+        if (typeof renderLGPDCard === 'function') renderLGPDCard();
     }
 }
 
@@ -10032,6 +10533,8 @@ async function initializeApp() {
             renderStats();
             renderLeagueCardHome();
             if (typeof renderMissionsUI === 'function') renderMissionsUI();
+            if (typeof renderLGPDCard === 'function') renderLGPDCard();
+            if (typeof checkLGPDConsent === 'function') checkLGPDConsent();
             startCountdownInterval();
         } catch (uiErr) {
             console.error("Erro ao inicializar stats na UI:", uiErr);
